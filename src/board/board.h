@@ -52,7 +52,14 @@
  */
 #define BOARD_RS485_PORT_COUNT  4
 
-/* --- Port 1 --- TODO(dump) */
+/* TX/RX pins below are CONFIRMED from live GPIO AF registers on the stock
+ * firmware; the 4 ports map to logical UART1-4 (AT responses "+OK=UART1..4")
+ * = peripherals USART1/USART2/USART3/UART4. DE pins are still TODO(ghidra) —
+ * the firmware's board-config table hasn't been decoded yet; the DE values
+ * here are PLACEHOLDERS picked from the 14 spare GPIO outputs and are NOT
+ * confirmed. Port ordering (which connector is #1) is also tentative. */
+
+/* --- Port 1 = USART1 (TX/RX confirmed) --- */
 #define RS485_1_UART            USART1
 #define RS485_1_UART_CLK_EN()   __HAL_RCC_USART1_CLK_ENABLE()
 #define RS485_1_TX_PORT         GPIOA
@@ -60,40 +67,40 @@
 #define RS485_1_RX_PORT         GPIOA
 #define RS485_1_RX_PIN          GPIO_PIN_10
 #define RS485_1_AF              GPIO_AF7_USART1
-#define RS485_1_DE_PORT         GPIOA
-#define RS485_1_DE_PIN          GPIO_PIN_8
+#define RS485_1_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_1_DE_PIN          GPIO_PIN_3
 
-/* --- Port 2 --- TODO(dump) */
-#define RS485_2_UART            USART3
-#define RS485_2_UART_CLK_EN()   __HAL_RCC_USART3_CLK_ENABLE()
+/* --- Port 2 = USART2 (TX/RX confirmed) --- */
+#define RS485_2_UART            USART2
+#define RS485_2_UART_CLK_EN()   __HAL_RCC_USART2_CLK_ENABLE()
 #define RS485_2_TX_PORT         GPIOD
-#define RS485_2_TX_PIN          GPIO_PIN_8
+#define RS485_2_TX_PIN          GPIO_PIN_5
 #define RS485_2_RX_PORT         GPIOD
-#define RS485_2_RX_PIN          GPIO_PIN_9
-#define RS485_2_AF              GPIO_AF7_USART3
-#define RS485_2_DE_PORT         GPIOD
-#define RS485_2_DE_PIN          GPIO_PIN_10
+#define RS485_2_RX_PIN          GPIO_PIN_6
+#define RS485_2_AF              GPIO_AF7_USART2
+#define RS485_2_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_2_DE_PIN          GPIO_PIN_4
 
-/* --- Port 3 --- TODO(dump) */
-#define RS485_3_UART            UART4
-#define RS485_3_UART_CLK_EN()   __HAL_RCC_UART4_CLK_ENABLE()
-#define RS485_3_TX_PORT         GPIOC
-#define RS485_3_TX_PIN          GPIO_PIN_10
-#define RS485_3_RX_PORT         GPIOC
-#define RS485_3_RX_PIN          GPIO_PIN_11
-#define RS485_3_AF              GPIO_AF8_UART4
-#define RS485_3_DE_PORT         GPIOA
-#define RS485_3_DE_PIN          GPIO_PIN_15
+/* --- Port 3 = USART3 (TX/RX confirmed) --- */
+#define RS485_3_UART            USART3
+#define RS485_3_UART_CLK_EN()   __HAL_RCC_USART3_CLK_ENABLE()
+#define RS485_3_TX_PORT         GPIOD
+#define RS485_3_TX_PIN          GPIO_PIN_8
+#define RS485_3_RX_PORT         GPIOD
+#define RS485_3_RX_PIN          GPIO_PIN_9
+#define RS485_3_AF              GPIO_AF7_USART3
+#define RS485_3_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_3_DE_PIN          GPIO_PIN_5
 
-/* --- Port 4 --- TODO(dump) */
-#define RS485_4_UART            USART6
-#define RS485_4_UART_CLK_EN()   __HAL_RCC_USART6_CLK_ENABLE()
-#define RS485_4_TX_PORT         GPIOG
-#define RS485_4_TX_PIN          GPIO_PIN_14
-#define RS485_4_RX_PORT         GPIOG
-#define RS485_4_RX_PIN          GPIO_PIN_9
-#define RS485_4_AF              GPIO_AF7_USART6
-#define RS485_4_DE_PORT         GPIOG
+/* --- Port 4 = UART4 (TX/RX confirmed) --- */
+#define RS485_4_UART            UART4
+#define RS485_4_UART_CLK_EN()   __HAL_RCC_UART4_CLK_ENABLE()
+#define RS485_4_TX_PORT         GPIOD
+#define RS485_4_TX_PIN          GPIO_PIN_1
+#define RS485_4_RX_PORT         GPIOD
+#define RS485_4_RX_PIN          GPIO_PIN_0
+#define RS485_4_AF              GPIO_AF8_UART4
+#define RS485_4_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
 #define RS485_4_DE_PIN          GPIO_PIN_12
 
 /* Default serial parameters for each RS485 port (changeable at runtime). */
@@ -108,20 +115,24 @@
  * are the STANDARD RMII mapping on AF11; TODO(dump) to confirm against the
  * real routing, and set the PHY address + model once identified.
  */
-/* PHY: IC Plus IP101GRI (RMII). It is a standard IEEE-802.3 PHY, so the
- * generic/LAN8742-style HAL+LwIP driver drives it via MDIO. The address is
- * set by strap pins; IP101G commonly defaults to 0x01. TODO(dump): confirm
- * (or MDIO-scan once Ethernet is up). */
-#define BOARD_ETH_PHY_ADDRESS   0x01          /* TODO(dump): strap-set, verify */
+/* PHY: IC Plus IP101GRI (RMII). Standard IEEE-802.3 PHY → generic/LAN8742-style
+ * HAL+LwIP driver via MDIO. Address is strap-set (IP101G default 0x01).
+ * TODO: confirm by MDIO-scan once Ethernet is up. */
+#define BOARD_ETH_PHY_ADDRESS   0x01          /* TODO: verify via MDIO scan */
 
-/* TODO(dump): PHY hardware-reset GPIO, if one is wired. Uncomment + set when
- * known (left out of the build until then so it can't be used half-defined).
+/* TODO: PHY hardware-reset GPIO not yet identified among the spare outputs.
  * #define BOARD_ETH_PHY_RST_PORT  GPIOx
  * #define BOARD_ETH_PHY_RST_PIN   GPIO_PIN_x
  */
 
-/* RMII signal pins (AF11). TODO(dump): confirm each against the routing.
- * Standard STM32 RMII: REF_CLK=PA1, MDIO=PA2, CRS_DV=PA7, MDC=PC1,
- * RXD0=PC4, RXD1=PC5, TX_EN=PG11, TXD0=PG13, TXD1=PG12. */
+/* RMII signal pins — CONFIRMED from live GPIO registers on the stock firmware
+ * (all AF11, GPIOA/B/C only):
+ *   REF_CLK = PA1    TX_EN = PB11
+ *   CRS_DV  = PA7    TXD0  = PB12
+ *   RXD0    = PC4    TXD1  = PB13
+ *   RXD1    = PC5    MDIO  = PA2  (SMI, driven as GPIO/AF by firmware)
+ *                    MDC   = PC1  (SMI)
+ * These are the exact pins the vendor firmware uses; HAL ETH GPIO init
+ * (milestone 3) will configure precisely these.                          */
 
 #endif /* BOARD_H */
