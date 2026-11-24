@@ -15,10 +15,11 @@ still have to recover. The authoritative, machine-readable pin map is
 | Ref | Part | Role |
 |---|---|---|
 | MCU | **STM32H750VBT6**, LQFP100, Cortex-M7 | main processor, run @ 400 MHz |
-| U? | **GigaDevice GD25Q16** (25Q16ESIG), SOIC-8 | 2 MB SPI NOR — external app flash |
-| U? | second **GD** SOIC-8 (marking blurred) | likely more SPI/QSPI storage |
-| Y? | 25.000 MHz crystal (×2 seen) | HSE + (PHY?) reference |
-| PHY | **not yet located** | external 10/100 Ethernet PHY (needs whole-board photo) |
+| Flash ×2 | **2× GigaDevice GD25Q16** (25Q16ESIG), SOIC-8 | 2 MB each = **4 MB** external SPI NOR (matches datasheet "128K+4M"). Likely code (QSPI XIP) + data/web, or QUADSPI dual-flash. |
+| PHY | **IC Plus IP101GRI**, QFN | 10/100 **RMII Ethernet PHY** |
+| Magnetics | **OUYCORE FC1680C** | 10/100 LAN transformer (PHY ↔ RJ45) |
+| RS485 ×4 | **TI SN65HVD75**, SOIC-8 | 3.3 V half-duplex RS485 transceiver (DE pin3 / RE̅ pin2) |
+| Xtal ×2 | 25.000 MHz | one = MCU HSE; one = IP101GRI reference (PHY makes 50 MHz RMII clock internally) |
 
 Internal flash is only 128 KB — the stock app lives in external flash and is
 loaded by a small internal bootloader. See ROADMAP M0.
@@ -56,8 +57,9 @@ Everything below is a **placeholder guess** until the dump + continuity test.
 | RS485 #3 | UART4 TX/RX/DE | PC10 / PC11 / PA15 | ❌ |
 | RS485 #4 | USART6 TX/RX/DE | PG14 / PG9 / PG12 | ❌ |
 | Ethernet | RMII (AF11) | standard RMII pins | ❌ |
-| Eth PHY addr | SMI | 0x00 | ❌ |
-| Eth PHY model | — | LAN8720? RTL8201? DP83848? | ❌ |
+| Eth PHY addr | MDIO | 0x01 (strap default) | ❌ |
+| Eth PHY model | — | **IC Plus IP101GRI** | ✅ |
+| RS485 xcvr | — | **TI SN65HVD75** ×4 | ✅ |
 
 ### How we'll recover it
 1. **Firmware dump** (SWD internal + CH341A external) → disassemble / inspect

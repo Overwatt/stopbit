@@ -14,9 +14,10 @@
  * Known-good facts (from the chip markings and the pusr.com datasheet):
  *   - MCU:   STM32H750VBT6, LQFP100 package, Cortex-M7
  *   - HSE:   25 MHz crystal (visible on the board, marked "25.0")
- *   - Flash: 128 KB internal + external QSPI NOR (GigaDevice GD25Q16 = 2 MB,
- *            plus a second GD SOIC-8 chip)
- *   - 4x RS485 ports, 1x 10/100 Ethernet (external PHY, model TBD)
+ *   - Flash: 128 KB internal + 4 MB external (2x GigaDevice GD25Q16, 2 MB each)
+ *   - 4x RS485 ports via TI SN65HVD75 transceivers (DE pin3, RE# pin2)
+ *   - 1x 10/100 Ethernet: IC Plus IP101GRI RMII PHY + OUYCORE FC1680C magnetics
+ *     (the PHY makes the 50 MHz RMII ref-clock from its own 25 MHz crystal)
  * ===========================================================================
  */
 #ifndef BOARD_H
@@ -107,13 +108,20 @@
  * are the STANDARD RMII mapping on AF11; TODO(dump) to confirm against the
  * real routing, and set the PHY address + model once identified.
  */
-#define BOARD_ETH_PHY_ADDRESS   0x00          /* TODO(dump): often 0 or 1 */
-/* TODO(dump): PHY reset line, if any */
-#define BOARD_ETH_PHY_RST_PORT  GPIOx_TBD
-#define BOARD_ETH_PHY_RST_PIN   0
+/* PHY: IC Plus IP101GRI (RMII). It is a standard IEEE-802.3 PHY, so the
+ * generic/LAN8742-style HAL+LwIP driver drives it via MDIO. The address is
+ * set by strap pins; IP101G commonly defaults to 0x01. TODO(dump): confirm
+ * (or MDIO-scan once Ethernet is up). */
+#define BOARD_ETH_PHY_ADDRESS   0x01          /* TODO(dump): strap-set, verify */
 
-/* RMII signal pins (AF11). TODO(dump): confirm each. */
-/* REF_CLK=PA1, MDIO=PA2, CRS_DV=PA7, MDC=PC1, RXD0=PC4, RXD1=PC5,
- * TX_EN=PG11, TXD0=PG13, TXD1=PG12 — standard, to be verified.          */
+/* TODO(dump): PHY hardware-reset GPIO, if one is wired. Uncomment + set when
+ * known (left out of the build until then so it can't be used half-defined).
+ * #define BOARD_ETH_PHY_RST_PORT  GPIOx
+ * #define BOARD_ETH_PHY_RST_PIN   GPIO_PIN_x
+ */
+
+/* RMII signal pins (AF11). TODO(dump): confirm each against the routing.
+ * Standard STM32 RMII: REF_CLK=PA1, MDIO=PA2, CRS_DV=PA7, MDC=PC1,
+ * RXD0=PC4, RXD1=PC5, TX_EN=PG11, TXD0=PG13, TXD1=PG12. */
 
 #endif /* BOARD_H */
