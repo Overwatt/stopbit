@@ -1,0 +1,28 @@
+# Local isolated cross-toolchain (large; not committed)
+/toolchain/
+
+# Build output
+/build/
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+
+# Fetched dependencies (vendored via CMake FetchContent)
+/_deps/
+
+# Firmware dumps / backups from the bench (kept out of git; store elsewhere)
+/dumps/
+*.dump
+
+# Vendor PC tools downloaded for reference (not part of the firmware source)
+*.exe
+*.rar
+
+# Editor / OS
+.DS_Store
+.vscode/
+compile_commands.json
