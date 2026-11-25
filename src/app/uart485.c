@@ -163,7 +163,11 @@ size_t uart485_read(int p, uint8_t *buf, size_t n)
 
 uint32_t uart485_rx_idle_us(int p)
 {
-    return (DWT->CYCCNT - S[p].last_rx) / (SystemCoreClock / 1000000u);
+    /* Order matters: if a byte lands between the reads, the timestamp must be the
+     * older of the two, or the difference wraps and looks like a long silence. */
+    uint32_t last = S[p].last_rx;
+    __DMB();
+    return (DWT->CYCCNT - last) / (SystemCoreClock / 1000000u);
 }
 
 size_t uart485_tx_room(int p) { return S[p].open ? TX_SZ - (S[p].th - S[p].tt) : 0; }
