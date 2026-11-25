@@ -106,7 +106,7 @@ footer{height:48px}
 </div></header>
 <main>
  <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
- <div id="nopw" class="note warn" hidden><p>No web password is set, so settings are read-only here. Set one from the computer that builds the firmware: <code id="pwcmd"></code></p></div>
+ <div id="nopw" class="note warn" hidden><p>No web password is set, so nothing can be saved here yet. On the computer that builds the firmware, in the project folder, run <code id="pwcmd"></code> This page will then offer Sign in.</p></div>
  <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
 
  <h2>Serial ports</h2>
@@ -217,7 +217,9 @@ function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
  for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#restart,#chpw,#keep"))b.disabled=!key;
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#restart,#chpw,#keep,[data-auth]"))b.title=key?"":"Sign in to change settings";
- if(!key)$("pwform").hidden=true}
+ if(!key)$("pwform").hidden=true;
+ for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,tr.edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
 
 /* ---- ports ---- */
 const MODES={server:"TCP server",client:"TCP client",udp:"UDP"},
@@ -267,7 +269,7 @@ function editor(p,i){
   f.querySelector("[data-f=local_port]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server";
   hint.textContent=v==="server"?"Up to 4 connections at once. Data ports have no password: anyone on this network can connect.":v==="client"?"Connects out and reconnects by itself.":"Leave the remote host empty to answer whoever sent last."};m.onchange();
- save.disabled=!key;save.title=key?"":"Sign in to change settings";
+ save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
  return el("tr",{class:"edit"},el("td",{colSpan:8},f))}
 document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38400,57600,115200,230400,460800,921600].map(v=>el("option",{value:String(v)}))));
 
@@ -323,6 +325,7 @@ async function tick(){clearTimeout(timer);
  try{const s=await getj("/api/state"),now=performance.now();
   if(prev&&s.uptime_s>=prev.s.uptime_s){const dt=(now-prev.t)/1000;if(dt>.4){rate=s.ports.map((p,i)=>[(p.serial_rx-prev.s.ports[i].serial_rx)/dt,(p.serial_tx-prev.s.ports[i].serial_tx)/dt]);prev={s,t:now}}}else{rate=[];prev={s,t:now}}
   st=s;if(!cfg||failing){const l=await getj("/api/login");pwset=l.password_set;salt=l.salt;const c=await getj("/api/config");const first=!cfg;cfg=c;if(first||open<0)buildPorts();if(first)fillForms();authUI()}
+  else if(!pwset){const l=await getj("/api/login");if(l.password_set){pwset=true;salt=l.salt;authUI()}} /* set while we were open */
   failing=0;$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
