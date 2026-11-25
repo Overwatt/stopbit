@@ -26,3 +26,6 @@
 .DS_Store
 .vscode/
 compile_commands.json
+
+# Network update key (never commit)
+/secrets/

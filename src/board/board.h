@@ -118,7 +118,11 @@
 /* PHY: IC Plus IP101GRI (RMII). Standard IEEE-802.3 PHY → generic/LAN8742-style
  * HAL+LwIP driver via MDIO. Address is strap-set (IP101G default 0x01).
  * TODO: confirm by MDIO-scan once Ethernet is up. */
-#define BOARD_ETH_PHY_ADDRESS   0x01          /* TODO: verify via MDIO scan */
+#define BOARD_ETH_PHY_ADDRESS   0x01          /* tried first; eth_mac.c scans the rest */
+
+#define BOARD_ETH_PINS_A  (GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_7)     /* REF_CLK MDIO CRS_DV */
+#define BOARD_ETH_PINS_B  (GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13)  /* TX_EN TXD0 TXD1 */
+#define BOARD_ETH_PINS_C  (GPIO_PIN_1 | GPIO_PIN_4 | GPIO_PIN_5)     /* MDC RXD0 RXD1 */
 
 /* TODO: PHY hardware-reset GPIO not yet identified among the spare outputs.
  * #define BOARD_ETH_PHY_RST_PORT  GPIOx

@@ -1,35 +1,13 @@
 /*
- * Linker script for STM32H750VBT6 (Cortex-M7), running from internal flash.
- *
- * Internal flash is only 128 KB on the H750 value line (that is the whole
- * point of the part number). The large vendor application lives in the
- * external QSPI flash; our firmware currently targets internal flash only.
- * When we outgrow 128 KB we move code to QSPI (XIP @ 0x90000000) — see ROADMAP.
- *
- * Memory map (STM32H750, RM0433):
- *   ITCMRAM   64 KB  @ 0x00000000
- *   FLASH    128 KB  @ 0x08000000   (bank 1)
- *   DTCMRAM  128 KB  @ 0x20000000   (stack/heap/fast data; not DMA-accessible)
- *   RAM_D1   512 KB  @ 0x24000000   (AXI SRAM)
- *   RAM_D2   288 KB  @ 0x30000000   (SRAM1+2+3; use for Ethernet DMA descriptors)
- *   RAM_D3    64 KB  @ 0x38000000   (SRAM4)
+ * sections.ld — Section layout shared by every image. Include it after a
+ * MEMORY block and REGION_ALIAS("CODE", ...) saying where code lives.
+ * The vector table must be first; fw_id sits at a fixed offset behind it.
  */
-
 ENTRY(Reset_Handler)
 
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);   /* top of stack */
 _Min_Heap_Size  = 0x1000;   /* 4 KB  */
 _Min_Stack_Size = 0x2000;   /* 8 KB  */
-
-MEMORY
-{
-  ITCMRAM (xrw) : ORIGIN = 0x00000000, LENGTH = 64K
-  FLASH   (rx)  : ORIGIN = 0x08000000, LENGTH = 128K
-  DTCMRAM (xrw) : ORIGIN = 0x20000000, LENGTH = 128K
-  RAM_D1  (xrw) : ORIGIN = 0x24000000, LENGTH = 512K
-  RAM_D2  (xrw) : ORIGIN = 0x30000000, LENGTH = 288K
-  RAM_D3  (xrw) : ORIGIN = 0x38000000, LENGTH = 64K
-}
 
 SECTIONS
 {
@@ -37,8 +15,10 @@ SECTIONS
   {
     . = ALIGN(4);
     KEEP(*(.isr_vector))
+    . = 0x2A0;                 /* FW_ID_OFFSET */
+    KEEP(*(.fw_id))
     . = ALIGN(4);
-  } >FLASH
+  } >CODE
 
   .text :
   {
@@ -52,7 +32,7 @@ SECTIONS
     KEEP(*(.fini))
     . = ALIGN(4);
     _etext = .;
-  } >FLASH
+  } >CODE
 
   .rodata :
   {
@@ -60,35 +40,35 @@ SECTIONS
     *(.rodata)
     *(.rodata*)
     . = ALIGN(4);
-  } >FLASH
+  } >CODE
 
-  .ARM.extab : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+  .ARM.extab : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >CODE
   .ARM : {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >FLASH
+  } >CODE
 
   .preinit_array :
   {
     PROVIDE_HIDDEN(__preinit_array_start = .);
     KEEP(*(.preinit_array*))
     PROVIDE_HIDDEN(__preinit_array_end = .);
-  } >FLASH
+  } >CODE
   .init_array :
   {
     PROVIDE_HIDDEN(__init_array_start = .);
     KEEP(*(SORT(.init_array.*)))
     KEEP(*(.init_array*))
     PROVIDE_HIDDEN(__init_array_end = .);
-  } >FLASH
+  } >CODE
   .fini_array :
   {
     PROVIDE_HIDDEN(__fini_array_start = .);
     KEEP(*(SORT(.fini_array.*)))
     KEEP(*(.fini_array*))
     PROVIDE_HIDDEN(__fini_array_end = .);
-  } >FLASH
+  } >CODE
 
   _sidata = LOADADDR(.data);
 
@@ -101,7 +81,26 @@ SECTIONS
     *(.data*)
     . = ALIGN(4);
     _edata = .;
-  } >DTCMRAM AT> FLASH
+  } >DTCMRAM AT> CODE
+
+  /* Code that must not execute from flash; copied by self_flash(). */
+  .itcm :
+  {
+    . = ALIGN(4);
+    _sitcm = .;
+    *(.itcm)
+    . = ALIGN(4);
+    _eitcm = .;
+  } >ITCMRAM AT> CODE
+  _siitcm = LOADADDR(.itcm);
+
+  /* Ethernet descriptors + buffers (not zeroed at startup). */
+  .dma_d2 (NOLOAD) :
+  {
+    . = ALIGN(32);
+    *(.dma_d2)
+    ASSERT(. <= ORIGIN(RAM_D2) + 64K, "dma_d2 exceeds its 64 KB MPU region");
+  } >RAM_D2
 
   /* Zero-initialised data. */
   .bss :

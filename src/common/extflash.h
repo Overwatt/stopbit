@@ -1,0 +1,17 @@
+/*
+ * extflash.h — The two on-board GD25Q16 SPI NOR chips, bit-banged.
+ *   0: QUADSPI bank 2 pins (stock firmware's XIP code flash)
+ *   1: SPI4 pins, CS = PE4
+ * Bit-banging keeps the loader tiny and identical for both chips; ~1 MB/s is
+ * plenty for loading an image at boot.
+ */
+#ifndef EXTFLASH_H
+#define EXTFLASH_H
+#include <stdint.h>
+#include <stdbool.h>
+#define EXTFLASH_COUNT 2
+#define EXTFLASH_SIZE  (2u * 1024u * 1024u)
+void     extflash_init(void);
+uint32_t extflash_id(int dev);        /* JEDEC: 0xC84015 = GD25Q16 */
+void     extflash_read(int dev, uint32_t addr, void *dst, uint32_t len);
+#endif

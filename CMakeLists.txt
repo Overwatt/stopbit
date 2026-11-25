@@ -24,8 +24,11 @@ FetchContent_Declare(cmsis_device_h7
 FetchContent_Declare(stm32h7xx_hal_driver
     GIT_REPOSITORY https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git
     GIT_TAG        v1.11.7       GIT_SHALLOW TRUE)
+FetchContent_Declare(lwip
+    GIT_REPOSITORY https://github.com/lwip-tcpip/lwip.git
+    GIT_TAG        STABLE-2_2_1_RELEASE GIT_SHALLOW TRUE)
 
-foreach(dep cmsis_core cmsis_device_h7 stm32h7xx_hal_driver)
+foreach(dep cmsis_core cmsis_device_h7 stm32h7xx_hal_driver lwip)
     FetchContent_GetProperties(${dep})
     if(NOT ${dep}_POPULATED)
         FetchContent_Populate(${dep})
@@ -63,62 +66,64 @@ message(STATUS "Startup        : ${STARTUP_S}")
 message(STATUS "System file    : ${SYSTEM_C}")
 
 # ---------------------------------------------------------------------------
-# Firmware target.
+# lwIP (raw API only).
 # ---------------------------------------------------------------------------
-file(GLOB APP_SRC
-    "${CMAKE_SOURCE_DIR}/src/core/*.c"
-    "${CMAKE_SOURCE_DIR}/src/drivers/*.c"
-    "${CMAKE_SOURCE_DIR}/src/app/*.c")
-
-add_executable(${PROJECT_NAME}.elf
-    ${APP_SRC}
-    ${HAL_SRC}
-    ${SYSTEM_C}
-    ${STARTUP_S})
-
-target_include_directories(${PROJECT_NAME}.elf PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/board
-    ${CMAKE_SOURCE_DIR}/src/core
-    ${CMAKE_SOURCE_DIR}/src/drivers
-    ${CMSIS_CORE_INC}
-    ${CMSIS_DEV_INC}
-    ${HAL_INC}
-    ${HAL_INC}/Legacy)
-
-target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
-    STM32H750xx
-    USE_HAL_DRIVER)
-
-target_compile_options(${PROJECT_NAME}.elf PRIVATE
-    -Wall -Wextra -Og -g3)
-
-set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/linker/STM32H750VBTx_FLASH.ld)
-target_link_options(${PROJECT_NAME}.elf PRIVATE
-    -T${LINKER_SCRIPT}
-    -Wl,-Map=${PROJECT_NAME}.map,--cref
-    -Wl,--print-memory-usage
-    -Wl,--no-warn-rwx-segments)
-set_target_properties(${PROJECT_NAME}.elf PROPERTIES LINK_DEPENDS ${LINKER_SCRIPT})
+file(GLOB LWIP_SRC
+    "${lwip_SOURCE_DIR}/src/core/*.c"
+    "${lwip_SOURCE_DIR}/src/core/ipv4/*.c"
+    "${lwip_SOURCE_DIR}/src/apps/mdns/*.c")
+list(APPEND LWIP_SRC "${lwip_SOURCE_DIR}/src/netif/ethernet.c")
 
 # ---------------------------------------------------------------------------
-# .bin / .hex + size report.
+# Update key: generated once into secrets/ (gitignored), compiled into images.
 # ---------------------------------------------------------------------------
-add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_NAME}.bin
-    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_NAME}.hex
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${PROJECT_NAME}.elf>
-    COMMENT "Generating .bin/.hex and size")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_key.py
+            ${CMAKE_SOURCE_DIR}/secrets/n540.key ${CMAKE_BINARY_DIR}/gen/secret_key.h
+    COMMAND_ERROR_IS_FATAL ANY)
+
+execute_process(
+    COMMAND git describe --always --dirty
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE FW_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # ---------------------------------------------------------------------------
-# Convenience: `ninja flash` via OpenOCD + ST-Link. Never runs automatically.
-# DO NOT flash until the stock firmware is backed up (see docs/ROADMAP.md M0).
+# n540_image(<name> <linker script> <sources...>) -> <name>.elf / <name>.bin
 # ---------------------------------------------------------------------------
-find_program(OPENOCD openocd)
-if(OPENOCD)
-    add_custom_target(flash
-        COMMAND ${OPENOCD} -f interface/stlink.cfg -f target/stm32h7x.cfg
-                -c "program $<TARGET_FILE:${PROJECT_NAME}.elf> verify reset exit"
-        DEPENDS ${PROJECT_NAME}.elf
-        USES_TERMINAL
-        COMMENT "Flashing via OpenOCD + ST-Link")
-endif()
+function(n540_image name ldscript)
+    add_executable(${name}.elf ${ARGN} ${HAL_SRC} ${SYSTEM_C} ${STARTUP_S})
+    target_include_directories(${name}.elf PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/board
+        ${CMAKE_SOURCE_DIR}/src/core
+        ${CMAKE_SOURCE_DIR}/src/common
+        ${CMAKE_SOURCE_DIR}/src/drivers
+        ${CMAKE_SOURCE_DIR}/src/net
+        ${CMAKE_BINARY_DIR}/gen)
+    target_include_directories(${name}.elf SYSTEM PRIVATE
+        ${lwip_SOURCE_DIR}/src/include
+        ${CMSIS_CORE_INC} ${CMSIS_DEV_INC} ${HAL_INC} ${HAL_INC}/Legacy)
+    target_compile_definitions(${name}.elf PRIVATE
+        STM32H750xx USE_HAL_DRIVER FW_VERSION="${FW_VERSION}")
+    target_compile_options(${name}.elf PRIVATE -Wall -Wextra -Os -g3)
+    target_link_options(${name}.elf PRIVATE
+        -L${CMAKE_SOURCE_DIR}/linker -T${ldscript}
+        -Wl,-Map=${name}.map,--cref -Wl,--print-memory-usage
+        -Wl,--no-warn-rwx-segments)
+    set_target_properties(${name}.elf PROPERTIES LINK_DEPENDS
+        "${CMAKE_SOURCE_DIR}/linker/${ldscript};${CMAKE_SOURCE_DIR}/linker/sections.ld")
+    add_custom_command(TARGET ${name}.elf POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O binary -R .dma_d2 $<TARGET_FILE:${name}.elf> ${name}.bin
+        COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${name}.elf>)
+endfunction()
+
+file(GLOB CORE_SRC   "${CMAKE_SOURCE_DIR}/src/core/stm32h7xx_it.c" "${CMAKE_SOURCE_DIR}/src/core/system_clock.c")
+file(GLOB COMMON_SRC "${CMAKE_SOURCE_DIR}/src/common/*.c")
+file(GLOB NET_SRC    "${CMAKE_SOURCE_DIR}/src/net/*.c")
+file(GLOB LOADER_SRC "${CMAKE_SOURCE_DIR}/src/loader/*.c")
+
+# The same loader, linked for internal flash and for SRAM (SWD testing).
+foreach(where flash ram)
+    n540_image(loader_${where} loader_${where}.ld
+        ${LOADER_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${LWIP_SRC})
+endforeach()
