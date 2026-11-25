@@ -36,10 +36,8 @@
  * TODO(dump): real LED port/pin unknown. The board has several LEDs
  * (power, link, per-port activity). This is the "heartbeat" LED.
  */
-#define BOARD_LED_PORT          GPIOE        /* TODO(dump) */
-#define BOARD_LED_PIN           GPIO_PIN_2   /* TODO(dump) */
-#define BOARD_LED_CLK_ENABLE()  __HAL_RCC_GPIOE_CLK_ENABLE()   /* TODO(dump) */
-#define BOARD_LED_ACTIVE_HIGH   1            /* TODO(dump): is the LED active-high? */
+#define BOARD_LED_PORT          GPIOA        /* stock blinks PA3 */
+#define BOARD_LED_PIN           GPIO_PIN_3
 
 /* ---- RS485 ports ---------------------------------------------------------
  * Four half-duplex RS485 ports. Each is a USART/UART plus a GPIO "driver

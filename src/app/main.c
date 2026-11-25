@@ -10,6 +10,7 @@
 #include "slots.h"
 #include "fw_id.h"
 #include "wdt.h"
+#include "board.h"
 #include "board_init.h"
 #include "bridge.h"
 #include "api.h"
@@ -42,6 +43,15 @@ static void supervise(void)
     }
 }
 
+/* Work light: board_outputs_init() made the pin an output. */
+static void led_poll(void)
+{
+    static uint32_t t;
+    if (HAL_GetTick() - t < 500u) return;
+    t = HAL_GetTick();
+    BOARD_LED_PORT->BSRR = (BOARD_LED_PORT->ODR & BOARD_LED_PIN) ? (uint32_t)BOARD_LED_PIN << 16 : BOARD_LED_PIN;
+}
+
 int main(void)
 {
     SCB->VTOR = (uint32_t)g_pfnVectors;
@@ -72,5 +82,6 @@ int main(void)
         bridge_poll();
         api_poll();
         supervise();
+        led_poll();
     }
 }
