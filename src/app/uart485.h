@@ -1,6 +1,7 @@
 /*
  * uart485.h — Interrupt-driven UARTs for the four RS485 ports.
- * Direction control: none. No DE GPIO was found on this board; see HARDWARE.md.
+ * Direction control: the UART drives each transceiver's DE pin (high = transmit)
+ * with its hardware driver-enable feature; see HARDWARE.md.
  */
 #ifndef UART485_H
 #define UART485_H

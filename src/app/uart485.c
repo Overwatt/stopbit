@@ -10,13 +10,14 @@
 typedef struct {
     USART_TypeDef *u;
     IRQn_Type irq;
-    GPIO_TypeDef *txp, *rxp;
-    uint16_t txn, rxn;
+    GPIO_TypeDef *txp, *rxp, *dep;
+    uint16_t txn, rxn, den;
     uint8_t af;
 } hw_t;
 
 #define HW(n, irqn) { RS485_##n##_UART, irqn, RS485_##n##_TX_PORT, RS485_##n##_RX_PORT, \
-                      RS485_##n##_TX_PIN, RS485_##n##_RX_PIN, RS485_##n##_AF }
+                      RS485_##n##_DE_PORT, RS485_##n##_TX_PIN, RS485_##n##_RX_PIN, \
+                      RS485_##n##_DE_PIN, RS485_##n##_AF }
 static const hw_t H[PORTS] = {
     HW(1, USART1_IRQn), HW(2, USART2_IRQn), HW(3, USART3_IRQn), HW(4, UART4_IRQn),
 };
@@ -93,10 +94,20 @@ void uart485_init(void)
     memset((void *)g_uart, 0, sizeof g_uart);
 }
 
+/* Driver off (receive): DE as a plain output, low. */
+static void de_idle(int p)
+{
+    GPIO_InitTypeDef g = { .Pin = H[p].den, .Mode = GPIO_MODE_OUTPUT_PP,
+                           .Speed = GPIO_SPEED_FREQ_LOW };
+    H[p].dep->BSRR = (uint32_t)H[p].den << 16;
+    HAL_GPIO_Init(H[p].dep, &g);
+}
+
 void uart485_close(int p)
 {
     GPIO_InitTypeDef g = { .Mode = GPIO_MODE_ANALOG };
     NVIC_DisableIRQ(H[p].irq);
+    de_idle(p);             /* before TX floats */
     H[p].u->CR1 = 0;
     S[p].open = false;
     S[p].tx_active = false;
@@ -119,7 +130,9 @@ void uart485_open(int p, const port_cfg_t *c)
 
     /* Word length counts the parity bit. */
     int bits = c->data_bits + (c->parity != PARITY_NONE);
-    uint32_t cr1 = USART_CR1_FIFOEN;
+    /* The UART raises DE one bit time (16/16) before a burst and drops it 4/16
+     * after the last stop bit, so replies can follow straight away. */
+    uint32_t cr1 = USART_CR1_FIFOEN | (16u << USART_CR1_DEAT_Pos) | (4u << USART_CR1_DEDT_Pos);
     if (bits == 9) cr1 |= USART_CR1_M0;
     if (bits == 7) cr1 |= USART_CR1_M1;
     if (c->parity != PARITY_NONE) cr1 |= USART_CR1_PCE;
@@ -127,7 +140,7 @@ void uart485_open(int p, const port_cfg_t *c)
 
     u->CR1 = cr1;
     u->CR2 = c->stop_bits == 2 ? USART_CR2_STOP_1 : 0;
-    u->CR3 = c->loopback ? USART_CR3_HDSEL : 0;
+    u->CR3 = USART_CR3_DEM | (c->loopback ? USART_CR3_HDSEL : 0);   /* DE active high */
     u->PRESC = presc;
     u->BRR = brr;
     u->ICR = 0xFFFFFFFFu;
@@ -139,6 +152,8 @@ void uart485_open(int p, const port_cfg_t *c)
     u->CR1 |= USART_CR1_TE | USART_CR1_RE;
     /* TE drives TX idle-high before the pin is handed over. */
     g.Pin = H[p].txn; HAL_GPIO_Init(H[p].txp, &g);
+    g.Pin = H[p].den; g.Pull = GPIO_NOPULL; HAL_GPIO_Init(H[p].dep, &g);
+    g.Pull = GPIO_PULLUP;
     g.Pin = H[p].rxn; HAL_GPIO_Init(H[p].rxp, &g);
     u->RQR = USART_RQR_RXFRQ;
     u->ICR = 0xFFFFFFFFu;
