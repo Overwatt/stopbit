@@ -27,6 +27,9 @@ int main(void)
     assert(cfg_validate(&c, err, sizeof err));
     for (int i = 0; i < PORTS; i++) assert(!c.port[i].enabled);
 
+    OK("port2.listen_only=1"); assert(c.port[1].listen_only == 1 && !c.port[0].listen_only && !c.port[2].listen_only);
+    BAD("port2.loopback=1"); BAD("port3.listen_only=1\nport3.loopback=1"); BAD("port1.listen_only=2");
+    OK("port2.listen_only=0\nport2.loopback=1"); OK("port2.loopback=0");
     OK("port1.baud=115200\r\nport1.enabled=1\n\nport1.parity=even\n");
     assert(c.port[0].baud == 115200 && c.port[0].parity == PARITY_EVEN && c.port[0].enabled);
     OK("port4.name=Pump \"A\" \\ x");

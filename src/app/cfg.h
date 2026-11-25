@@ -26,6 +26,7 @@ typedef struct {
     uint8_t  enabled, mode, data_bits, parity, stop_bits;
     uint8_t  echo_cancel;          /* drop what we hear while transmitting */
     uint8_t  loopback;             /* on-chip TX->RX, for testing without wiring */
+    uint8_t  listen_only;          /* never transmit. Was padding, always 0 in old records */
 } port_cfg_t;
 
 typedef struct {

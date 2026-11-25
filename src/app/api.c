@@ -360,6 +360,7 @@ _Static_assert(RSTLOG_N == sizeof((cli_sys_t *)0)->reset_log / sizeof(uint32_t),
 bool cli_send(int i, const uint8_t *d, size_t n, char *err, size_t errlen)
 {
     if (!s_cfg.port[i].enabled) snprintf(err, errlen, "port %d is off; run enable %d first", i + 1, i + 1);
+    else if (s_cfg.port[i].listen_only) snprintf(err, errlen, "port %d is listen only", i + 1);
     else if (bridge_send(i, d, n)) return true;
     else snprintf(err, errlen, "port %d cannot take that right now", i + 1);
     return false;

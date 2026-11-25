@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     cfg_t before = C;
     HAS("set port1.baud=9600 port2.baud=1", "error"); assert(!memcmp(&before, &C, sizeof C));
     HAS("set net.mode=static net.ip=10.0.0.9 net.mask=255.255.255.0", "on trial"); HAS("keep", "ok"); assert(keeps == 1);
-    HAS("get port1.baud", "port1.baud=38400\n"); HAS("get net", "net.ip=10.0.0.9"); HAS("get zzz", "error"); HAS("get", "port4.loopback=0");
+    HAS("get port1.baud", "port1.baud=38400\n"); HAS("get net", "net.ip=10.0.0.9"); HAS("get zzz", "error"); HAS("get", "port4.listen_only=0");
     strcpy(C.mqtt.password, "hunter2"); strcpy(C.mqtt.user, "u");
     assert(!strstr(run("get"), "hunter2") && !strstr(run("get"), "web_"));
     /* `get` output must load back to the same settings. */

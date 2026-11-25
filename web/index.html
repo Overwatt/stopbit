@@ -275,7 +275,7 @@ function buildPorts(){const b=$("ports");b.replaceChildren();
   const c={st:el("td",{"data-h":"Status"}),rx:el("td",{class:"n","data-h":"From serial"}),tx:el("td",{class:"n","data-h":"To serial"}),er:el("td",{class:"n","data-h":"Errors"})};
   const btn=el("button",{type:"button","aria-expanded":String(open===i),"aria-label":(open===i?"Close ":"Edit ")+p.name,onclick(){open=open===i?-1:i;buildPorts();const f=document.querySelector("tr.edit input,#ports .row:nth-child("+(i+1)+") button");if(f)f.focus()}},open===i?"Close":"Edit");
   b.append(el("tr",{class:"row"},el("td",{},el("span",{class:"name"},p.name||"Port "+(i+1)),p.name!=="Port "+(i+1)&&p.name?el("span",{class:"sub"},"Port "+(i+1)):null),c.st,
-   el("td",{"data-h":"Line"},line(p),p.loopback?el("span",{class:"sub warn"},"Loopback test on"):null),
+   el("td",{"data-h":"Line"},line(p),p.loopback?el("span",{class:"sub warn"},"Loopback test on"):p.listen_only?el("span",{class:"sub"},"Listen only"):null),
    el("td",{"data-h":"Network"},MODES[p.mode],el("span",{class:"sub"},where(p))),c.rx,c.tx,c.er,el("td",{class:"n"},btn)));
   cells[i]=c;if(open===i)b.append(editor(p,i))});
  paint()}
@@ -305,7 +305,7 @@ function editor(p,i){
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
   el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
   el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
-  el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
+  el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
   el("div",{class:"acts"},save,el("button",{type:"button",onclick(){open=-1;buildPorts()}},"Cancel"),msg));
  const m=f.elements.mode;m.onchange=()=>{const v=m.value;
   f.querySelector("[data-f=local_port]").hidden=v==="client";

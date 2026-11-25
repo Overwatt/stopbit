@@ -54,6 +54,7 @@ static bool s_dirty;
 
 static size_t to_line(int i, const uint8_t *d, size_t n)
 {
+    if (s_p[i].cfg.listen_only) return n;   /* taken from the network, never sent */
     n = uart485_write(i, d, n);
     traffic_add(i, true, d, n, HAL_GetTick());
     return n;
@@ -61,7 +62,7 @@ static size_t to_line(int i, const uint8_t *d, size_t n)
 
 bool bridge_send(int i, const uint8_t *d, size_t n)
 {
-    return s_p[i].state != LS_OFF && uart485_tx_room(i) >= n && to_line(i, d, n) == n;
+    return s_p[i].state != LS_OFF && !s_p[i].cfg.listen_only && uart485_tx_room(i) >= n && to_line(i, d, n) == n;
 }
 
 /* ---- TCP connections ----------------------------------------------------- */

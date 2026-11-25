@@ -134,7 +134,7 @@ static void c_port(out_t *o, int argc, char **argv)
     net_fmt(c, n, sizeof n);
     put(o, "port %d    %s\nstatus    %s, %d connected%s%s\nline      %s%s%s\nnetwork   %s\n", i + 1, c->name, p.state,
         p.clients, p.peers[0] ? ": " : "", p.peers, l, c->loopback ? ", LOOPBACK TEST ON" : "",
-        c->echo_cancel ? ", ignoring own echo" : "", n);
+        c->listen_only ? ", listen only" : c->echo_cancel ? ", ignoring own echo" : "", n);
     put(o, "bytes     %lu from line, %lu to line\n", (unsigned long)p.serial_rx, (unsigned long)p.serial_tx);
     put(o, "errors    %lu parity, %lu framing, %lu noise, %lu overrun, %lu buffer full, %lu not delivered, %lu refused\n",
         (unsigned long)p.parity, (unsigned long)p.framing, (unsigned long)p.noise, (unsigned long)p.overrun,
@@ -297,6 +297,8 @@ static void c_wiretest(out_t *o, int argc, char **argv)
     }
     for (int i = 0; i < PORTS; i++)
         if (cli_cfg()->port[i].enabled) { put(o, "error: port %d is on; turn every port off first\n", i + 1); return; }
+    for (int i = 0; i < PORTS; i++)
+        if (cli_cfg()->port[i].listen_only) { put(o, "error: port %d is listen only, and the test transmits\n", i + 1); return; }
     cli_wiretest(o->buf + o->len, o->max - o->len);
     o->len += strlen(o->buf + o->len);
 }

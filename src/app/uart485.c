@@ -31,7 +31,7 @@ static struct {
     volatile uint32_t rh, rt, th, tt;   /* free-running head/tail */
     volatile uint32_t last_rx;          /* CYCCNT */
     volatile bool tx_active;
-    bool open, echo_cancel;
+    bool open, echo_cancel, mute;
     uint8_t mask;
 } S[PORTS];
 volatile uart_stats_t g_uart[PORTS];
@@ -143,7 +143,9 @@ void uart485_open(int p, const port_cfg_t *c)
 
     u->CR1 = cr1;
     u->CR2 = c->stop_bits == 2 ? USART_CR2_STOP_1 : 0;
-    u->CR3 = USART_CR3_DEM | (c->loopback ? USART_CR3_HDSEL : 0);   /* DE active high */
+    /* Listen only: the transmitter and its pins stay off (see uart485_close). */
+    S[p].mute = c->listen_only;
+    u->CR3 = S[p].mute ? 0 : USART_CR3_DEM | (c->loopback ? USART_CR3_HDSEL : 0);   /* DE active high */
     u->PRESC = presc;
     u->BRR = brr;
     u->ICR = 0xFFFFFFFFu;
@@ -152,11 +154,14 @@ void uart485_open(int p, const port_cfg_t *c)
     S[p].last_rx = DWT->CYCCNT;
 
     u->CR1 |= USART_CR1_UE;
-    u->CR1 |= USART_CR1_TE | USART_CR1_RE;
-    /* TE drives TX idle-high before the pin is handed over. */
-    g.Pin = H[p].txn; HAL_GPIO_Init(H[p].txp, &g);
-    g.Pin = H[p].den; g.Pull = GPIO_NOPULL; HAL_GPIO_Init(H[p].dep, &g);
-    g.Pull = GPIO_PULLUP;
+    u->CR1 |= USART_CR1_RE;
+    if (!S[p].mute) {
+        u->CR1 |= USART_CR1_TE;
+        /* TE drives TX idle-high before the pin is handed over. */
+        g.Pin = H[p].txn; HAL_GPIO_Init(H[p].txp, &g);
+        g.Pin = H[p].den; g.Pull = GPIO_NOPULL; HAL_GPIO_Init(H[p].dep, &g);
+        g.Pull = GPIO_PULLUP;
+    }
     g.Pin = H[p].rxn; HAL_GPIO_Init(H[p].rxp, &g);
     u->RQR = USART_RQR_RXFRQ;
     u->ICR = 0xFFFFFFFFu;
@@ -208,7 +213,7 @@ size_t uart485_write(int p, const uint8_t *buf, size_t n)
 {
     size_t room = uart485_tx_room(p);
     if (n > room) n = room;
-    if (!n) return 0;
+    if (!n || S[p].mute) return 0;
     for (size_t i = 0; i < n; i++) s_tx[p][(S[p].th + i) & (TX_SZ - 1)] = buf[i];
     __DMB();
     __disable_irq();

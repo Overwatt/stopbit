@@ -32,6 +32,7 @@ static const field_t PORT_F[] = {
     F(remote_port, T_U16,  0, 65535, NULL),
     F(echo_cancel, T_BOOL, 0, 1, NULL),
     F(loopback,    T_BOOL, 0, 1, NULL),
+    F(listen_only, T_BOOL, 0, 1, NULL),
 };
 #define NPORT_F (sizeof PORT_F / sizeof PORT_F[0])
 
@@ -230,6 +231,10 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
         const port_cfg_t *p = &c->port[i];
         if (p->data_bits == 7 && p->parity == PARITY_NONE && p->stop_bits == 1) {
             snprintf(err, errlen, "Port %d: 7N1 is not supported; add parity or a second stop bit", i + 1);
+            return false;
+        }
+        if (p->listen_only && p->loopback) {
+            snprintf(err, errlen, "Port %d: the loopback test transmits, so turn off listen only or loopback", i + 1);
             return false;
         }
         if (!p->enabled) continue;

@@ -82,6 +82,7 @@ connections), a TCP client that reconnects, or UDP. **Data ports have no passwor
 | packet_len | 1 to 1400 bytes |
 | echo_cancel | drop bytes received while sending |
 | loopback | transmit to receive inside the chip (still drives the bus) |
+| listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
 loses packets (counted as "not delivered") without affecting the others.
