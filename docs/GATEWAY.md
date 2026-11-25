@@ -198,7 +198,9 @@ An empty list allows anyone.
 - The reload button does not clear lists. Firmware from before lists ignores them.
 - If both stored copies are damaged, nobody is let in until a list is saved again.
 
-Tested on the host: `tests/test_{acl,bridge,store}.c`. Not yet run on a gateway.
+Tested on the host: `tests/test_{acl,bridge,store}.c`. On hardware (2026-11-25): a listed
+reader on a TCP server kept every byte while an unlisted address was turned away. Writers,
+subnets, UDP and client mode are host-tested only.
 
 ## Storage
 

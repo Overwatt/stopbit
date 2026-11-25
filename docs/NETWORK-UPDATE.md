@@ -46,7 +46,9 @@ to a slot, through RAM.
 `tests/test_fwlib.c` cuts the power at every flash operation of an install, in simulation.
 `tests/sim/run.sh` runs the web server, library and slots on a computer, for
 `tests/test_install.py 127.0.0.1:8541`.
-**The library has not been run on a gateway yet.**
+**On hardware (2026-11-25):** one upload stored and started, and the image whose slot it
+took saved, with the running bus undisturbed afterwards. Not tested on hardware: rolling
+back, a full library, a cut upload, and how long the main loop pauses.
 
 **Tested on hardware (2026-11-24):** loader self-update from SRAM and from flash,
 interrupted upload, tampered body, replayed nonce, wrong path, junk and wrongly
