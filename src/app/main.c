@@ -1,6 +1,6 @@
 /*
  * Application: copied from external flash into AXI SRAM by the loader.
- * So far it is just the network stack; the RS485 bridge goes here next.
+ * Network stack, web UI + API, and the RS485 <-> TCP/UDP bridge.
  */
 #include "stm32h7xx_hal.h"
 #include "system.h"
@@ -11,6 +11,8 @@
 #include "fw_id.h"
 #include "wdt.h"
 #include "board_init.h"
+#include "bridge.h"
+#include "api.h"
 
 #define HEALTHY_MS  30000u     /* uptime that clears the crash counter */
 #define TRIAL_MS   180000u     /* unconfirmed images give up after this */
@@ -60,11 +62,15 @@ int main(void)
     for (;;) { wdt_feed(); if (HAL_GetTick() > 15000u) NVIC_SystemReset(); }
 #endif
     net_init();
+    bridge_init();
+    api_init();
     http_init();
     for (;;) {
         wdt_feed();
         net_poll();
         http_poll();
+        bridge_poll();
+        api_poll();
         supervise();
     }
 }

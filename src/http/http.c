@@ -11,13 +11,17 @@
  *   POST /install                     image -> app slot       (auth)
  *   POST /selfupdate                  replace the loader      (auth)
  * app only:
+ *   GET  /                            web UI, open
+ *   GET  /api/{state,config,login}    JSON, open
+ *   POST /api/...                     see api.c               (auth)
  *   POST /loader                      reboot into the loader  (auth)
  *   POST /confirm                     keep the running image  (auth)
  *
  * Auth: X-Auth = hex HMAC-SHA256(key, "nonce\nMETHOD path\nbodysha256hex").
  * The nonce is single-use, and the MAC is checked before any body is accepted;
  * the body hash (X-Body-SHA256) is checked before it is acted on. The key never
- * crosses the wire. Replies are not encrypted.
+ * crosses the wire. Replies are not encrypted. In the app, /api/ and /reboot
+ * also accept the key derived from the web password.
  */
 #include "http.h"
 #include "net.h"
@@ -34,13 +38,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef APP_IMAGE
+#include "api.h"
+#define MAX_CONN   8
+#define RESP_MAX   4600
+#define BODY_MAX   2048
+#define CONN_MEM   __attribute__((section(".d2_bss")))
+#else
 #define MAX_CONN   4
+#define RESP_MAX   1460
+#define CONN_MEM
+#endif
 #define HDR_MAX    1024
 #define IDLE_TICKS 20            /* tcp_poll ticks (x 1 s) before abort */
 
 enum { ST_FREE, ST_HDR, ST_BODY, ST_SEND };
 enum { ACT_NONE, ACT_RUN, ACT_REBOOT, ACT_SELFUPDATE,
-       ACT_INSTALL, ACT_LOADER, ACT_CONFIRM };
+       ACT_INSTALL, ACT_LOADER, ACT_CONFIRM, ACT_API };
 
 typedef struct {
     struct tcp_pcb *pcb;
@@ -49,13 +63,20 @@ typedef struct {
     uint32_t hdr_len, body_len, body_got;
     uint8_t  body_sha[32];
     sha256_t sha;
-    char     resp[1460];
+    char     resp[RESP_MAX];
     uint32_t resp_len, resp_off;
     int      fl_dev;
     uint32_t fl_off, fl_left;
+    const uint8_t *mem;          /* static data still to send */
+    uint32_t mem_left;
+#ifdef APP_IMAGE
+    char     path[32], nonce[33];
+    const uint8_t *key;
+    char     body[BODY_MAX];
+#endif
 } conn_t;
 
-static conn_t   s_conn[MAX_CONN];
+static CONN_MEM conn_t s_conn[MAX_CONN];
 static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
 static uint8_t  s_action;
@@ -123,6 +144,16 @@ static bool new_nonce(void)
     return true;
 }
 
+#ifdef APP_IMAGE
+/* Slows online guessing of the web password. */
+static uint32_t s_fails, s_fail_at;
+
+static bool web_key_allowed(const char *path)
+{
+    return !strncmp(path, "/api/", 5) || !strcmp(path, "/reboot");
+}
+#endif
+
 static bool authorised(conn_t *c, const char *method, const char *path)
 {
     const char *mac_h = header(c, "X-Auth"), *sha_h = header(c, "X-Body-SHA256");
@@ -133,8 +164,20 @@ static bool authorised(conn_t *c, const char *method, const char *path)
     hexify(c->body_sha, 32, shahex);
     int n = snprintf(msg, sizeof msg, "%s\n%s %s\n%s", s_nonce, method, path, shahex);
     if (n <= 0 || n >= (int)sizeof msg) return false;
-    hmac_sha256(SECRET_KEY, msg, (size_t)n, NULL, 0, want);
-    if (!ct_equal(got, want, 32)) return false;
+    const uint8_t *key = SECRET_KEY;
+    hmac_sha256(key, msg, (size_t)n, NULL, 0, want);
+    bool ok = ct_equal(got, want, 32);
+#ifdef APP_IMAGE
+    if (HAL_GetTick() - s_fail_at > 5000) s_fails = 0;
+    if (!ok && s_fails < 8 && web_key_allowed(path) && (key = api_web_key())) {
+        hmac_sha256(key, msg, (size_t)n, NULL, 0, want);
+        ok = ct_equal(got, want, 32);
+    }
+    if (!ok) { s_fails++; s_fail_at = HAL_GetTick(); }
+    c->key = key;
+    strcpy(c->nonce, s_nonce);
+#endif
+    if (!ok) return false;
     s_nonce[0] = 0;              /* single use */
     return true;
 }
@@ -181,6 +224,14 @@ static err_t pump(conn_t *c)
         c->fl_off += n;
         c->fl_left -= n;
     }
+    while (c->mem_left) {
+        uint32_t n = c->mem_left, room = tcp_sndbuf(c->pcb);
+        if (n > TCP_MSS) n = TCP_MSS;
+        if (n > room) n = room;
+        if (!n || tcp_write(c->pcb, c->mem, (u16_t)n, 0) != ERR_OK) goto out;
+        c->mem += n;
+        c->mem_left -= n;
+    }
     tcp_output(c->pcb);
     return conn_close(c);
 out:
@@ -194,9 +245,13 @@ static err_t reply(conn_t *c, const char *status, const char *type, const char *
     c->state = ST_SEND;
     c->resp_off = 0;
     c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
-        "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %u\r\nConnection: close\r\n\r\n%s",
+        "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %u\r\n"
+        "Cache-Control: no-store\r\nConnection: close\r\n\r\n%s",
         status, type, (unsigned)strlen(body), body);
-    if (c->resp_len >= sizeof c->resp) c->resp_len = sizeof c->resp - 1;
+    if (c->resp_len >= sizeof c->resp) {     /* never send a truncated body */
+        c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    }
     return pump(c);
 }
 
@@ -273,6 +328,22 @@ static err_t do_flash(conn_t *c, const char *path)
     return pump(c);
 }
 
+#ifdef APP_IMAGE
+static err_t do_page(conn_t *c)
+{
+    c->mem = api_page(&c->mem_left);
+    c->state = ST_SEND;
+    c->resp_off = 0;
+    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\n"
+        "Content-Length: %lu\r\nCache-Control: no-cache\r\nX-Frame-Options: DENY\r\n"
+        "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; "
+        "script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'\r\n"
+        "X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", (unsigned long)c->mem_left);
+    return pump(c);
+}
+#endif
+
 static err_t body_done(conn_t *c)
 {
     uint8_t d[32];
@@ -283,6 +354,16 @@ static err_t body_done(conn_t *c)
         c->action = ACT_NONE;
         return fail(c, "400 Bad Request", "body hash mismatch");
     }
+#ifdef APP_IMAGE
+    if (c->action == ACT_API) {
+        static char msg[160];
+        api_req_t rq = { c->key == SECRET_KEY, c->key, c->nonce, c->body };
+        c->action = ACT_NONE;
+        c->body[c->body_len] = 0;
+        const char *st = api_post(c->path, &rq, msg, sizeof msg);
+        return reply(c, st, st[0] == '2' ? "application/json" : "text/plain", msg);
+    }
+#endif
     s_stage_size = c->body_len;
     if (c->action == ACT_RUN) why = image_check_ram(STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_SELFUPDATE) why = image_check_loader((const uint8_t *)STAGE_ADDR, s_stage_size);
@@ -324,7 +405,18 @@ static err_t on_request(conn_t *c)
     c->body_len = cl ? strtoul(cl, NULL, 10) : 0;
 
     if (!strcmp(line, "GET")) {
-        if (!strcmp(path, "/status") || !strcmp(path, "/")) return do_status(c);
+#ifdef APP_IMAGE
+        if (!strcmp(path, "/")) return do_page(c);
+        if (!strncmp(path, "/api/", 5)) {
+            static char js[RESP_MAX - 256];
+            int n = api_get(path, js, sizeof js);
+            if (n == 0) return fail(c, "500 Internal Server Error", "reply too large");
+            if (n > 0) return reply(c, "200 OK", "application/json", js);
+        }
+#else
+        if (!strcmp(path, "/")) return do_status(c);
+#endif
+        if (!strcmp(path, "/status")) return do_status(c);
         if (!strcmp(path, "/nonce")) {
             char b[40];
             if (!s_nonce[0] && !new_nonce()) return fail(c, "503 Service Unavailable", "rng failure");
@@ -353,16 +445,22 @@ static err_t on_request(conn_t *c)
     uint32_t max = 0;
     for (unsigned i = 0; i < sizeof POSTS / sizeof POSTS[0]; i++)
         if (!strcmp(path, POSTS[i].path)) { act = POSTS[i].act; max = POSTS[i].max; }
+#ifdef APP_IMAGE
+    if (api_is_post(path)) { act = ACT_API; max = BODY_MAX - 1; }
+#endif
     if (act == ACT_NONE) return fail(c, "404 Not Found", "no such endpoint");
     if (c->body_len > max) return fail(c, "413 Payload Too Large", "too big");
-    if (max && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
+    if (max && act != ACT_API && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
     if (s_action != ACT_NONE) return fail(c, "409 Conflict", "busy");
     if (!authorised(c, line, path)) return fail(c, "401 Unauthorized", "bad auth");
 
     c->action = act;
     c->body_got = 0;
     sha256_init(&c->sha);
-    if (max) s_stage_owner = c;
+#ifdef APP_IMAGE
+    snprintf(c->path, sizeof c->path, "%s", path);
+#endif
+    if (max && act != ACT_API) s_stage_owner = c;
     if (c->body_len == 0) return body_done(c);
     c->state = ST_BODY;
     return ERR_OK;
@@ -373,7 +471,11 @@ static err_t on_body(conn_t *c, const uint8_t *p, uint32_t n)
 {
     uint32_t want = c->body_len - c->body_got;
     if (n > want) n = want;
+#ifdef APP_IMAGE
+    memcpy(c->body + c->body_got, p, n);   /* STAGE_ADDR is our own code here */
+#else
     memcpy((uint8_t *)STAGE_ADDR + c->body_got, p, n);
+#endif
     sha256_update(&c->sha, p, n);
     c->body_got += n;
     return c->body_got == c->body_len ? body_done(c) : ERR_OK;
@@ -471,6 +573,7 @@ static err_t cb_accept(void *arg, struct tcp_pcb *pcb, err_t err)
 
 void http_init(void)
 {
+    memset(s_conn, 0, sizeof s_conn);
     struct tcp_pcb *l = tcp_new();
     if (!l || tcp_bind(l, IP_ADDR_ANY, 80) != ERR_OK) return;
     tcp_accept(tcp_listen_with_backlog(l, MAX_CONN), cb_accept);

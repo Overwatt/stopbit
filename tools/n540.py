@@ -7,18 +7,29 @@
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
   n540.py HOST update APP.bin              install to the spare slot, boot, confirm
   n540.py HOST loader                      leave the app, stay in the loader
+  n540.py HOST config                      show settings
+  n540.py HOST set KEY=VALUE ...           e.g. port1.enabled=1 port1.baud=19200
+  n540.py HOST state                       live port counters
+  n540.py HOST keep                        keep new network settings
+  n540.py HOST passwd                      set the web password
   n540.py HOST reboot
 """
-import hashlib, hmac, http.client, json, os, socket, sys, time
+import getpass, hashlib, hmac, http.client, json, os, socket, sys, time
 
 KEYFILE = os.environ.get("N540_KEY", os.path.join(os.path.dirname(__file__), "..", "secrets", "n540.key"))
+
+PBKDF2_ROUNDS = 4000        # must match web/index.html
 
 
 class Device:
     def __init__(self, host):
         # Resolve once, IPv4 only: macOS stalls 5 s waiting for a .local AAAA record.
-        self.host = socket.getaddrinfo(host, 80, socket.AF_INET)[0][4][0]
+        self.name = host
+        self.resolve()
         self.key = None
+
+    def resolve(self):
+        self.host = socket.getaddrinfo(self.name, 80, socket.AF_INET)[0][4][0]
 
     def _raw(self, method, path, body=b"", headers=None, timeout=60):
         c = http.client.HTTPConnection(self.host, 80, timeout=timeout)
@@ -36,10 +47,13 @@ class Device:
             raise SystemExit(f"GET {path}: {st} {data.decode(errors='replace').strip()}")
         return data
 
-    def auth(self, method, path, body=b""):
+    def load_key(self):
         if self.key is None:
             self.key = bytes.fromhex(open(KEYFILE).read().strip())
-        nonce = self.get("/nonce").decode().strip()
+
+    def auth(self, method, path, body=b"", nonce=None):
+        self.load_key()
+        nonce = nonce or self.get("/nonce").decode().strip()
         sha = hashlib.sha256(body).hexdigest()
         mac = hmac.new(self.key, f"{nonce}\n{method} {path}\n{sha}".encode(), hashlib.sha256).hexdigest()
         hdr = {"X-Auth": mac, "X-Body-SHA256": sha}
@@ -56,10 +70,24 @@ def wait_back(d, secs=40):
     time.sleep(1.5)
     while time.time() < end:
         try:
+            d.resolve()      # loader and app may not share an address
             return json.loads(d.get("/status"))
         except (OSError, http.client.HTTPException, ValueError):
             time.sleep(0.5)
     raise SystemExit("device did not come back")
+
+
+def derive(pw, salt):
+    return hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, PBKDF2_ROUNDS)
+
+
+def set_password(d, pw):
+    d.load_key()
+    salt = os.urandom(16)
+    nonce = d.get("/nonce").decode().strip()
+    pad = hmac.new(d.key, b"newkey\n" + nonce.encode(), hashlib.sha256).digest()
+    blob = bytes(x ^ y for x, y in zip(derive(pw, salt), pad))
+    d.auth("POST", "/api/password", f"salt={salt.hex()}\nkey={blob.hex()}".encode(), nonce)
 
 
 def enter_loader(d):
@@ -108,6 +136,21 @@ def main(a):
                              f"{s['version']} slot {s['running_slot']}, wanted slot {slot}); not confirmed")
         d.auth("POST", "/confirm")
         print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
+    elif cmd in ("config", "state"):
+        print(json.dumps(json.loads(d.get("/api/" + cmd)), indent=2))
+    elif cmd == "set":
+        r = json.loads(d.auth("POST", "/api/config", "\n".join(a[2:]).encode()))
+        print("saved" if not r["net_pending"] else
+              "network settings are on trial: run 'keep' within 2 minutes or they revert")
+    elif cmd == "keep":
+        d.auth("POST", "/api/keep")
+        print("kept")
+    elif cmd == "passwd":
+        pw = getpass.getpass("New web password: ")
+        if len(pw) < 8 or pw != getpass.getpass("Again: "):
+            raise SystemExit("passwords differ or are shorter than 8 characters")
+        set_password(d, pw)
+        print("web password set")
     elif cmd == "loader":
         print("in loader", enter_loader(d)["version"])
     elif cmd in ("run", "selfupdate"):

@@ -102,6 +102,14 @@ SECTIONS
     ASSERT(. <= ORIGIN(RAM_D2) + 64K, "dma_d2 exceeds its 64 KB MPU region");
   } >RAM_D2
 
+  /* Large buffers in the rest of D2 SRAM, past the MPU region (not zeroed). */
+  .d2_bss ORIGIN(RAM_D2) + 64K (NOLOAD) :
+  {
+    . = ALIGN(8);
+    *(.d2_bss)
+    . = ALIGN(8);
+  } >RAM_D2
+
   /* Zero-initialised data. */
   .bss :
   {

@@ -5,6 +5,8 @@
 #include "lwip/netif.h"
 #include "lwip/timeouts.h"
 #include "lwip/dhcp.h"
+#include "lwip/autoip.h"
+#include "lwip/dns.h"
 #include "lwip/etharp.h"
 #include "lwip/apps/mdns.h"
 #include "netif/ethernet.h"
@@ -150,4 +152,31 @@ void net_poll(void)
 void net_ip_str(char out[16])
 {
     ip4addr_ntoa_r(netif_ip4_addr(&s_if), out, 16);
+}
+
+void net_addrs(char ip[16], char mask[16], char gw[16])
+{
+    ip4addr_ntoa_r(netif_ip4_addr(&s_if), ip, 16);
+    ip4addr_ntoa_r(netif_ip4_netmask(&s_if), mask, 16);
+    ip4addr_ntoa_r(netif_ip4_gw(&s_if), gw, 16);
+}
+
+void net_set(bool dhcp, uint32_t ip, uint32_t mask, uint32_t gw, uint32_t dns)
+{
+    ip4_addr_t a = { ip }, m = { mask }, g = { gw };
+    dhcp_release_and_stop(&s_if);
+    autoip_stop(&s_if);
+    if (dhcp) {
+        netif_set_addr(&s_if, IP4_ADDR_ANY4, IP4_ADDR_ANY4, IP4_ADDR_ANY4);
+        dhcp_start(&s_if);
+        return;
+    }
+    netif_set_addr(&s_if, &a, &m, &g);
+#if LWIP_DNS
+    ip_addr_t d;
+    ip_addr_set_ip4_u32(&d, dns ? dns : gw);
+    dns_setserver(0, &d);
+#else
+    (void)dns;
+#endif
 }

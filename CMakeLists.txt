@@ -97,7 +97,7 @@ function(n540_image name ldscript)
         ${CMAKE_SOURCE_DIR}/src/board
         ${CMAKE_SOURCE_DIR}/src/core
         ${CMAKE_SOURCE_DIR}/src/common
-        ${CMAKE_SOURCE_DIR}/src/drivers
+        ${CMAKE_SOURCE_DIR}/src/app
         ${CMAKE_SOURCE_DIR}/src/http
         ${CMAKE_SOURCE_DIR}/src/net
         ${CMAKE_BINARY_DIR}/gen)
@@ -114,7 +114,7 @@ function(n540_image name ldscript)
     set_target_properties(${name}.elf PROPERTIES LINK_DEPENDS
         "${CMAKE_SOURCE_DIR}/linker/${ldscript};${CMAKE_SOURCE_DIR}/linker/sections.ld")
     add_custom_command(TARGET ${name}.elf POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} -O binary -R .dma_d2 $<TARGET_FILE:${name}.elf> ${name}.bin
+        COMMAND ${CMAKE_OBJCOPY} -O binary -R .dma_d2 -R .d2_bss $<TARGET_FILE:${name}.elf> ${name}.bin
         COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${name}.elf>)
 endfunction()
 
@@ -123,7 +123,7 @@ file(GLOB COMMON_SRC "${CMAKE_SOURCE_DIR}/src/common/*.c")
 file(GLOB NET_SRC    "${CMAKE_SOURCE_DIR}/src/net/*.c")
 file(GLOB HTTP_SRC   "${CMAKE_SOURCE_DIR}/src/http/*.c")
 file(GLOB LOADER_SRC "${CMAKE_SOURCE_DIR}/src/loader/*.c")
-file(GLOB APP_SRC    "${CMAKE_SOURCE_DIR}/src/app/*.c" "${CMAKE_SOURCE_DIR}/src/drivers/*.c")
+file(GLOB APP_SRC    "${CMAKE_SOURCE_DIR}/src/app/*.c")
 
 # The same loader, linked for internal flash and for SRAM (SWD testing).
 foreach(where flash ram)
@@ -131,7 +131,12 @@ foreach(where flash ram)
         ${LOADER_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
 endforeach()
 
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/web_page.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/embed.py
+            ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_BINARY_DIR}/gen/web_page.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/tools/embed.py)
 n540_image(app app_ram.ld
+    ${CMAKE_BINARY_DIR}/gen/web_page.h
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
 # -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.
 set(APP_TEST "" CACHE STRING "broken-app variant for rollback tests")

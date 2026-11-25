@@ -9,12 +9,24 @@
 #define LWIP_RAW                    0
 
 #define MEM_ALIGNMENT               4
+#ifdef APP_IMAGE
+#define MEM_SIZE                    (32 * 1024)
+#else
 #define MEM_SIZE                    (24 * 1024)
+#endif
 #define MEMP_NUM_PBUF               16
+#ifdef APP_IMAGE                    /* 4 ports x 4 clients + web */
+#define MEMP_NUM_TCP_PCB            32
+#define MEMP_NUM_TCP_PCB_LISTEN     6
+#define MEMP_NUM_TCP_SEG            96
+#define MEMP_NUM_UDP_PCB            9
+#else
 #define MEMP_NUM_TCP_PCB            12
 #define MEMP_NUM_TCP_PCB_LISTEN     6
 #define MEMP_NUM_TCP_SEG            32
-#define MEMP_NUM_SYS_TIMEOUT        16
+#endif
+#define MEMP_NUM_SYS_TIMEOUT        20
+#define SO_REUSE                    1
 #define PBUF_POOL_SIZE              20
 #define PBUF_POOL_BUFSIZE           1536
 
@@ -29,7 +41,11 @@
 #define LWIP_DHCP_DOES_ACD_CHECK    0
 #define LWIP_IGMP                   1
 #define LWIP_UDP                    1
+#ifdef APP_IMAGE
+#define LWIP_DNS                    1
+#else
 #define LWIP_DNS                    0
+#endif
 #define LWIP_NETIF_HOSTNAME         1
 #define LWIP_NETIF_EXT_STATUS_CALLBACK 1
 
@@ -40,7 +56,11 @@
 
 #define LWIP_TCP                    1
 #define TCP_MSS                     1460
+#ifdef APP_IMAGE                    /* bridge keeps one ring this big per connection */
+#define TCP_WND                     (4 * TCP_MSS)
+#else
 #define TCP_WND                     (8 * TCP_MSS)
+#endif
 #define TCP_SND_BUF                 (6 * TCP_MSS)
 #define TCP_SND_QUEUELEN            24
 #define TCP_LISTEN_BACKLOG          1

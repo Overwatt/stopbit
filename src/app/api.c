@@ -1,0 +1,187 @@
+#include "api.h"
+#include "cfg.h"
+#include "cfg_store.h"
+#include "bridge.h"
+#include "net.h"
+#include "eth_mac.h"
+#include "sha256.h"
+#include "slots.h"
+#include "fw_id.h"
+#include "web_page.h"
+#include "stm32h7xx_hal.h"
+#include <stdio.h>
+#include <string.h>
+
+#define KEEP_MS 120000u          /* unconfirmed network settings revert after this */
+
+static cfg_t     s_cfg;          /* what is saved */
+static net_cfg_t s_trial;        /* running but not saved */
+static bool      s_pending;
+static uint32_t  s_deadline;
+static bool      s_net_dirty;
+static uint32_t  s_net_at;
+
+static void run_net(const net_cfg_t *n)
+{
+    net_set(n->dhcp, n->ip, n->mask, n->gw, n->dns);
+}
+
+void api_init(void)
+{
+    cfg_load(&s_cfg);
+    if (!s_cfg.net.dhcp) run_net(&s_cfg.net);
+    bridge_configure(s_cfg.port);
+}
+
+void api_poll(void)
+{
+    uint32_t now = HAL_GetTick();
+    if (s_net_dirty && (int32_t)(now - s_net_at) >= 0) {
+        s_net_dirty = false;
+        run_net(s_pending ? &s_trial : &s_cfg.net);
+    }
+    if (s_pending && (int32_t)(now - s_deadline) >= 0) {
+        s_pending = false;
+        run_net(&s_cfg.net);
+    }
+}
+
+const uint8_t *api_web_key(void) { return s_cfg.web_set ? s_cfg.web_key : NULL; }
+const uint8_t *api_page(uint32_t *len) { *len = sizeof WEB_PAGE; return WEB_PAGE; }
+
+static void hex(const uint8_t *in, int n, char *out)
+{
+    for (int i = 0; i < n; i++) snprintf(out + 2 * i, 3, "%02x", in[i]);
+}
+
+static bool unhex(const char *s, uint8_t *out, int n)
+{
+    for (int i = 0; i < n; i++) {
+        unsigned v = 0;
+        for (int k = 0; k < 2; k++) {
+            char c = s[2 * i + k];
+            int d = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+            if (d < 0) return false;
+            v = v << 4 | (unsigned)d;
+        }
+        out[i] = (uint8_t)v;
+    }
+    return true;
+}
+
+int api_get(const char *path, char *out, size_t max)
+{
+    if (!strcmp(path, "/api/config")) {
+        cfg_t c = s_cfg;
+        if (s_pending) c.net = s_trial;
+        return (int)cfg_json(&c, out, max);
+    }
+    if (!strcmp(path, "/api/login")) {
+        char salt[33] = "";
+        if (s_cfg.web_set) hex(s_cfg.web_salt, 16, salt);
+        int n = snprintf(out, max, "{\"password_set\":%s,\"salt\":\"%s\"}\n",
+                         s_cfg.web_set ? "true" : "false", salt);
+        return n > 0 && (size_t)n < max ? n : 0;
+    }
+    if (strcmp(path, "/api/state")) return -1;
+
+    char ip[16], mask[16], gw[16];
+    net_addrs(ip, mask, gw);
+    int left = s_pending ? (int)(s_deadline - HAL_GetTick()) / 1000 : 0;
+    size_t n = (size_t)snprintf(out, max,
+        "{\"version\":\"%s\",\"uptime_s\":%lu,\"host\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\","
+        "\"ip\":\"%s\",\"mask\":\"%s\",\"gateway\":\"%s\",\"speed\":%d,\"full_duplex\":%s,"
+        "\"net_pending\":%s,\"net_pending_s\":%d,\"slot\":%d,\"boots\":%lu,\"reset\":\"%lx\",\"ports\":",
+        g_fw_id.version, (unsigned long)(HAL_GetTick() / 1000), g_hostname,
+        g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip, mask, gw,
+        g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
+        s_pending ? "true" : "false", left, (int)bkp_get(BKP_SLOT),
+        (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_RSTLOG));
+    if (n >= max) return 0;
+    size_t b = bridge_json(out + n, max - n);
+    if (!b || n + b + 3 > max) return 0;
+    memcpy(out + n + b, "}\n", 3);
+    return (int)(n + b + 2);
+}
+
+static const char *post_config(char *body, char *out, size_t max)
+{
+    static cfg_t c;
+    net_cfg_t shown = s_pending ? s_trial : s_cfg.net;
+    c = s_cfg;
+    c.net = shown;                       /* edit what the page is showing */
+    if (!cfg_parse(&c, body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";
+
+    net_cfg_t want = c.net;
+    bool net_changed = memcmp(&want, &shown, sizeof want) != 0;
+    c.net = s_cfg.net;                   /* network is saved only once kept */
+    if (memcmp(&c, &s_cfg, sizeof c)) {
+        if (!cfg_save(&c)) {
+            snprintf(out, max, "Could not write settings to flash; nothing changed");
+            return "500 Internal Server Error";
+        }
+        s_cfg = c;
+        bridge_configure(s_cfg.port);
+    }
+    if (net_changed) {
+        s_trial = want;
+        s_pending = memcmp(&want, &s_cfg.net, sizeof want) != 0;
+        s_deadline = HAL_GetTick() + KEEP_MS;
+        s_net_dirty = true;
+        s_net_at = HAL_GetTick() + 500;  /* let this reply out first */
+    }
+    snprintf(out, max, "{\"net_pending\":%s}", s_pending ? "true" : "false");
+    return "200 OK";
+}
+
+/* Body: "salt=<32 hex>\nkey=<64 hex>". `key` is the new key XORed with
+ * HMAC(signing key, "newkey\n" nonce), so it is not readable on the wire. */
+static const char *post_password(api_req_t *rq, char *out, size_t max)
+{
+    static cfg_t c;
+    uint8_t pad[32], key[32], salt[16];
+    char *s = strstr(rq->body, "salt="), *k = strstr(rq->body, "key=");
+    if (!s || !k || !unhex(s + 5, salt, 16) || !unhex(k + 4, key, 32)) {
+        snprintf(out, max, "Malformed password request");
+        return "400 Bad Request";
+    }
+    hmac_sha256(rq->key, "newkey\n", 7, rq->nonce, strlen(rq->nonce), pad);
+    c = s_cfg;
+    for (int i = 0; i < 32; i++) c.web_key[i] = key[i] ^ pad[i];
+    memcpy(c.web_salt, salt, 16);
+    c.web_set = 1;
+    if (!cfg_save(&c)) {
+        snprintf(out, max, "Could not write the password to flash; it is unchanged");
+        return "500 Internal Server Error";
+    }
+    s_cfg = c;
+    snprintf(out, max, "{}");
+    return "200 OK";
+}
+
+bool api_is_post(const char *path)
+{
+    return !strcmp(path, "/api/config") || !strcmp(path, "/api/password") ||
+           !strcmp(path, "/api/keep") || !strcmp(path, "/api/check");
+}
+
+const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
+{
+    if (!strcmp(path, "/api/config")) return post_config(rq->body, out, max);
+    if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
+    if (!strcmp(path, "/api/keep")) {
+        static cfg_t c;
+        if (s_pending) {
+            c = s_cfg;
+            c.net = s_trial;
+            if (!cfg_save(&c)) {
+                snprintf(out, max, "Could not write settings to flash");
+                return "500 Internal Server Error";
+            }
+            s_cfg = c;
+            s_pending = false;
+        }
+    }
+    snprintf(out, max, "{}");            /* /api/check: the signature was the point */
+    return "200 OK";
+}
