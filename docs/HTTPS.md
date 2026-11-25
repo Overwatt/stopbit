@@ -1,7 +1,7 @@
 # HTTPS
 
 The gateway serves the same pages and API on port 443, with a key that is made on it and
-never leaves. Renewing a Let's Encrypt certificate by itself is not built yet.
+never leaves, and can renew a Let's Encrypt certificate by itself (see Renewing).
 
 ## Use
 
@@ -15,8 +15,8 @@ tools/n540.py HOST cert-install fullchain.pem
 tools/n540.py HOST https                             # state, fingerprint, timings
 ```
 
-A Let's Encrypt certificate from another computer, with Route 53 credentials in the usual
-places. `--staging` first. It is not renewed by itself: repeat before it expires.
+Or a Let's Encrypt certificate made on another computer, with Route 53 credentials in the
+usual places, `--staging` first. Then repeat it before it expires.
 
 ```sh
 uvx --from certbot --with certbot-dns-route53 certbot certonly --dns-route53 --csr request.pem \
@@ -74,27 +74,55 @@ stage, garbage, uploads, certificates from an RSA and P-384 authority, restarts,
 each that no memory or connection is left behind. `SIM_FLAGS=-DWORKER_SLICE_US=20u` makes
 the worker switch fifty times as often.
 
-## Not built: Let's Encrypt on the gateway
+## Renewing on the gateway
 
-Checked 2026-11-25:
+Network page, Renewal: the Route 53 hosted zone ID, an access key and its secret, and
+whether to renew by itself. "Test on staging" goes through every step with Let's Encrypt's
+staging service and installs nothing. Due once a third of the certificate's life is left;
+checked every 12 hours, and after a failure in an hour, then longer, up to a day.
 
-- The gateway is not reachable from the internet, so use **DNS-01**. On Route 53, IAM can
-  limit a key to one record: allow `ChangeResourceRecordSets` with conditions on the record
-  name (`_acme-challenge.<name>`), type `TXT` and action. Request signing is HMAC-SHA256,
-  which we have.
+1. A Let's Encrypt account key, made once and kept (`0x0F8000` / `0x0F9000`, two copies,
+   blanked in flash dumps like the secret beside it).
+2. An order for the certificate's name; the TXT record `_acme-challenge.<name>` through
+   Route 53 (AWS Signature Version 4), until every Route 53 server has it; Let's Encrypt
+   checks it; the record is deleted, whatever happened.
+3. A new private key on the gateway, its signing request, and the certificate, installed as
+   if uploaded.
+
+It runs as a second worker job, so the bus and HTTPS carry on. The time comes from SNTP:
+the DHCP server's time servers, else `pool.ntp.org`. Outgoing connections check the server
+against four roots compiled in (`src/app/roots.c`): ISRG Root X1 and X2, Amazon Root CA 1
+and 3. **A root that is withdrawn needs new firmware.**
+
+The AWS key should be able to do nothing else. This is the policy, for one name:
+
+```json
+{ "Version": "2012-10-17", "Statement": [
+  { "Effect": "Allow", "Action": "route53:ChangeResourceRecordSets",
+    "Resource": "arn:aws:route53:::hostedzone/ZONE_ID",
+    "Condition": { "ForAllValues:StringEquals": {
+      "route53:ChangeResourceRecordSetsNormalizedRecordNames": ["_acme-challenge.NAME"],
+      "route53:ChangeResourceRecordSetsRecordTypes": ["TXT"],
+      "route53:ChangeResourceRecordSetsActions": ["UPSERT", "DELETE"] } } },
+  { "Effect": "Allow", "Action": "route53:GetChange", "Resource": "arn:aws:route53:::change/*" } ] }
+```
+
+Checked 2026-11-25: with it, a key cannot list zones, read records, or change any other
+name, type or action. Whoever has the board can still read the key from its flash and use
+it for that one record, which is enough to get certificates for that name.
+
+**Tested:** a full staging run, from the simulator, against the real services: 31 s. Not
+yet on the gateway. Let's Encrypt's lifetimes are getting shorter (64 days from
+2027-02-10, 45 from 2028-02-16); renewing at a third of the life follows them.
+
+## Not built
+
 - **DNS-PERSIST-01** would need no DNS key at all, one permanent TXT record instead. As of
-  October 2026 Let's Encrypt had not announced a production date. Check again first.
-- Lifetimes are 90 days, 64 from 2027-02-10 and 45 from 2028-02-16. Renew at two thirds of
-  the lifetime, or follow ACME Renewal Information.
-- Needed besides: network time (SNTP), a TLS client that checks certificates, and the ACME
-  and Route 53 requests. The certificate's expiry should go to the Hardware page and Home
-  Assistant.
-- **RAM:** the image is 227 of at most 384 KB, the loader's limit. Buffers have more room:
-  main RAM is 512 KB with about 34 KB free, DTCM has 73 KB, D2 34 KB, and D3 and ITCM
-  (128 KB) are unused.
-- Certificates are publicly logged, so the host name becomes public. The name needs a DNS
-  record for the gateway's LAN address; some routers block public names that resolve to
-  private addresses.
+  October 2026 Let's Encrypt had not announced a production date. Worth moving to when it is.
+- ACME Renewal Information (ARI), which lets Let's Encrypt ask for an early renewal.
+- The certificate's expiry on the Hardware page and in Home Assistant.
+- Other DNS providers.
 
-Open: whether a restricted DNS key may live on the gateway. If not,
-renewal runs on another computer, which only needs the signing request once.
+Certificates are publicly logged, so the host name becomes public. The name needs a DNS
+record for the gateway's LAN address; some routers block public names that resolve to
+private addresses.

@@ -424,7 +424,10 @@ static const char *renew(job_t *j)
     if (step("Account") || (why = account(j))) return why;
     if (step("Order") || (why = order(j))) return why;
     if (j->chal[0]) {
-        if (step("Adding the DNS record") || (why = txt_record(j, true))) return why;
+        if (step("Adding the DNS record") || (why = txt_record(j, true))) {
+            txt_record(j, false);                                             /* it may have got there */
+            return why;
+        }
         step("Waiting for Let's Encrypt to check it");
         why = post(j, j->chal, "{}", false);
         if (!why) why = poll_status(j, j->authz, "valid", 40);
