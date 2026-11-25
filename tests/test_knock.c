@@ -51,7 +51,7 @@ int main(void)
     uint32_t t = 0xFFFFFF00u;
     for (int i = 0; i < 3; i++) knock_add(&S, 5, t += 100);
     assert(t < 1000 && knock_persistent(&S, t));
-    for (uint32_t h = 0; h < 24 * 120; h++) { t += 3600000u; knock_clamp(&S, t); if (h) assert(!knock_persistent(&S, t)); }
+    for (uint32_t h = 0; h < 12 * 24 * 120; h++) { t += 300000u; knock_clamp(&S, t); if (h > 1) assert(!knock_persistent(&S, t)); }
 
     /* against a plain model */
     srand(1);

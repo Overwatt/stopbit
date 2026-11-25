@@ -236,6 +236,9 @@ int main(void)
     /* no list, no alarm; emptying the list clears what there was */
     for (int i = 0; i < 3; i++) from(4002, "9.9.9.9");
     bridge_poll(); assert(info(1).alert[0]);
+    for (int k = 0; k < 12 * 24 * 60; k++) { t_now += 300000; bridge_poll(); if (k > 1) assert(!info(1).alert[0]); }   /* nor again when the clock wraps at 49 days */
+    for (int i = 0; i < 3; i++) from(4002, "9.9.9.9");
+    bridge_poll(); assert(info(1).alert[0]);
     set("port2.access="); assert(!info(1).alert[0] && !info(1).denied_ip[0]);
     /* a silent bus is said first */
     set("port2.access=10.0.0.5 read\nport2.quiet_min=1");
