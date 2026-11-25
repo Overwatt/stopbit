@@ -4,125 +4,104 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>N540 gateway</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d6658'/%3E%3Cpath d='M3 6h10M3 10h10M6 4v8M10 4v8' stroke='%23fff' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d4a68'/%3E%3Cpath d='M3 6h10M3 10h10M6 4v8M10 4v8' stroke='%23fff' stroke-width='1.4'/%3E%3C/svg%3E">
 <style>
 :root{color-scheme:light dark;
---bg:#f3f5f3;--panel:#fff;--ink:#18201d;--soft:#55605b;--line:#d5dbd7;--field-line:#76827c;
---accent:#0d6658;--accent-ink:#fff;--accent-hover:#0a5247;
---ok:#17703d;--warn:#8a5300;--warn-bg:#fdf1dc;--bad:#b3261e;--bad-bg:#fcebe9;--idle:#68736e;
---well:#ebefec;--key:#e2e8e5;--key-hover:#d5ddd9;--key-press:#c6d0cb;--press:#073f37;--rule:#edf0ee;
---lift:0 1px 2px rgba(24,32,29,.08),0 4px 14px rgba(24,32,29,.07)}
+--shell:#0d4a68;--shell-soft:#bfe0ee;--ground:#dcebf1;--sheet:#fff;--ink:#0b2230;--soft:#2d5468;--rule:#dbe7ed;
+--well:#eaf3f7;--foot:#5b7f91;--key:#dfebf1;--key-h:#cfe0e8;--key-p:#bed3de;
+--accent:#0d4a68;--accent-ink:#fff;--accent-h:#0a3b53;--accent-p:#072c3f;--sea:#1683b8;
+--ok:#17703d;--warn:#7d4b00;--warn-bg:#fdf0d6;--bad:#a3211a;--bad-bg:#ffe1dc;--idle:#4e6f7f}
 @media(prefers-color-scheme:dark){:root{
---bg:#131816;--panel:#1b211f;--ink:#e6ebe8;--soft:#a3afa9;--line:#313a36;--field-line:#74827b;
---accent:#4fb8a3;--accent-ink:#0b1a16;--accent-hover:#6ccab7;
---ok:#62c98b;--warn:#e7b45e;--warn-bg:#32270f;--bad:#f2877e;--bad-bg:#391a18;--idle:#8a968f;
---well:#121715;--key:#2b3430;--key-hover:#36403c;--key-press:#222a27;--press:#3d9a88;--rule:#262d2a;
---lift:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.28)}}
+--shell:#0b3245;--shell-soft:#a9cfdf;--ground:#0a1a22;--sheet:#11242e;--ink:#e3f0f5;--soft:#9fbfcd;--rule:#1f3845;
+--well:#0c1c24;--foot:#6f92a2;--key:#1d3947;--key-h:#274857;--key-p:#16303c;
+--accent:#5bb8e2;--accent-ink:#06212d;--accent-h:#7cc8eb;--accent-p:#46a3cd;--sea:#3f9fd0;
+--ok:#62c98b;--warn:#e7b45e;--warn-bg:#352a10;--bad:#ff9a8f;--bad-bg:#451c18;--idle:#8fb0be}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
-::selection{background:var(--accent);color:var(--accent-ink)}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-main,header .in,nav{max-width:1080px;margin:0 auto;padding:0 20px}
-header{background:var(--panel);box-shadow:var(--lift)}
-header .in{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:center;padding-top:14px;padding-bottom:14px}
-header .in{padding-bottom:10px}
-nav{display:flex;gap:4px;margin:0 auto;padding:0 8px}
-nav a{color:var(--soft);text-decoration:none;font-weight:550;padding:11px 12px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
-nav a:hover{color:var(--ink);border-color:var(--field-line)}
-nav a[aria-current]{color:var(--ink);border-color:var(--accent)}
-nav a:focus-visible{outline-offset:-2px}
-h1{font-size:1.25rem;line-height:1.3;margin:0;font-weight:650;overflow-wrap:anywhere}
-h2{font-size:1.0625rem;margin:36px 0 10px;font-weight:650}
-.meta{color:var(--soft);margin:0}
-.grow{flex:1}
-p{margin:0 0 10px;max-width:70ch}
-.hint{color:var(--soft);font-size:.875rem;margin:4px 0 0}
-.acts+.hint{margin-top:14px}
-button{font:inherit;font-weight:600;border-radius:6px;padding:9px 18px;min-height:44px;border:0;background:var(--key);color:var(--ink);cursor:pointer;transition:background .15s}
-button:hover{background:var(--key-hover)}
-button:active{background:var(--key-press)}
-button.primary{background:var(--accent);color:var(--accent-ink)}
-button.primary:hover{background:var(--accent-hover)}
-button.primary:active{background:var(--press)}
-button.danger,button.danger:hover{color:var(--bad);background:var(--bad-bg)}
-button:disabled,button.primary:disabled{background:transparent;color:var(--soft);box-shadow:inset 0 0 0 1px var(--line);cursor:default}
-.panel{background:var(--panel);border-radius:8px;box-shadow:var(--lift)}
-.pad{padding:18px 20px}
-table{width:100%;border-collapse:collapse;table-layout:fixed}
-th{font-weight:550;color:var(--soft);font-size:.875rem;text-align:left;padding:10px 12px;background:var(--well);white-space:nowrap}
-th:first-child{border-top-left-radius:8px}th:last-child{border-top-right-radius:8px}
-td{padding:11px 12px;border-top:1px solid var(--rule);vertical-align:top}
-tbody tr:first-child td{border-top:0}
-th:first-child,td:first-child{padding-left:20px}th:last-child,td:last-child{padding-right:20px}
-td.n,th.n{text-align:right}td.n .sub{white-space:nowrap}
-#board-t th:first-child{width:22%}
-.sub{display:block;font-size:.875rem;overflow-wrap:anywhere;color:var(--soft)}
-.sub.warn{color:var(--warn)}
-.name{font-weight:600;overflow-wrap:anywhere}
-.st{display:flex;align-items:center;gap:7px}
-.st svg{width:9px;height:9px;flex:none}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.idle{color:var(--idle)}
-tr.edit>td{background:var(--well);padding:18px 20px 20px}
-tr.edit input,tr.edit select,tr.edit button:not(.primary):not(:disabled){background:var(--panel)}
-tr.edit button:not(.primary):not(:disabled):hover{background:var(--key)}
-td button{padding:9px 12px}tr.edit button{padding:9px 18px}
-tr.edit:last-child>td{border-radius:0 0 8px 8px}
-form{margin:0}
-fieldset{border:0;margin:0 0 18px;padding:0;min-width:0}
-legend{font-weight:600;padding:0;margin-bottom:8px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 16px}
-label{display:block;font-size:.875rem;color:var(--soft)}
-label.wide{grid-column:span 2}
-input,select{font:inherit;color:var(--ink);display:block;width:100%;margin-top:3px;padding:9px 12px;border:0;border-bottom:2px solid var(--field-line);border-radius:6px 6px 2px 2px;background:var(--well);caret-color:var(--accent);min-height:44px;transition:border-color .15s}
-input:hover,select:hover,input:focus,select:focus{border-color:var(--accent)}
+body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;min-height:100vh;display:flex;flex-direction:column}
+::selection{background:var(--sea);color:#fff}
+:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
+header{background:var(--shell);color:#fff}header .in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 30px;min-height:72px;padding:10px 32px}
+header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
+nav{display:flex;gap:6px;align-self:stretch}nav a{color:var(--shell-soft);font-weight:600;text-decoration:none;padding:14px 10px 11px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
+nav a:hover{color:#fff;border-color:var(--shell-soft)}nav a[aria-current]{color:#fff;border-color:#fff}
+header :focus-visible{outline-color:#fff;outline-offset:-2px}
+.meta{color:var(--shell-soft);margin:0}.grow{flex:1}
+header button{background:#fff;color:#0d4a68}header button:hover{background:var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
+header input{background:#fff;color:#0b2230;border-color:#5b7f91}header input::placeholder{color:#2d5468}
+h1,h2,h3{font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}
+h1{font-size:2.125rem}h2{font-size:2.5rem}h3{font-size:1.25rem;letter-spacing:-.01em;margin:40px 0 14px}
+p{margin:0 0 10px;max-width:66ch}
+.hint{color:var(--soft);font-size:.875rem;margin:4px 0 0}.acts+.hint{margin-top:14px}
+button{font:inherit;font-weight:600;border:0;border-radius:6px;min-height:44px;padding:9px 18px;background:var(--key);color:var(--ink);cursor:pointer;transition:background .15s}
+button:hover{background:var(--key-h)}button:active{background:var(--key-p)}
+button.primary{background:var(--accent);color:var(--accent-ink)}button.primary:hover{background:var(--accent-h)}button.primary:active{background:var(--accent-p)}
+button.danger,button.danger:hover{background:var(--bad-bg);color:var(--bad)}
+button:disabled,button.primary:disabled{background:transparent;color:var(--soft);box-shadow:inset 0 0 0 1px var(--foot);cursor:default}
+.notes{padding:0 32px}
+.note{border-radius:8px;padding:12px 16px;margin-top:16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.note p{margin:0;flex:1 1 320px;max-width:none}.note.warn{background:var(--warn-bg);color:var(--warn)}.note.bad{background:var(--bad-bg);color:var(--bad)}
+.note b,.note code{color:var(--ink)}.note button{background:var(--sheet)}
+.app{flex:1;display:grid;grid-template-columns:400px minmax(0,1fr)}
+aside{padding:30px 20px 30px 32px}
+aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+#vsub{margin:8px 0 22px;font-size:1.0625rem;color:var(--soft);min-height:1.45em}
+.it{display:grid;grid-template-columns:18px minmax(4.5rem,1fr) fit-content(72%);gap:12px;align-items:center;min-height:50px;padding:8px 16px;margin-bottom:4px;border-radius:8px;color:var(--ink);text-decoration:none;transition:background .15s}
+.it b{font-size:1.0625rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it em{font-style:normal;color:var(--soft);text-align:right}
+.it:hover{background:color-mix(in srgb,var(--sheet) 55%,transparent)}.it.bad{background:var(--bad-bg);color:var(--bad)}.it.bad em{color:var(--bad)}.it.warn em{color:var(--warn)}
+.it[aria-current]{background:var(--sheet)}.it.bad[aria-current]{box-shadow:inset 0 0 0 2px var(--bad)}
+.mk{width:14px;height:14px;display:block}.mk.ok{color:var(--ok)}.mk.warn{color:var(--warn)}.mk.bad{color:var(--bad)}.mk.idle{color:var(--idle)}
+main{background:var(--sheet);border-radius:16px 0 0 0;margin-top:26px;padding:34px 44px 56px;min-width:0}
+main>div{max-width:1000px}
+.head{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}.head h2{flex:1 1 150px}
+.back{display:none}#edit{margin-top:26px}
+.say{font-size:1.5rem;line-height:1.4;margin:14px 0 24px;max-width:44ch;min-height:2.8em}
+.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px 20px;margin:28px 0 0}.facts dt{font-size:.9375rem;color:var(--soft)}.facts dd{margin:0;font-size:1.25rem;font-weight:650;overflow-wrap:anywhere}.facts .sub{font-weight:400}
+.sub{display:block;font-size:.875rem;line-height:1.4;color:var(--soft);overflow-wrap:anywhere}.sub.warn,.warn{color:var(--warn)}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.chart{background:var(--well);border-radius:10px;padding:16px 18px 10px;position:relative}.chart+.chart{margin-top:14px}
+.chart .cap{display:flex;flex-wrap:wrap;gap:2px 16px;justify-content:space-between;color:var(--soft)}.chart .cap b{color:var(--ink);font-weight:650}
+.chart svg{display:block;width:100%;height:200px;overflow:visible;touch-action:pan-y}
+.chart .grid{stroke:var(--rule)}.chart text{fill:var(--soft);font-size:13px}.chart .ln{fill:none;stroke:var(--sea);stroke-width:2;stroke-linejoin:round}.chart .ar{fill:var(--sea);opacity:.14}.chart .er{fill:var(--warn)}.chart .xh{stroke:var(--soft)}.chart .pt{fill:var(--sea);stroke:var(--well);stroke-width:2}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--sheet);border-radius:6px;padding:5px 10px;font-size:.875rem;white-space:nowrap;transform:translateX(-50%)}
+details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
+dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
+table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
+.name{font-weight:650}
+form{margin:0}fieldset{border:0;margin:0 0 26px;padding:0;min-width:0}legend{font-size:1.25rem;font-weight:750;letter-spacing:-.01em;padding:0;margin-bottom:10px}
+.grid-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px 18px}
+label{display:block;font-size:.9375rem;color:var(--soft)}label.wide{grid-column:span 2}
+input,select{font:inherit;color:var(--ink);display:block;width:100%;margin-top:4px;padding:9px 12px;border:0;border-bottom:2px solid var(--foot);border-radius:6px 6px 2px 2px;background:var(--well);caret-color:var(--sea);min-height:44px;transition:border-color .15s}
+input:hover,select:hover,input:focus,select:focus{border-color:var(--sea)}input:disabled,select:disabled{opacity:.6;border-color:var(--foot)}
 ::placeholder{color:var(--soft);opacity:1}
-input:disabled,select:disabled{opacity:.6;border-color:var(--field-line)}
-input[type=file]{padding:6px;overflow:hidden}
-input::file-selector-button{font:inherit;font-weight:600;color:var(--ink);background:var(--key-hover);border:0;border-radius:4px;padding:5px 14px;margin-right:12px;cursor:pointer}
-label.check{display:flex;gap:11px;align-items:flex-start;color:var(--ink);font-size:.9375rem;max-width:62ch}
-label.check input{width:20px;height:20px;min-height:0;margin:1px 0 0;flex:none;accent-color:var(--accent)}
-label.check span span{display:block;color:var(--soft);font-size:.875rem}
-.checks{display:grid;gap:10px}
-.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.msg{margin:0;font-size:.9375rem}
-.note{border-radius:8px;padding:12px 16px;margin:20px 0 0;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
-.note p{margin:0;flex:1 1 320px;max-width:none}
-.note.warn{background:var(--warn-bg);color:var(--warn)}.note.bad{background:var(--bad-bg);color:var(--bad)}
-.note p b,.note code{color:var(--ink)}
-.note button{background:var(--panel)}
+input[type=file]{padding:6px;overflow:hidden}input::file-selector-button{font:inherit;font-weight:600;color:var(--ink);background:var(--key-h);border:0;border-radius:4px;padding:5px 14px;margin-right:12px;cursor:pointer}
+label.check{display:flex;gap:12px;align-items:flex-start;color:var(--ink);font-size:1rem;max-width:62ch}label.check input{width:20px;height:20px;min-height:0;margin:2px 0 0;flex:none;accent-color:var(--accent)}label.check span span{display:block;color:var(--soft);font-size:.875rem}
+.checks{display:grid;gap:12px}.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.msg{margin:0}
 code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
-dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 20px;margin:0}
-dt{color:var(--soft)}dd{margin:0;overflow-wrap:anywhere}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
-.two h2{margin-top:36px}
-td .name+.sub{margin-top:1px}
-
 [hidden]{display:none!important}
-footer{height:48px}
-@media(max-width:1099px){
- .two{grid-template-columns:1fr;gap:0}
- main,header .in{padding-left:16px;padding-right:16px}
- thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
- table,tbody{display:block}
- tbody tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 16px;padding:14px 16px;border-top:1px solid var(--rule)}
- tbody tr.row:first-child{border-top:0}
- tr.row td{display:block;border:0;padding:3px 0!important}
- tr.row td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}
- td.n{text-align:left}td:last-child button{width:100%}
- tr.edit{display:block}tr.edit>td{display:block;padding:16px}
+@media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:860px){
+ header .in{padding:10px 16px 0;gap:4px 16px}nav{order:9;flex-basis:100%;gap:0;margin:0 -8px}nav a{padding:11px 10px 9px}
+ .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
+ aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
+ body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
+ h2{font-size:2rem}.say{font-size:1.25rem;min-height:4.2em}.facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body[data-view=list] .it[aria-current]{background:none}body[data-view=list] .it.bad[aria-current]{background:var(--bad-bg);box-shadow:none}
+ .meta{order:3;flex-basis:100%;margin-bottom:2px}.grow{flex:1 1 0}#login{order:4;flex-basis:100%}
+ .back{display:inline-flex;align-items:center;min-height:44px;color:var(--ink);font-weight:600}
+ .chart{padding:14px 12px 8px}.chart svg{height:170px}
+ thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}table.stack,table.stack tbody{display:block}
+ table.stack tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}table.stack tr.row td{border:0;padding:0}table.stack td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}table.stack td:first-child{grid-column:1/-1}table.stack td:empty{display:none}
  label.wide{grid-column:1/-1}
- #board td:first-child,#wiring td:first-child{grid-column:1/-1}
- #board td:empty{display:none}
- nav{padding:0 4px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
-<body>
+<body data-view="list">
 <header><div class="in">
- <h1 id="dname">N540 gateway</h1>
- <p class="meta" id="dmeta">Connecting…</p>
+ <b id="dname">N540 gateway</b>
+ <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
  <span class="grow"></span>
+ <p class="meta" id="dmeta">Connecting…</p>
  <form id="login" class="acts" hidden>
   <input id="pw" type="password" autocomplete="current-password" aria-label="Web password" placeholder="Password" style="width:180px;margin:0">
   <button class="primary">Sign in</button>
@@ -130,29 +109,26 @@ footer{height:48px}
  <button id="signin" type="button" hidden>Sign in</button>
  <button id="signout" type="button" hidden>Sign out</button>
  <p class="msg bad" id="loginmsg" role="alert" hidden></p>
-</div>
-<nav aria-label="Pages"><a href="#ports">Ports</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav></header>
-<main>
+</div></header>
+<div class="notes">
  <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
  <div id="nopw" class="note warn" hidden><p>No web password is set, so nothing can be saved here yet. On the computer that builds the firmware, in the project folder, run <code id="pwcmd"></code> This page will then offer Sign in.</p></div>
  <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
-
  <div id="fwtrial" class="note warn" role="status" hidden><p>This firmware is on trial. The gateway goes back to the previous one unless you keep it.</p><button id="fwkeep" type="button">Keep firmware</button></div>
- <div id="p-ports">
- <h2>Serial ports</h2>
- <div class="panel"><table>
-  <colgroup><col style="width:14%"><col style="width:15%"><col style="width:15%"><col style="width:14%"><col style="width:11%"><col style="width:10%"><col style="width:11.5%"><col style="width:9.5%"></colgroup>
-  <thead><tr><th>Port</th><th>Status</th><th>Line</th><th>Network</th><th class="n">From serial</th><th class="n">To serial</th><th class="n">Errors</th><th><span hidden>Edit</span></th></tr></thead>
-  <tbody id="ports"><tr><td colspan="8" class="idle">Loading ports…</td></tr></tbody>
- </table></div>
- </div>
-
- <div id="p-network" hidden><div class="two">
- <section><h2>Address</h2><div class="panel pad"><dl id="netinfo" style="margin-bottom:20px"></dl><form id="net">
-  <div class="grid" style="margin-bottom:16px">
+</div>
+<div class="app">
+<aside><h1 id="verdict" aria-live="polite">Connecting…</h1><p id="vsub"></p><div id="list" role="navigation" aria-label="Stations"></div></aside>
+<main>
+ <div id="p-port" hidden><a class="back" href="#status">All stations</a><div class="head"><h2 id="pname"></h2><button id="pedit" type="button">Edit port</button></div>
+  <div id="report"><p class="say" id="psay"></p><div id="charts"></div><dl class="facts" id="pfacts"></dl>
+  <details id="ptable"><summary>Traffic as a table</summary><table><thead><tr><th>Minutes ago</th><th>Heard</th><th>Sent</th><th>Errors</th></tr></thead><tbody id="ptrows"></tbody></table></details></div>
+  <div id="edit" hidden></div></div>
+ <div id="p-network" hidden><h2>Network</h2><div class="two">
+  <section><h3>Address</h3><dl class="list" id="netinfo" style="margin-bottom:26px"></dl><form id="net">
+  <div class="grid-f" style="margin-bottom:16px">
    <label class="wide">How it gets its address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
   </div>
-  <div class="grid" data-static style="margin-bottom:16px">
+  <div class="grid-f" data-static style="margin-bottom:16px">
    <label>IP address<input name="ip" inputmode="decimal" autocomplete="off"></label>
    <label>Subnet mask<input name="mask" inputmode="decimal" autocomplete="off"></label>
    <label>Gateway<input name="gateway" inputmode="decimal" autocomplete="off"></label>
@@ -160,11 +136,10 @@ footer{height:48px}
   </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
- </form></div></section>
-
- <section><h2>Home Assistant (MQTT)</h2><div class="panel pad"><form id="mqtt">
+ </form></section>
+  <section id="mqttsec"><h3>Home Assistant (MQTT)</h3><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>The gateway then appears in Home Assistant by itself.</span></span></label></div>
-  <div data-mqtt><div class="grid" style="margin-bottom:16px">
+  <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
    <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
    <label>Port<input name="port" type="number" min="1" max="65535" required></label>
    <label>User name<input name="user" maxlength="63" autocomplete="off"></label>
@@ -174,44 +149,28 @@ footer{height:48px}
    <label class="check" id="mqclear" hidden><input type="checkbox" name="clear"><span>Remove the saved password</span></label></div></div>
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
   <p class="hint">Status: <span id="mqst">off</span></p>
- </form></div></section>
- </div></div>
-
- <div id="p-hardware" hidden>
- <h2>Board</h2>
- <div class="panel"><table id="board-t">
-  <thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead>
-  <tbody id="board"><tr><td colspan="3" class="idle">Reading the hardware…</td></tr></tbody>
- </table></div>
- <h2>Serial port pins</h2>
- <div class="panel"><table>
-  <thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead>
-  <tbody id="wiring"><tr><td colspan="5" class="idle">Reading the hardware…</td></tr></tbody>
- </table></div>
- <div class="two">
- <section><h2>Memory in use</h2><div class="panel pad"><dl id="meminfo"></dl></div></section>
- <section><h2>Device</h2><div class="panel pad">
-  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
+ </form></section></div></div>
+ <div id="p-hardware" hidden><h2>Hardware</h2>
+  <h3>Board</h3><table class="stack" id="board-t"><thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead><tbody id="board"><tr><td colspan="3">Reading the hardware…</td></tr></tbody></table>
+  <h3>Serial port pins</h3><table class="stack"><thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead><tbody id="wiring"><tr><td colspan="5">Reading the hardware…</td></tr></tbody></table>
+  <div class="two"><section><h3>Memory in use</h3><dl class="list" id="meminfo"></dl></section><section><h3>Device</h3>
+  <form id="dev"><div class="grid-f" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
   <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
-  <dl id="devinfo"></dl>
+  <dl class="list" id="devinfo"></dl>
   <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
-  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
+  <form id="pwform" hidden style="margin-top:16px"><div class="grid-f" style="margin-bottom:14px">
    <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
    <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
- </div></section>
- </div></div>
- <div id="p-firmware" hidden><div class="two">
- <section><h2>Update</h2><div class="panel pad"><form id="fw">
+</section></div></div>
+ <div id="p-firmware" hidden><h2>Firmware</h2><div class="two">
+  <section><h3>Update</h3><form id="fw">
   <label style="margin-bottom:16px">Firmware file (app.bin)<input type="file" name="file" accept=".bin" required></label>
-  <dl id="fwfile" style="margin-bottom:16px" hidden></dl>
+  <dl class="list" id="fwfile" style="margin-bottom:16px" hidden></dl>
   <div class="acts"><button class="primary">Install</button><p class="msg" role="status"></p></div>
   <p class="hint">The gateway restarts. If the new firmware does not start, it goes back to the current one.</p>
- </form></div></section>
- <section><h2>Installed</h2><div class="panel pad"><dl id="fwinfo"></dl></div></section>
- </div></div>
- <footer></footer>
-</main>
+ </form></section><section><h3>Installed</h3><dl class="list" id="fwinfo"></dl></section></div></div>
+</main></div>
 <script>
 "use strict";
 /* ---- SHA-256 / HMAC / PBKDF2 (crypto.subtle needs HTTPS) ---- */
@@ -252,7 +211,7 @@ const dur=s=>s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/360
 function say(m,text,cls){m.textContent=text;m.className="msg "+(cls||"")}
 
 /* ---- API ---- */
-let updating=false,key=null,cfg=null,st=null,salt="",pwset=false,prev=null,rate=[];
+let updating=false,key=null,cfg=null,st=null,salt="",pwset=false,rate=[];
 try{const k=sessionStorage.getItem("n540key");if(k)key=unhex(k)}catch(e){}
 async function req(path,opt){const {wait=8000,...o}=opt||{},c=new AbortController(),t=setTimeout(()=>c.abort(),wait);
  try{const r=await fetch(path,{cache:"no-store",signal:c.signal,...o});return {ok:r.ok,status:r.status,text:await r.text()}}
@@ -274,34 +233,14 @@ function authUI(){const open=!$("login").hidden&&!key&&pwset;
  for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#fw")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  if(!key)$("pwform").hidden=true;
- for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,tr.edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+ for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
 
-/* ---- ports ---- */
-const MODES={server:"TCP server",client:"TCP client",udp:"UDP"},
- STATES={off:["Off","idle"],listening:["Listening","ok"],connected:["Connected","ok"],ready:["Ready","ok"],connecting:["Connecting","warn"],retrying:["Retrying","warn"],error:["Cannot open port","bad"]};
-let open=-1;
+/* ---- port settings ---- */
+const MODES={server:"TCP server",client:"TCP client",udp:"UDP"};
 const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
 function where(p){if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
  return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
-function buildPorts(){const b=$("ports");b.replaceChildren();
- cfg.ports.forEach((p,i)=>{
-  const c={st:el("td",{"data-h":"Status"}),rx:el("td",{class:"n","data-h":"From serial"}),tx:el("td",{class:"n","data-h":"To serial"}),er:el("td",{class:"n","data-h":"Errors"})};
-  const btn=el("button",{type:"button","aria-expanded":String(open===i),"aria-label":(open===i?"Close ":"Edit ")+p.name,onclick(){open=open===i?-1:i;buildPorts();const f=document.querySelector("tr.edit input,#ports .row:nth-child("+(i+1)+") button");if(f)f.focus()}},open===i?"Close":"Edit");
-  b.append(el("tr",{class:"row"},el("td",{},el("span",{class:"name"},p.name||"Port "+(i+1)),p.name!=="Port "+(i+1)&&p.name?el("span",{class:"sub"},"Port "+(i+1)):null),c.st,
-   el("td",{"data-h":"Line"},line(p),p.loopback?el("span",{class:"sub warn"},"Loopback test on"):p.listen_only?el("span",{class:"sub"},"Listen only"):null),
-   el("td",{"data-h":"Network"},MODES[p.mode],el("span",{class:"sub"},where(p))),c.rx,c.tx,c.er,el("td",{class:"n"},btn)));
-  cells[i]=c;if(open===i)b.append(editor(p,i))});
- paint()}
-const cells=[];
-function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>x.textContent??x).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
-function paint(){if(!st||!cfg)return;st.ports.forEach((s,i)=>{const c=cells[i];if(!c)return;
- const [t,cls]=STATES[s.state]||[s.state,"idle"],kids=[el("span",{class:"st "+cls},dot(),t)];
- for(const p of s.peers)kids.push(el("span",{class:"sub"},p));put(c.st,...kids);
- const r=rate[i]||[0,0],rt=x=>s.state==="off"?null:el("span",{class:"sub"},x>=1?bytes(Math.round(x))+"/s":"Idle");
- put(c.rx,bytes(s.serial_rx),rt(r[0]));put(c.tx,bytes(s.serial_tx),rt(r[1]));
- const e=[["parity",s.parity],["framing",s.framing],["noise",s.noise],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]);
- put(c.er,el("span",{class:e.length?"bad":""},e.reduce((a,x)=>a+x[1],0).toLocaleString()),...e.map(x=>el("span",{class:"sub"},x[1].toLocaleString()+" "+x[0])))})}
 function editor(p,i){
  const inp=(n,l,o,w)=>el("label",{class:w?"wide":"","data-f":n},l,el("input",{name:n,value:String(p[n]),autocomplete:"off",...o}));
  const sel=(n,l,o)=>el("label",{"data-f":n},l,el("select",{name:n},...o.map(([v,t])=>el("option",{value:v,selected:String(p[n])===String(v)},t))));
@@ -313,20 +252,20 @@ function editor(p,i){
     const was=typeof p[e.name]==="boolean"?(p[e.name]?"1":"0"):String(p[e.name]);if(v!==was)L.push("port"+(i+1)+"."+e.name+"="+(v===""&&e.type==="number"?"0":v))}
    if(!L.length){say(msg,"Nothing changed.");return}
    save.disabled=true;say(msg,"Saving…");
-   try{await post("/api/config",L.join("\n"));cfg=await getj("/api/config");open=-1;buildPorts();await tick()}
+   try{await post("/api/config",L.join("\n"));cfg=await getj("/api/config");editing=false;title();showSheet();await tick()}
    catch(e){say(msg,e.message,"bad")}finally{save.disabled=!key}}},
-  el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
-  el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
-  el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
-  el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
+  el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid-f"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
+  el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
+  el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
+  el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
   el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
-  el("div",{class:"acts"},save,el("button",{type:"button",onclick(){open=-1;buildPorts()}},"Cancel"),msg));
+  el("div",{class:"acts"},save,el("button",{type:"button",onclick(){editing=false;showSheet()}},"Cancel"),msg));
  const m=f.elements.mode;m.onchange=()=>{const v=m.value;
   f.querySelector("[data-f=local_port]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server";
   hint.textContent=v==="server"?"Up to 4 connections at once. Data ports have no password: anyone on this network can connect.":v==="client"?"Connects out and reconnects by itself.":"Leave the remote host empty to answer whoever sent last."};m.onchange();
  save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
- return el("tr",{class:"edit"},el("td",{colSpan:8},f))}
+ return f}
 document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38400,57600,115200,230400,460800,921600].map(v=>el("option",{value:String(v)}))));
 
 /* ---- network + device ---- */
@@ -379,25 +318,19 @@ const RST=r=>{const v=parseInt(r,16);return v&0x800000?"Power on":v&0x1000000?"R
 let failing=0,timer=0;
 async function tick(){clearTimeout(timer);
  try{const s=await getj("/api/state"),now=performance.now();
-  if(prev&&s.uptime_s>=prev.s.uptime_s){const dt=(now-prev.t)/1000;if(dt>.4){rate=s.ports.map((p,i)=>[(p.serial_rx-prev.s.ports[i].serial_rx)/dt,(p.serial_tx-prev.s.ports[i].serial_tx)/dt]);prev={s,t:now}}}else{rate=[];prev={s,t:now}}
-  st=s;if(!cfg||failing){const l=await getj("/api/login");pwset=l.password_set;salt=l.salt;const c=await getj("/api/config");const first=!cfg;cfg=c;if(first||open<0)buildPorts();if(first)fillForms();authUI()}
+  if(samples.length&&s.uptime_s<samples[samples.length-1].s.uptime_s)samples=[];
+  samples.push({s,t:now});while(samples.length>2&&now-samples[1].t>5000)samples.shift(); /* rates over about 5 s hold steadier than 1 s */
+  const a=samples[0],dt=(now-a.t)/1000;rate=dt>.4?s.ports.map((p,i)=>[(p.serial_rx-a.s.ports[i].serial_rx)/dt,(p.serial_tx-a.s.ports[i].serial_tx)/dt]):[];
+  st=s;const first=!cfg;if(!cfg||failing){const l=await getj("/api/login");pwset=l.password_set;salt=l.salt;cfg=await getj("/api/config");if(first){fillForms();buildList();show()}authUI()}
   else if(!pwset){const l=await getj("/api/login");if(l.password_set){pwset=true;salt=l.salt;authUI()}} /* set while we were open */
   failing=0;$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
-  $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
+  $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
   fillDl($("netinfo"),[["Now",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
-  $("fwtrial").hidden=!s.fw_trial||updating;paint();if(page==="hardware"||page==="firmware")hardware()}
- catch(e){failing++;if(failing>1){$("offline").hidden=updating}}
+  paint();hardware()}
+ catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating)put($("verdict"),"Not answering")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
-/* ---- pages ---- */
-const PAGES=["ports","network","hardware","firmware"];let page="ports";
-function show(){const h=location.hash.slice(1);page=PAGES.includes(h)?h:"ports";
- for(const p of PAGES)$("p-"+p).hidden=p!==page;
- for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")==="#"+page?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
- scrollTo(0,0);if(page==="hardware"||page==="firmware"){hwAt=0;hardware()}}
-addEventListener("hashchange",show);
-
 /* ---- hardware ---- */
 let hwAt=0,hw=null;
 const sub=t=>el("span",{class:"sub"},t),kb=n=>Math.round(n/1024).toLocaleString()+" KB",num=n=>n.toLocaleString();
@@ -408,7 +341,7 @@ function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.quer
 const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
 const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?x+" × "+n:x).join(", ");
-async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)return;hwAt=now;
+async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page==="hardware"||page==="firmware"?5000:30000))return;hwAt=now;
  let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}hw=h;
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
  const reads=[c.mhz+" MHz"];if(c.temp_c!=null)reads.push(c.temp_c.toFixed(1)+" °C",(c.mv/1000).toFixed(2)+" V");
@@ -428,6 +361,122 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)ret
  const M={AXI:"Program",DTCM:"Data",D2:"Buffers"};
  fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
  fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}
+
+/* ---- stations ---- */
+let sel=0,editing=false,hist=null,histFor=-1,histAt=0,samples=[];
+const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"network",hardware:"hardware",firmware:"firmware"};
+let route="status",page="port";
+const pn=i=>cfg&&cfg.ports[i].name||"Port "+(i+1),ago=ms=>ms<0?"Never":ms<2000?"Now":dur(Math.round(ms/1000))+" ago",
+ rt=x=>x<1e3?Math.round(x)+" B/s":x<1e6?(x/1e3).toFixed(1)+" kB/s":(x/1e6).toFixed(2)+" MB/s",plural=(n,w)=>n.toLocaleString()+" "+w+(n===1?"":"s");
+function mark(cls){const s="http://www.w3.org/2000/svg",g=document.createElementNS(s,"svg");g.setAttribute("viewBox","0 0 14 14");g.setAttribute("class","mk "+cls);g.setAttribute("aria-hidden","true");
+ g.innerHTML={ok:'<circle cx="7" cy="7" r="6" fill="currentColor"/>',idle:'<circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2.5"/>',warn:'<path d="M7 1 13.5 13H.5Z" fill="currentColor"/>',bad:'<rect x="1" y="1" width="12" height="12" rx="1.5" fill="currentColor"/>'}[cls];return g}
+const quiet=s=>s.heard_ms<0?"Nothing heard":s.heard_ms>30000?"Quiet "+dur(Math.round(s.heard_ms/1000)):""; /* 30 s: ignore ordinary gaps */
+function portState(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],n=s.peers.length,up=n>0||s.state==="connected";
+ if(s.state==="off")return ["idle","Off"];
+ if(s.state==="error")return ["bad","Cannot open"];
+ if(s.err_10m)return ["warn",plural(s.err_10m,"error")];
+ if(s.state==="retrying"||s.state==="connecting")return ["warn",s.state==="retrying"?"Retrying":"Connecting"];
+ if(!up)return ["idle",p.mode==="udp"?"Ready":"No client"];
+ if(quiet(s))return ["idle",quiet(s)];
+ return ["ok",r[0]>=1?rt(r[0]):r[1]>=1?rt(r[1]):"Idle"]}
+function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
+ if(m.enabled&&q.state!=="connected")L.push([q.error?"bad":"warn",q.error?"MQTT is not connected":"MQTT is connecting","#mqtt"]);
+ st.ports.forEach((s,i)=>{const h="#port"+(i+1);
+  if(s.state==="error")L.push(["bad",pn(i)+" cannot open its network port",h]);
+  else if(s.err_10m)L.push(["warn",pn(i)+" had "+plural(s.err_10m,"error"),h]);
+  else if(s.state==="retrying")L.push(["warn",pn(i)+" cannot reach "+cfg.ports[i].remote_host,h])});
+ if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
+ if(st.net_pending)L.push(["warn","Network settings are on trial","#network"]);
+ if(st.crashes-(st.uptime_s<30?1:0)>0)L.push(["warn","The gateway failed to start cleanly","#firmware"]);
+ return L.sort((a,b)=>(a[0]==="bad"?0:1)-(b[0]==="bad"?0:1))}
+const items=[];
+function buildList(){$("list").replaceChildren();items.length=0;
+ const add=(href,label)=>{const a=el("a",{class:"it",href},el("span"),el("b",{},label),el("em"));items.push([href,a]);$("list").append(a);return a};
+ add("#mqtt","MQTT");for(let i=0;i<4;i++)add("#port"+(i+1),"");add("#network","Network");add("#firmware","Firmware");add("#hardware","Hardware");nav()}
+function setItem(k,cls,name,text){const a=items[k][1];a.className="it"+(cls==="bad"||cls==="warn"?" "+cls:"");if(a.dataset.m!==cls){a.dataset.m=cls;a.children[0].replaceChildren(mark(cls))}
+ if(a.children[1].textContent!==name)a.children[1].textContent=name;if(a.children[2].textContent!==text)a.children[2].textContent=text}
+function paint(){if(!st||!cfg)return;if(!items.length)buildList();
+ const m=cfg.mqtt,q=st.mqtt;setItem(0,!m.enabled?"idle":q.state==="connected"?"ok":q.error?"bad":"warn","MQTT",!m.enabled?"Off":q.state==="connected"?"Connected":q.error||"Connecting");
+ st.ports.forEach((_,i)=>{const [c,t]=portState(i);setItem(1+i,c,(i+1)+" "+pn(i),t)});
+ setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
+ const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
+ setItem(7,"ok","Hardware",hw&&hw.cpu.temp_c!=null?Math.round(hw.cpu.temp_c)+" °C":"Up "+dur(st.uptime_s));
+ const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All good");
+ const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"Every port is off":"No port is connected";
+ const hush=st.ports.map((s,i)=>[s,i]).filter(([s])=>(s.peers.length||s.state==="connected")&&quiet(s)).map(([s,i])=>pn(i)+": "+quiet(s).toLowerCase());
+ put($("vsub"),!first?(hush.length?hush.join("; "):sum)+"."+(m.enabled?" MQTT connected.":""):L.length===1?"Everything else is good.":"Also: "+L.slice(1,3).map(x=>x[1]).join("; ")+(L.length>3?"; and "+(L.length-3)+" more":"")+".");
+ if(page==="port")report()}
+function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>(x.textContent??x)+(x.className||"")).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
+
+/* ---- one station's report ---- */
+function tendency(){if(!hist||histFor!==sel||hist.rx.length<24)return "";const a=hist.rx.slice(-12),b=hist.rx.slice(-60,-12),m=x=>x.reduce((s,y)=>s+y,0)/x.length,x=m(a),y=m(b);
+ return y<hist.step_s?"":Math.abs(x-y)<.15*y?", steady":x>y?", rising":", falling"}
+function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=s.peers.length,host=x=>x.replace(/:\d+$/,"");
+ if(s.state==="off")return "Off.";
+ if(s.state==="error")L.push("Cannot open network port "+p.local_port+".");
+ else if(p.mode==="client")L.push(s.state==="connected"?"Connected to "+p.remote_host+".":"Trying to reach "+p.remote_host+".");
+ else if(n)L.push((p.mode==="udp"?"Exchanging with ":"Connected to ")+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
+ else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
+ L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+".");
+ if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");else if(s.heard_ms>=0)L.push("Clean.");
+ if(p.loopback)L.push("Loopback test is on.");
+ L.push(p.listen_only?"Listen only.":r[1]>=1?"Sending "+rt(r[1])+".":"");
+ return L.filter(Boolean).join(" ")}
+function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i));
+ $("pedit").textContent=editing?"Back to report":"Edit port";if(editing)return;
+ put($("psay"),sentence(i));
+ const e=[["parity",s.parity],["framing",s.framing],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]),
+  nz=s.serial_rx?100*s.noise/s.serial_rx:0;
+ facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.join(", ")||null],["Last heard",ago(s.heard_ms)],
+  ["Heard in all",bytes(s.serial_rx)],["Sent in all",bytes(s.serial_tx),p.listen_only?"Listen only":s.sent_ms>=0?ago(s.sent_ms):null],["Noise",s.noise?nz<.01?"Under 0.01%":nz.toFixed(2)+"%":"None",s.noise?s.noise.toLocaleString()+" flagged":null],["Errors, 10 min",s.err_10m?s.err_10m.toLocaleString():"None",e.length?"Since start: "+e.map(x=>x[1].toLocaleString()+" "+x[0]).join(", "):null]]);
+ const now=performance.now();if(histFor!==i||now-histAt>5000){histAt=now;const was=histFor;histFor=i;if(was!==i){hist=null;drawCharts()}
+  getj("/api/history/"+(i+1)).then(h=>{if(sel===i){hist=h;drawCharts()}}).catch(()=>{})}}
+function facts(F){const d=$("pfacts");if(d.childElementCount!==F.length)d.replaceChildren(...F.map(()=>el("div",{},el("dt"),el("dd"))));
+ F.forEach(([a,b,c],k)=>{put(d.children[k].children[0],a);put(d.children[k].children[1],b,c?el("span",{class:"sub"},c):null)})}
+
+/* ---- charts: ten minutes, one series each ---- */
+const N=120,nice=m=>{if(m<=0)return 10;const p=10**Math.floor(Math.log10(m));for(const k of [1,1.5,2,2.5,3,4,5,6,8,10])if(k*p>=m)return k*p};
+const span=s=>s<60?s+" s":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":"");
+function svg(t,a,txt){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e}
+const boxes={};
+function drawCharts(){const c=$("charts"),sent=hist&&hist.tx.some(x=>x);c.hidden=$("ptable").hidden=!!st&&st.ports[sel].state==="off"&&!(hist&&hist.rx.some(x=>x)||sent);
+ for(const k of ["rx","tx"]){const want=k==="rx"||sent;if(want&&!boxes[k]){boxes[k]=chartBox();c.append(boxes[k].box)}if(!want&&boxes[k]){boxes[k].box.remove();delete boxes[k]}}
+ boxes.rx.set("Heard, last 10 minutes",hist&&hist.rx,hist&&hist.err,hist?hist.step_s:5);if(boxes.tx)boxes.tx.set("Sent, last 10 minutes",hist.tx,null,hist.step_s);
+ const rows=[];if(hist)for(let m=0;m<10;m++){const per=60/hist.step_s,a=hist.rx.length-(m+1)*per,b=hist.rx.length-m*per;if(b<=0)break;const sum=x=>x.slice(Math.max(0,a),b).reduce((s,y)=>s+y,0);rows.push([String(m),bytes(sum(hist.rx)),bytes(sum(hist.tx)),sum(hist.err).toLocaleString()])}
+ const t=$("ptrows");if(t.childElementCount!==rows.length)t.replaceChildren(...rows.map(()=>el("tr",{},el("td"),el("td"),el("td"),el("td"))));rows.forEach((r,i)=>r.forEach((x,k)=>put(t.children[i].children[k],x)))}
+function chartBox(){const cap=el("div",{class:"cap"},el("b"),el("span")),g=svg("svg",{role:"img",tabindex:"0"}),tip=el("div",{class:"tip",hidden:true}),box=el("div",{class:"chart"},cap,g,tip);
+ let D=null,E=null,step=5,at=-1,X=null,Y=null;
+ function draw(){const W=Math.max(260,g.clientWidth),H=g.clientHeight||200,l=62,r=8,t=12,b=26;g.setAttribute("viewBox","0 0 "+W+" "+H);g.replaceChildren();
+  const v=(D||[]).map(x=>x/step),top=nice(Math.max(...v,0)),n=v.length;X=i=>l+(W-l-r)*(N-n+i)/(N-1);Y=x=>t+(H-t-b)*(1-x/top);
+  for(const f of [0,.5,1]){g.append(svg("line",{class:"grid",x1:l,x2:W-r,y1:Y(top*f),y2:Y(top*f)}));g.append(svg("text",{x:l-8,y:Y(top*f)+4,"text-anchor":"end"},f?rt(top*f).replace(/\.0+(?= )/,""):"0"))}
+  g.append(svg("text",{x:l,y:H-6},"10 min ago"),svg("text",{x:(l+W-r)/2,y:H-6,"text-anchor":"middle"},"5"),svg("text",{x:W-r,y:H-6,"text-anchor":"end"},"now"));
+  if(!n){g.append(svg("text",{x:(l+W)/2,y:H/2-8,"text-anchor":"middle"},D?"Collecting; first reading in 5 s":"Reading…"));return}
+  const pts=v.map((x,i)=>X(i).toFixed(1)+" "+Y(x).toFixed(1)).join("L");
+  if(n>1)g.append(svg("path",{class:"ar",d:"M"+X(0)+" "+Y(0)+"L"+pts+"L"+X(n-1)+" "+Y(0)+"Z"}));g.append(svg("path",{class:"ln",d:"M"+pts+(n===1?"h.1":"")}));
+  if(E)E.forEach((e,i)=>{if(e)g.append(svg("path",{class:"er",d:`M${X(i)} ${Y(0)-11}l6 11h-12z`}))});
+  let best=null,runs0=0;for(let i=0;i<n;){if(v[i]){i++;continue}let j=i;while(j<n&&!v[j])j++;runs0++;if(i>0&&j<n&&j-i>=2&&(!best||j-i>=best[1]-best[0]))best=[i,j];i=j}
+  if(best&&runs0<3){const m=(best[0]+best[1]-1)/2,x=X(m),right=x<W*.7;g.append(svg("text",{x:right?X(best[1])+8:X(best[0]-1)-8,y:Y(0)-18,"text-anchor":right?"start":"end"},"quiet for "+span((best[1]-best[0])*step)))}
+  if(at>=0&&at<n){const x=X(at),y=Y(v[at]);g.append(svg("line",{class:"xh",x1:x,x2:x,y1:t,y2:Y(0)}),svg("circle",{class:"pt",cx:x,cy:y,r:5}));const s=(n-1-at)*step;
+   tip.textContent=rt(v[at])+(E&&E[at]?", "+plural(E[at],"error"):"")+", "+(s?span(s)+" ago":"now");tip.hidden=false;const hw2=tip.offsetWidth/2,B=box.getBoundingClientRect(),G=g.getBoundingClientRect();tip.style.left=Math.min(B.width-hw2-4,Math.max(hw2+4,G.left-B.left+x))+"px";tip.style.top=(G.top-B.top+Math.max(0,y-46))+"px"}else tip.hidden=true}
+ g.addEventListener("pointermove",ev=>{if(!D||!D.length)return;const q=g.getBoundingClientRect(),x=ev.clientX-q.left,n=D.length;let k=0,bd=1e9;for(let i=0;i<n;i++){const d=Math.abs(X(i)-x);if(d<bd){bd=d;k=i}}at=k;draw()});
+ for(const n of ["pointerleave","blur"])g.addEventListener(n,()=>{at=-1;draw()});
+ g.addEventListener("keydown",ev=>{if(!D||!D.length||!/^Arrow(Left|Right)$/.test(ev.key))return;ev.preventDefault();at=at<0?D.length-1:Math.max(0,Math.min(D.length-1,at+(ev.key==="ArrowLeft"?-1:1)));draw()});
+ new ResizeObserver(draw).observe(g);
+ return {box,set(title,d,e,s){D=d;E=e;step=s;const any=e&&e.some(x=>x),max=d&&d.length?Math.max(...d)/s:0;put(cap.children[0],title);put(cap.children[1],d&&d.length?"Peak "+rt(max)+(any?", triangles mark errors":""):"");g.setAttribute("aria-label",title+(d&&d.length?": "+rt(d[d.length-1]/s)+" now, at most "+rt(max)+".":". No readings yet."));draw()}}}
+
+/* ---- pages ---- */
+function showSheet(){const ed=page==="port"&&editing;$("report").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";if(st&&cfg&&page==="port")report();authUI()}
+function nav(){for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")===(page==="port"?"#status":"#"+page)?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
+ const cur=page==="port"?"#port"+(sel+1):"#"+route;for(const [h,a] of items)h===cur?a.setAttribute("aria-current","true"):a.removeAttribute("aria-current")}
+let picked=false;
+function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];
+ if(/^port/.test(route)){sel=+route.slice(4)-1;picked=true}else if(!picked&&cfg){sel=Math.max(0,cfg.ports.findIndex(p=>p.enabled))}
+ editing=false;document.body.dataset.view=route==="status"?"list":"sheet";
+ for(const p of ["port","network","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
+ nav();showSheet();scrollTo(0,0);if(route==="mqtt"&&innerWidth<=1240)$("mqttsec").scrollIntoView();
+ hwAt=0;hardware()}
+addEventListener("hashchange",show);
+$("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
 
 /* ---- firmware update ---- */
 let image=null;

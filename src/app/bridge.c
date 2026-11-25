@@ -9,6 +9,7 @@
 #include "bridge.h"
 #include "uart485.h"
 #include "traffic.h"
+#include "history.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -45,6 +46,8 @@ typedef struct {
     uint32_t retry_at, backoff;
     uint32_t gen;               /* invalidates in-flight DNS answers */
     uint32_t net_rx, net_tx, net_lost, refused;
+    uint32_t heard_at, sent_at;  /* ms; valid once bytes have moved */
+    bool heard, sent;
 } port_t;
 
 static port_t s_p[PORTS];
@@ -56,6 +59,7 @@ static size_t to_line(int i, const uint8_t *d, size_t n)
 {
     if (s_p[i].cfg.listen_only) return n;   /* taken from the network, never sent */
     n = uart485_write(i, d, n);
+    if (n) { s_p[i].sent = true; s_p[i].sent_at = HAL_GetTick(); }
     traffic_add(i, true, d, n, HAL_GetTick());
     return n;
 }
@@ -300,6 +304,7 @@ static void port_stop(int i)
 void bridge_init(void)
 {
     uart485_init();
+    history_init(HAL_GetTick());
     traffic_init();
     memset(s_p, 0, sizeof s_p);
 }
@@ -336,6 +341,8 @@ static void serial_to_net(int i)
     if (a > p->cfg.packet_len) a = p->cfg.packet_len;
     uint16_t n = (uint16_t)uart485_read(i, buf, a);
     traffic_add(i, false, buf, n, HAL_GetTick());
+    p->heard = true;
+    p->heard_at = HAL_GetTick();
 
     if (p->cfg.mode == MODE_UDP) {
         struct pbuf *q = p->udp_have_peer ? pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM) : NULL;
@@ -389,6 +396,13 @@ static void net_to_serial(int i)
 
 void bridge_poll(void)
 {
+    hist_count_t h[PORTS];
+    for (int i = 0; i < PORTS; i++) {
+        volatile uart_stats_t *u = &g_uart[i];
+        h[i] = (hist_count_t){ u->rx_bytes, u->tx_bytes,
+            u->parity + u->framing + u->overrun + u->rx_lost + s_p[i].net_lost };   /* noise is not an error */
+    }
+    history_poll(HAL_GetTick(), h, PORTS);
     if (s_dirty) {
         s_dirty = false;
         for (int i = 0; i < PORTS; i++) {
@@ -446,12 +460,14 @@ size_t bridge_json(char *out, size_t max)
         volatile uart_stats_t *u = &g_uart[i];
         ADD("%s{\"state\":\"%s\",\"serial_rx\":%lu,\"serial_tx\":%lu,\"net_rx\":%lu,\"net_tx\":%lu,"
             "\"net_lost\":%lu,\"rx_lost\":%lu,\"parity\":%lu,\"framing\":%lu,\"noise\":%lu,"
-            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"peers\":[",
+            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"peers\":[",
             i ? "," : "", LS_NAME[p->state], (unsigned long)u->rx_bytes, (unsigned long)u->tx_bytes,
             (unsigned long)p->net_rx, (unsigned long)p->net_tx, (unsigned long)p->net_lost,
             (unsigned long)u->rx_lost, (unsigned long)u->parity, (unsigned long)u->framing,
             (unsigned long)u->noise, (unsigned long)u->overrun, (unsigned long)u->echo_dropped,
-            (unsigned long)p->refused);
+            (unsigned long)p->refused, (unsigned long)history_errors(i),
+            p->heard ? (long)((HAL_GetTick() - p->heard_at) & 0x7FFFFFFF) : -1L,
+            p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L);
         bool first = true;
         char ip[16];
         for (int k = 0; k < MAX_CLIENTS; k++) {

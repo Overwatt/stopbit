@@ -4,6 +4,7 @@
 #include "bridge.h"
 #include "cli.h"
 #include "hwinfo.h"
+#include "history.h"
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
@@ -154,6 +155,8 @@ int api_get(const char *path, char *out, size_t max)
                          s_cfg.web_set ? "true" : "false", salt);
         return n > 0 && (size_t)n < max ? n : 0;
     }
+    if (!strncmp(path, "/api/history/", 13) && path[13] >= '1' && path[13] <= '0' + PORTS && !path[14])
+        return (int)history_json(path[13] - '1', out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
     if (strcmp(path, "/api/state")) return -1;
 
@@ -163,14 +166,14 @@ int api_get(const char *path, char *out, size_t max)
     size_t n = (size_t)snprintf(out, max,
         "{\"version\":\"%s\",\"uptime_s\":%lu,\"host\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\","
         "\"ip\":\"%s\",\"mask\":\"%s\",\"gateway\":\"%s\",\"speed\":%d,\"full_duplex\":%s,"
-        "\"net_pending\":%s,\"net_pending_s\":%d,\"fw_trial\":%s,\"slot\":%d,\"boots\":%lu,\"reset\":\"%lx\","
+        "\"net_pending\":%s,\"net_pending_s\":%d,\"fw_trial\":%s,\"slot\":%d,\"boots\":%lu,\"crashes\":%lu,\"reset\":\"%lx\","
         "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\"},\"ports\":",
         g_fw_id.version, (unsigned long)(HAL_GetTick() / 1000), g_hostname,
         g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip, mask, gw,
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
         s_pending ? "true" : "false", left, on_trial() ? "true" : "false", (int)bkp_get(BKP_SLOT),
-        (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_RSTLOG),
-        mqtt_ha_state(), mqtt_ha_error());
+        (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_CRASHES),
+        (unsigned long)bkp_get(BKP_RSTLOG), mqtt_ha_state(), mqtt_ha_error());
     if (n >= max) return 0;
     size_t b = bridge_json(out + n, max - n);
     if (!b || n + b + 3 > max) return 0;
