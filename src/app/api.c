@@ -140,6 +140,23 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
 {
     static cfg_t c;
     uint8_t pad[32], key[32], salt[16];
+    if (!strcmp(rq->body, "clear")) {
+        if (!rq->machine) {
+            snprintf(out, max, "Only the update key can clear the password");
+            return "403 Forbidden";
+        }
+        c = s_cfg;
+        c.web_set = 0;
+        memset(c.web_salt, 0, sizeof c.web_salt);
+        memset(c.web_key, 0, sizeof c.web_key);
+        if (!cfg_save(&c)) {
+            snprintf(out, max, "Could not write to flash; the password is unchanged");
+            return "500 Internal Server Error";
+        }
+        s_cfg = c;
+        snprintf(out, max, "{}");
+        return "200 OK";
+    }
     char *s = strstr(rq->body, "salt="), *k = strstr(rq->body, "key=");
     if (!s || !k || !unhex(s + 5, salt, 16) || !unhex(k + 4, key, 32)) {
         snprintf(out, max, "Malformed password request");

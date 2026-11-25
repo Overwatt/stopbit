@@ -11,7 +11,7 @@
   n540.py HOST set KEY=VALUE ...           e.g. port1.enabled=1 port1.baud=19200
   n540.py HOST state                       live port counters
   n540.py HOST keep                        keep new network settings
-  n540.py HOST passwd                      set the web password
+  n540.py HOST passwd [--clear]            set or remove the web password
   n540.py HOST reboot
 """
 import getpass, hashlib, hmac, http.client, json, os, socket, sys, time
@@ -146,6 +146,10 @@ def main(a):
         d.auth("POST", "/api/keep")
         print("kept")
     elif cmd == "passwd":
+        if a[2:] == ["--clear"]:
+            d.auth("POST", "/api/password", b"clear")
+            print("web password removed; settings are read-only in the browser")
+            return
         pw = getpass.getpass("New web password: ")
         if len(pw) < 8 or pw != getpass.getpass("Again: "):
             raise SystemExit("passwords differ or are shorter than 8 characters")
