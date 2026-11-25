@@ -13,6 +13,7 @@
 #include "traffic.h"
 #include "history.h"
 #include "quiet.h"
+#include "knock.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -52,8 +53,7 @@ typedef struct {
     uint32_t retry_at, backoff;
     uint32_t gen;               /* invalidates in-flight DNS answers */
     uint32_t net_rx, net_tx, net_lost, refused, denied, ignored;
-    ip_addr_t denied_ip;         /* last one the access list turned away */
-    uint32_t denied_at;
+    knocks_t knocks;             /* whom the access list turned away */
     uint32_t heard_at, sent_at;  /* ms; valid once bytes have moved */
     bool heard, sent;
     uint32_t quiet_from, client_from;   /* last bytes / last client, or when it opened */
@@ -65,7 +65,7 @@ static D2 uint8_t s_ring[PORTS][MAX_CLIENTS][RING];
 static port_cfg_t s_want[PORTS];
 static uint16_t s_quiet[PORTS];
 static acl_t s_acl[PORTS];
-static const char *const ALERT[] = { "", "silent", "no_client" };
+static const char *const ALERT[] = { "", "silent", "no_client", "turned_away" };
 static bool s_dirty;
 
 static size_t to_line(int i, const uint8_t *d, size_t n)
@@ -91,8 +91,7 @@ static acl_role_t role(const port_t *p, const ip_addr_t *ip)
 static void deny(port_t *p, const ip_addr_t *ip)
 {
     p->denied++;
-    p->denied_ip = *ip;
-    p->denied_at = HAL_GetTick();
+    knock_add(&p->knocks, ip4_addr_get_u32(ip_2_ip4(ip)), HAL_GetTick());
 }
 
 /* ---- TCP connections ----------------------------------------------------- */
@@ -367,6 +366,8 @@ void bridge_configure(const cfg_t *c)
 /* A changed list: drop whoever is no longer on it and nobody else. */
 static void apply_access(port_t *p)
 {
+    for (int k = 0; k < KNOCK_N; k++)           /* now welcome: no longer news */
+        if (acl_role(&s_acl[p - s_p], p->knocks.k[k].ip) != ACL_DENY) knock_forget(&p->knocks, k);
     for (int k = 0; k < MAX_CLIENTS; k++) {
         client_t *c = &p->cl[k];
         if (!c->pcb) continue;
@@ -472,10 +473,14 @@ static void watch(port_t *p, uint32_t now, uint16_t limit)
     if (client) p->client_from = now;
     p->quiet_from = quiet_clamp(now, p->quiet_from);
     p->client_from = quiet_clamp(now, p->client_from);
-    p->denied_at = quiet_clamp(now, p->denied_at);
+    knock_clamp(&p->knocks, now);
     p->heard_at = quiet_clamp(now, p->heard_at);
     p->sent_at = quiet_clamp(now, p->sent_at);
     p->alert = quiet_eval(now, limit, p->quiet_from, p->client_from);
+    /* Nobody connected, and someone unlisted keeps trying: most likely the usual
+     * client at a new address. Known at once, whatever the limit. */
+    bool alone = p->cfg.mode == MODE_UDP ? !p->udp_have_peer : !client;
+    if (alone && p->alert != QUIET_SILENT && knock_persistent(&p->knocks, now)) p->alert = QUIET_TURNED_AWAY;
 }
 
 void bridge_poll(void)
@@ -537,7 +542,8 @@ void bridge_info(int i, bridge_info_t *o)
     o->denied = p->denied;
     o->ignored = p->ignored;
     o->denied_ip[0] = 0;
-    if (p->denied) ipaddr_ntoa_r(&p->denied_ip, o->denied_ip, sizeof o->denied_ip);
+    const knock_t *kn = knock_get(&p->knocks, 0);
+    if (kn) ip4_fmt(kn->ip, o->denied_ip);
     o->serial_rx = u->rx_bytes;
     o->serial_tx = u->tx_bytes;
     o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
@@ -552,8 +558,9 @@ size_t bridge_json(char *out, size_t max)
     for (int i = 0; i < PORTS; i++) {
         port_t *p = &s_p[i];
         volatile uart_stats_t *u = &g_uart[i];
-        char ip[16];
-        ipaddr_ntoa_r(&p->denied_ip, ip, sizeof ip);
+        char ip[16] = "";
+        const knock_t *kn = knock_get(&p->knocks, 0);
+        if (kn) ip4_fmt(kn->ip, ip);
         ADD("%s{\"state\":\"%s\",\"serial_rx\":%lu,\"serial_tx\":%lu,\"net_rx\":%lu,\"net_tx\":%lu,"
             "\"net_lost\":%lu,\"rx_lost\":%lu,\"parity\":%lu,\"framing\":%lu,\"noise\":%lu,"
             "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"alert\":\"%s\","
@@ -565,8 +572,8 @@ size_t bridge_json(char *out, size_t max)
             (unsigned long)p->refused, (unsigned long)history_errors(i),
             p->heard ? (long)((HAL_GetTick() - p->heard_at) & 0x7FFFFFFF) : -1L,
             p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L, ALERT[p->alert],
-            (unsigned long)p->denied, p->denied ? ip : "",
-            p->denied ? (long)((HAL_GetTick() - p->denied_at) & 0x7FFFFFFF) : -1L, (unsigned long)p->ignored);
+            (unsigned long)p->denied, ip,
+            kn ? (long)((HAL_GetTick() - kn->at) & 0x7FFFFFFF) : -1L, (unsigned long)p->ignored);
         bool first = true;
         for (int k = 0; k < MAX_CLIENTS; k++) {
             if (!p->cl[k].pcb || !p->cl[k].up) continue;
@@ -585,6 +592,26 @@ size_t bridge_json(char *out, size_t max)
         ADD("],\"read_only\":%u}", ro);
     }
     ADD("]");
+    return n;
+#undef ADD
+}
+
+size_t bridge_access_json(int i, char *out, size_t max)
+{
+    port_t *p = &s_p[i];
+    uint32_t now = HAL_GetTick();
+    const knock_t *k;
+    char ip[16];
+    size_t n = 0;
+#define ADD(...) do { int w = snprintf(out + n, max - n, __VA_ARGS__); \
+        if (w < 0 || (size_t)w >= max - n) { return 0; } n += (size_t)w; } while (0)
+    ADD("{\"denied\":%lu,\"turned_away\":[", (unsigned long)p->denied);
+    for (int j = 0; (k = knock_get(&p->knocks, j)); j++) {
+        ip4_fmt(k->ip, ip);
+        ADD("%s{\"ip\":\"%s\",\"count\":%lu,\"ms\":%lu}", j ? "," : "", ip, (unsigned long)k->count,
+            (unsigned long)(now - k->at));
+    }
+    ADD("]}\n");
     return n;
 #undef ADD
 }

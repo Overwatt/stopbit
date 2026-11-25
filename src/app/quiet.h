@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef enum { QUIET_OK, QUIET_SILENT, QUIET_NO_CLIENT } quiet_t;
+typedef enum { QUIET_OK, QUIET_SILENT, QUIET_NO_CLIENT, QUIET_TURNED_AWAY } quiet_t;
 
 /* Both times start at the moment the port opened, so a port gets the whole limit
  * before it can alert. limit_min 0 = never. */

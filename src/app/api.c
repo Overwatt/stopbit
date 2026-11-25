@@ -166,6 +166,8 @@ int api_get(const char *path, char *out, size_t max)
     }
     if (!strncmp(path, "/api/history/", 13) && path[13] >= '1' && path[13] <= '0' + PORTS && !path[14])
         return (int)history_json(path[13] - '1', out, max);
+    if (!strncmp(path, "/api/access/", 12) && path[12] >= '1' && path[12] <= '0' + PORTS && !path[13])
+        return (int)bridge_access_json(path[12] - '1', out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
     if (strcmp(path, "/api/state")) return -1;

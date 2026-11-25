@@ -18,11 +18,13 @@ typedef struct {
     uint32_t serial_rx, serial_tx, errors;
     uint32_t net_lost, refused;
     char peers[112];
-    const char *alert;          /* "", "silent" or "no_client" */
+    const char *alert;          /* "", "silent", "no_client" or "turned_away" */
     uint32_t denied, ignored;   /* by the access list: connections or datagrams; bytes */
     char denied_ip[16];
 } bridge_info_t;
 void bridge_info(int port, bridge_info_t *out);
+/* Who the access list turned away lately, as JSON. 0 if it did not fit. */
+size_t bridge_access_json(int port, char *out, size_t max);
 /* Sends bytes on a port's serial line as if a client had. */
 bool bridge_send(int port, const uint8_t *d, size_t n);
 /* JSON array of per-port live state. Returns length, or 0 if it did not fit. */

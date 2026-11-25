@@ -140,7 +140,8 @@ static void c_port(out_t *o, int argc, char **argv)
     put(o, "access    %s\n", acl[0] ? acl : "anyone");
     if (p.denied) put(o, "denied    %lu, last %s\n", (unsigned long)p.denied, p.denied_ip);
     if (p.ignored) put(o, "ignored   %lu bytes from clients that may only read\n", (unsigned long)p.ignored);
-    if (p.alert && p.alert[0]) put(o, "ALERT     %s\n", strcmp(p.alert, "silent") ? "no client connected" : "nothing heard for too long");
+    if (p.alert && p.alert[0]) put(o, "ALERT     %s\n", !strcmp(p.alert, "silent") ? "nothing heard for too long" :
+        !strcmp(p.alert, "turned_away") ? "no client, and someone not on the access list keeps trying" : "no client connected");
     put(o, "bytes     %lu from line, %lu to line\n", (unsigned long)p.serial_rx, (unsigned long)p.serial_tx);
     put(o, "errors    %lu parity, %lu framing, %lu noise, %lu overrun, %lu buffer full, %lu not delivered, %lu refused\n",
         (unsigned long)p.parity, (unsigned long)p.framing, (unsigned long)p.noise, (unsigned long)p.overrun,

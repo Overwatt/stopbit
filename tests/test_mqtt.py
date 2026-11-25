@@ -121,12 +121,12 @@ def commands_ignored_when_control_off():
 
 def control_adds_entities():
     setcfg("mqtt.control=1")
-    until(lambda: len(disc()) == 84, 10, f"{len(disc())} entities")
+    until(lambda: len(disc()) == 88, 10, f"{len(disc())} entities")
     if len(sys.argv) > 5:
         json.dump({t: json.loads(p) for t, p in disc().items()}, open(sys.argv[5], "w"))
     ids = [json.loads(p)["unique_id"] for p in disc().values()]
-    assert len(set(ids)) == 84
-    return "84 entities, unique ids"
+    assert len(set(ids)) == 88
+    return "88 entities, unique ids"
 
 
 def every_control_works():
@@ -186,7 +186,7 @@ def retained_commands_ignored():
     time.sleep(1)
     cmd("device/set/restart", "PRESS", retain=True)  # stored while nobody listens
     setcfg("mqtt.control=1")                         # resubscribes; broker replays both
-    until(lambda: len(disc()) == 84, 10, "entities back")
+    until(lambda: len(disc()) == 88, 10, "entities back")
     time.sleep(3)
     assert st()["uptime_s"] > u, "a retained restart was obeyed"
     assert cfg()["ports"][0]["baud"] == 9600, "a retained setting was obeyed"
@@ -221,7 +221,7 @@ def broker_restart():
     B.start()
     c = client()
     until(lambda: st()["mqtt"]["state"] == "connected", 70, "reconnect")
-    until(lambda: len(disc()) == 84 and msgs.get(f"{ID}/status") == b"online", 15, "re-announced")
+    until(lambda: len(disc()) == 88 and msgs.get(f"{ID}/status") == b"online", 15, "re-announced")
 
 
 def command_flood():
@@ -335,7 +335,7 @@ def announce_off_keeps_the_data():
     setcfg("port1.name=plain"); until(lambda: f"{ID}/port1" in msgs, 8, "no data")
     assert msgs.get(f"{ID}/status") == b"online"
     setcfg("port1.name=Port 1", "mqtt.announce=1")
-    until(lambda: len(disc()) == 84, 15, f"{len(disc())} entities back")
+    until(lambda: len(disc()) == 88, 15, f"{len(disc())} entities back")
     return "withdrawn, data still published, announced again"
 
 

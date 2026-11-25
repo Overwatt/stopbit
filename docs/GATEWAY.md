@@ -154,7 +154,7 @@ tools/n540.py $H set mqtt.enabled=1 mqtt.host=homeassistant.local mqtt.user=n540
 tools/n540.py $H mqtt-passwd
 ```
 
-- With controls: 84 entities, 64 enabled by default. Less common ones (packet timing,
+- With controls: 88 entities, 68 enabled by default. Less common ones (packet timing,
   echo, loopback, port name) are there but disabled.
 - A refused change shows under "Last rejected change" and the control goes back.
   Order matters: 7 data bits needs parity or 2 stop bits first.
@@ -190,6 +190,12 @@ An empty list allows anyone.
   everything.
 - The list covers whoever is at the other end, in every mode: clients of a TCP server, the
   far end of a TCP client, senders and receivers of UDP.
+- Whoever is turned away is shown for ten minutes in the station list (amber, "All good"
+  stays), and the last 8 addresses are on the port's report and in `GET /api/access/N`, in
+  memory only. Home Assistant gets a count per port, with the last address as an attribute.
+- **No client, and one unlisted address has tried 3 times or more in the last ten minutes:**
+  the port alerts at once, whatever its Alert if quiet. Most likely the usual client has a
+  new address. One or two tries, as from a scan, do not count.
 - Changing a list drops only those no longer on it. The port is not restarted.
 - It cannot be changed over MQTT, or bypassed by pointing a port elsewhere over MQTT.
 - **It goes by IP address.** It stops mistakes and casual access, not someone on the network
@@ -216,8 +222,9 @@ MQTT cannot read schema 2 and would start with defaults.
 
 ```sh
 cc -Isrc/app tests/test_cfg.c src/app/{cfg,acl}.c -o /tmp/t && /tmp/t   # host
+cc -Isrc/app tests/test_knock.c src/app/knock.c -o /tmp/k && /tmp/k
 cc -Isrc/app tests/test_acl.c src/app/{acl,cfg}.c -o /tmp/a && /tmp/a
-cc -w -DD2= -DD2_BSS= -Itests/stub_net -Itests/stub -Isrc/app tests/test_bridge.c src/app/{bridge,cfg,acl,traffic,history}.c -o /tmp/br && /tmp/br
+cc -w -DD2= -DD2_BSS= -Itests/stub_net -Itests/stub -Isrc/app tests/test_bridge.c src/app/{bridge,cfg,acl,knock,traffic,history}.c -o /tmp/br && /tmp/br
 cc -w -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_store.c src/app/{cfg_store,cfg,acl}.c src/common/sha256.c -o /tmp/s && /tmp/s
 cc -w -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= tests/test_fwlib.c src/app/fwlib.c src/common/{slots,image,sha256}.c -o /tmp/fl && /tmp/fl
 tests/sim/run.sh                            # then, beside it:

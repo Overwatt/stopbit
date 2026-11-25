@@ -1,8 +1,9 @@
 /* cc -w -DD2= -DD2_BSS= -Itests/stub_net -Itests/stub -Isrc/app tests/test_bridge.c \
- *    src/app/{bridge,cfg,acl,traffic,history}.c -o /tmp/br && /tmp/br
+ *    src/app/{bridge,cfg,acl,knock,traffic,history}.c -o /tmp/br && /tmp/br
  * The access list in every mode: who connects, who is heard, what reaches the line. */
 #include "bridge.h"
 #include "uart485.h"
+#include "knock.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include <arpa/inet.h>
@@ -202,6 +203,57 @@ int main(void)
     assert(USn == 1 && US[0].ip == ip("10.0.0.60"));
     dgram(udp(), "10.0.0.60", 7, "w"); assert(line(3, ""));
     dgram(udp(), "10.0.0.9", 7, "w"); assert(line(3, ""));
+
+    /* ---- who was turned away, and the alert ---- */
+    cfg_defaults(&C);
+    bridge_init();
+    set("port1.enabled=1\nport1.access=10.0.0.5 read");
+    a = from(4001, "10.0.0.5");
+    for (int i = 0; i < 50; i++) { t_now += 1000; from(4001, "10.0.0.66"); }
+    bridge_poll();
+    assert(!info(0).alert[0]);                                          /* the usual client is there: no alarm */
+    set("port1.access=10.0.0.6 read");                                  /* as if it had moved: it is dropped, */
+    assert(a->closed);
+    for (int i = 0; i < 2; i++) { t_now += 1000; from(4001, "10.0.0.5"); }  /* and keeps trying */
+    bridge_poll();
+    assert(!strcmp(info(0).alert, "turned_away"));
+    assert(bridge_access_json(0, j, sizeof j) && strstr(j, "{\"denied\":53,\"turned_away\":[{\"ip\":\"10.0.0.5\",\"count\":3,\"ms\":0},{\"ip\":\"10.0.0.66\",\"count\":50,\"ms\":2000}]}"));
+    assert(bridge_access_json(1, j, sizeof j) && !strcmp(j, "{\"denied\":0,\"turned_away\":[]}\n"));
+    for (size_t k = 0; k < 60; k++) assert(!bridge_access_json(0, j, k));
+    /* listing it clears the alarm and the entry; the other one is still news */
+    set("port1.access=10.0.0.5 read");
+    a = from(4001, "10.0.0.5");
+    bridge_poll();
+    assert(!info(0).alert[0] && !strcmp(info(0).denied_ip, "10.0.0.66") && info(0).denied == 53);
+    /* a scan of one or two tries on a port with no client is not an alarm; three is */
+    set("port2.enabled=1\nport2.access=10.0.0.5 read");
+    from(4002, "9.9.9.9"); from(4002, "9.9.9.9"); from(4002, "9.9.9.8"); bridge_poll();
+    assert(!info(1).alert[0]);
+    from(4002, "9.9.9.9"); bridge_poll();
+    assert(!strcmp(info(1).alert, "turned_away"));
+    t_now += KNOCK_RECENT; bridge_poll();
+    assert(!info(1).alert[0]);                                          /* and it passes */
+    /* no list, no alarm; emptying the list clears what there was */
+    for (int i = 0; i < 3; i++) from(4002, "9.9.9.9");
+    bridge_poll(); assert(info(1).alert[0]);
+    set("port2.access="); assert(!info(1).alert[0] && !info(1).denied_ip[0]);
+    /* a silent bus is said first */
+    set("port2.access=10.0.0.5 read\nport2.quiet_min=1");
+    t_now += 61000; for (int i = 0; i < 3; i++) from(4002, "9.9.9.9");
+    bridge_poll(); assert(!strcmp(info(1).alert, "silent"));
+    heard(1, "x"); assert(!strcmp(info(1).alert, "turned_away"));
+    set("port2.enabled=0"); assert(!info(1).alert[0]);
+    /* a TCP client whose far end is not listed; UDP with nobody to answer */
+    dns_answer = ip("10.0.0.50");
+    set("port3.mode=client\nport3.remote_host=far.lan\nport3.remote_port=502\nport3.enabled=1\nport3.access=10.0.0.9 write");
+    for (int i = 0; i < 4; i++) { t_now += 31000; bridge_poll(); }
+    assert(!strcmp(info(2).alert, "turned_away"));
+    set("port4.mode=udp\nport4.enabled=1\nport4.access=10.0.0.9 write");
+    for (int i = 0; i < 4; i++) dgram(udp(), "10.0.0.7", 9, "x");
+    assert(!strcmp(info(3).alert, "turned_away"));
+    dgram(udp(), "10.0.0.9", 9, "x");
+    assert(!info(3).alert[0]);
+    assert(bridge_json(j, sizeof j) && strstr(j, "\"denied_ip\":\"10.0.0.50\""));
 
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");

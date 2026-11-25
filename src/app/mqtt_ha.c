@@ -15,7 +15,7 @@
 /* ---- entities ------------------------------------------------------------ */
 /* HA reads a select's "none" as "unknown", so parity none needs another word. */
 #define NO_PARITY "no parity"
-enum { CTRL = 1, DIAG = 2, HIDE = 4, BOOL = 8, PAR = 16 };   /* HIDE: disabled by default in HA */
+enum { CTRL = 1, DIAG = 2, HIDE = 4, BOOL = 8, PAR = 16, WHO = 32 };   /* HIDE: disabled by default in HA */
 typedef struct { const char *comp, *key, *name, *extra; uint8_t flags; } ent_t;
 
 #define TOTAL ",\"state_class\":\"total_increasing\""
@@ -42,6 +42,7 @@ static const ent_t PORT_E[] = {
     { "sensor", "serial_tx",   "to serial",        SIZE, 0 },
     { "sensor", "errors",      "errors",           TOTAL, DIAG },
     { "binary_sensor", "alert", "alert",           ",\"device_class\":\"problem\"", BOOL },
+    { "sensor", "turned_away", "turned away",      TOTAL, DIAG | WHO },
 };
 static const ent_t DEV_E[] = {
     { "text",   "name",       "Name",       ",\"min\":0,\"max\":31", CTRL },
@@ -296,6 +297,8 @@ static bool announce(int n, bool remove)
         else ADD(",\"value_template\":\"{{value_json.%s}}\"", e->key);
     }
     if (e->flags & CTRL) ADD(",\"command_topic\":\"~/%s/set/%s\",\"entity_category\":\"config\"", st, e->key);
+    if (e->flags & WHO)
+        ADD(",\"json_attributes_topic\":\"~/%s\",\"json_attributes_template\":\"{{ {'address': value_json.turned_away_ip} | tojson }}\"", st);
     if (e->flags & DIAG) ADD(",\"entity_category\":\"diagnostic\"");
     if (e->flags & HIDE) ADD(",\"enabled_by_default\":false");
     ADD("%s,\"device\":{\"identifiers\":[\"%s\"],\"name\":%s,\"manufacturer\":\"USR (open firmware)\","
@@ -313,12 +316,12 @@ static bool publish_port(const cfg_t *c, int i)
     if (!n0) return true;
     n0--;                                       /* reopen the object */
     ADD(",\"state\":\"%s\",\"clients\":%d,\"alert\":\"%s\"", b.state, b.clients, b.alert);
-    uint32_t h = hash(s_buf), cnt = b.serial_rx * 31u + b.serial_tx * 17u + b.errors;
+    uint32_t h = hash(s_buf), cnt = b.serial_rx * 31u + b.serial_tx * 17u + b.errors * 7u + b.denied;
     uint32_t now = HAL_GetTick();
     bool first = s_port_hash[i] == 0;
     if (!first && h == s_port_hash[i] && (cnt == s_port_cnt[i] || now - s_port_at[i] < COUNTER_MS)) return true;
-    ADD(",\"serial_rx\":%lu,\"serial_tx\":%lu,\"errors\":%lu}", (unsigned long)b.serial_rx,
-        (unsigned long)b.serial_tx, (unsigned long)b.errors);
+    ADD(",\"serial_rx\":%lu,\"serial_tx\":%lu,\"errors\":%lu,\"turned_away\":%lu,\"turned_away_ip\":\"%s\"}",
+        (unsigned long)b.serial_rx, (unsigned long)b.serial_tx, (unsigned long)b.errors, (unsigned long)b.denied, b.denied_ip);
     snprintf(topic, sizeof topic, "%s/port%d", g_hostname, i + 1);
     if (!pub(topic, s_buf, true)) return false;
     s_port_hash[i] = h;
