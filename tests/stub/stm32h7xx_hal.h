@@ -3,7 +3,12 @@
 #define STUB_HAL_H
 #include <stdint.h>
 extern uint32_t t_now;
+#ifdef SIM_TICK
+uint32_t sim_tick(void);
+#define HAL_GetTick sim_tick
+#else
 static inline uint32_t HAL_GetTick(void) { return t_now; }
+#endif
 typedef struct { volatile uint32_t APB4ENR, RSR, CR1; } t_regs_t;
 extern t_regs_t t_regs;
 typedef struct { uint32_t BKP0R, rest[31]; } t_rtc_t;

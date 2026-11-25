@@ -227,6 +227,11 @@ static void boot(void)
     printf("boot %u: slot %d %s%s\n", bkp_get(BKP_BOOTS), run, in[run].hdr.version, in[run].confirmed ? "" : " (trial)");
     fflush(stdout);
 }
+uint32_t sim_tick(void)          /* moves on while the code runs, as a real one does */
+{
+    static uint32_t calls;
+    return t_now + ++calls / 64;
+}
 static uint32_t ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000 + t.tv_nsec / 1000000); }
 
 int main(int argc, char **argv)

@@ -516,19 +516,21 @@ void tls_close(tls_t *t)
     t->at = HAL_GetTick();
 }
 
+/* Read the clock here, not earlier: `at` may have moved on since. */
+static uint32_t quiet_ms(const struct tls *t) { return HAL_GetTick() - t->at; }
+
 static void service(struct tls *t)
 {
     static uint8_t buf[SEND_MAX];
-    uint32_t now = HAL_GetTick();
     if (t->state == T_FREE || t->state == T_SHAKE) return;
     if (!t->pcb || t->dead) { finish(t); return; }
     if (t->state == T_HELLO) {
-        if (now - t->since > SHAKE_MS) { s_failed++; finish(t); }
+        if (HAL_GetTick() - t->since > SHAKE_MS) { s_failed++; finish(t); }
         return;
     }
     if (t->flush) wrote(t, mbedtls_ssl_write(&t->ssl, buf, t->flush), t->flush);   /* already encrypted; buf is not looked at */
     if (t->state == T_CLOSE) {
-        if (t->flush && now - t->at < REQUEST_MS) return;
+        if (t->flush && quiet_ms(t) < REQUEST_MS) return;
         if (!t->dead) mbedtls_ssl_close_notify(&t->ssl);
         tcp_output(t->pcb);
         finish(t);
@@ -541,13 +543,13 @@ static void service(struct tls *t)
         int r = mbedtls_ssl_read(&t->ssl, buf, want < sizeof buf ? want : sizeof buf);
         if (r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) break;
         if (r <= 0) { t->dead = true; break; }          /* closed, or nonsense */
-        t->at = now;
+        t->at = HAL_GetTick();
         took += (uint32_t)r;
         http_tls_data(t->http, buf, (uint32_t)r);
     }
     if (t->pcb) tcp_output(t->pcb);
     if (t->state == T_OPEN && !t->dead && t->http &&
-        now - t->at > (http_tls_idle(t->http) ? IDLE_MS : http_tls_want(t->http) ? REQUEST_MS : STUCK_MS)) t->dead = true;
+        quiet_ms(t) > (http_tls_idle(t->http) ? IDLE_MS : http_tls_want(t->http) ? REQUEST_MS : STUCK_MS)) t->dead = true;
 }
 
 /* ---- on and off ------------------------------------------------------------------ */

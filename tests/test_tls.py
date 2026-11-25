@@ -99,6 +99,19 @@ for ch in b"GET /status HTTP/1.1\r\nHost: x\r\n\r\n": s.sendall(bytes([ch]))
 assert answer(s)[0] == 200
 s.sendall(b"GET /" + b"a" * 2000 + b" HTTP/1.1\r\n\r\n"); assert answer(s)[0] in (431, 400); s.close(); quiet("odd requests"); ok("byte by byte, too long, pipelined")
 
+# the whole page, every time; also for a client that is slow to take it
+hc = http.client.HTTPConnection(H, d.port); hc.request("GET", "/"); page = hc.getresponse().read()
+s = conn()
+for i in range(400):
+    st, h, b = get(s, "/"); assert b == page, (i, len(b), len(page))
+s.close()
+for i in range(8):
+    s = conn(); s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048); s.sendall(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n"); b = b""
+    while not b.endswith(page[-64:]):
+        time.sleep(.01); x = s.recv(700); assert x, len(b); b += x
+    s.close()
+quiet("pages"); ok(f"the whole page ({len(page)} bytes) 408 times, some slowly")
+
 # the web password's or the update key's signature works the same over TLS
 def post(s, path, body, claim=None, mac=None, chunk=None):
     nonce = get(s, "/nonce")[2].decode().strip(); sha = hashlib.sha256(body if claim is None else claim).hexdigest()
