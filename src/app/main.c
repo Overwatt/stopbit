@@ -1,47 +1,65 @@
 /*
- * main.c — Entry point for the open USR-N540 firmware.
- *
- * Milestone 1 (current): boot, clock to 400 MHz, blink the heartbeat LED,
- * bring up the 4 RS485 ports. Ethernet / LwIP / gateway logic arrive at
- * later milestones (see docs/ROADMAP.md).
+ * Application: copied from external flash into AXI SRAM by the loader.
+ * So far it is just the network stack; the RS485 bridge goes here next.
  */
 #include "stm32h7xx_hal.h"
-#include "board.h"
-#include "led.h"
-#include "rs485.h"
+#include "system.h"
+#include "net.h"
+#include "http.h"
+#include "extflash.h"
+#include "slots.h"
+#include "fw_id.h"
+#include "wdt.h"
+#include "board_init.h"
 
-void SystemClock_Config(void);
+#define HEALTHY_MS  30000u     /* uptime that clears the crash counter */
+#define TRIAL_MS   180000u     /* unconfirmed images give up after this */
 
-static void cpu_cache_enable(void)
+extern const uint32_t g_pfnVectors[];
+
+__attribute__((section(".fw_id"), used))
+const fw_id_t g_fw_id = { FW_ID_MAGIC_APP, (uint32_t)g_pfnVectors, FW_VERSION };
+
+uint32_t g_reset_cause;
+bool     g_clock_hse;
+
+static void supervise(void)
 {
-    /* The Cortex-M7 caches give a big speedup. NOTE(eth): once we add
-     * Ethernet DMA we must add an MPU region to keep the DMA descriptor
-     * memory non-cacheable (or use cache maintenance), or packets corrupt. */
-    SCB_EnableICache();
-    SCB_EnableDCache();
+    static bool healthy, trial_done;
+    if (!healthy && HAL_GetTick() > HEALTHY_MS) {
+        healthy = true;
+        bkp_set(BKP_CRASHES, 0);
+    }
+    if (!trial_done && HAL_GetTick() > TRIAL_MS) {
+        int s = (int)bkp_get(BKP_SLOT);
+        slot_info_t i;
+        trial_done = true;
+        if (s < 0 || s >= SLOT_COUNT) return;      /* started by /run */
+        slots_get(s, &i);
+        if (!i.confirmed) NVIC_SystemReset();
+    }
 }
 
 int main(void)
 {
-    cpu_cache_enable();
-
-    HAL_Init();              /* resets peripherals, configures SysTick */
-    SystemClock_Config();    /* 400 MHz from the 25 MHz crystal */
-
-    led_init();
-    rs485_init_all();
-
-    /* Heartbeat. When we know the real LED pin (board.h), this blinks for
-     * real; until then it exercises the clock + GPIO path. */
+    SCB->VTOR = (uint32_t)g_pfnVectors;
+    __DSB();
+    SCB_EnableICache();
+    wdt_init();
+    wdt_feed();
+    HAL_Init();
+    g_reset_cause = RCC->RSR;
+    g_clock_hse = SystemClock_Config();
+    board_outputs_init();
+    wdt_feed();
+    bkp_init();
+    extflash_init();
+    net_init();
+    http_init();
     for (;;) {
-        led_toggle();
-        HAL_Delay(250);
-
-        /* Placeholder app: echo anything received on each RS485 port back
-         * out the same port. Trivial, but proves the UART + DE direction
-         * path end-to-end once the pins are correct. */
-        rs485_service_echo();
+        wdt_feed();
+        net_poll();
+        http_poll();
+        supervise();
     }
 }
-
-/* Called by HAL_Init via the weak HAL_MspInit hook if needed; left default. */

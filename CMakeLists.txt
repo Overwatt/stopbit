@@ -98,6 +98,7 @@ function(n540_image name ldscript)
         ${CMAKE_SOURCE_DIR}/src/core
         ${CMAKE_SOURCE_DIR}/src/common
         ${CMAKE_SOURCE_DIR}/src/drivers
+        ${CMAKE_SOURCE_DIR}/src/http
         ${CMAKE_SOURCE_DIR}/src/net
         ${CMAKE_BINARY_DIR}/gen)
     target_include_directories(${name}.elf SYSTEM PRIVATE
@@ -120,10 +121,16 @@ endfunction()
 file(GLOB CORE_SRC   "${CMAKE_SOURCE_DIR}/src/core/stm32h7xx_it.c" "${CMAKE_SOURCE_DIR}/src/core/system_clock.c")
 file(GLOB COMMON_SRC "${CMAKE_SOURCE_DIR}/src/common/*.c")
 file(GLOB NET_SRC    "${CMAKE_SOURCE_DIR}/src/net/*.c")
+file(GLOB HTTP_SRC   "${CMAKE_SOURCE_DIR}/src/http/*.c")
 file(GLOB LOADER_SRC "${CMAKE_SOURCE_DIR}/src/loader/*.c")
+file(GLOB APP_SRC    "${CMAKE_SOURCE_DIR}/src/app/*.c" "${CMAKE_SOURCE_DIR}/src/drivers/*.c")
 
 # The same loader, linked for internal flash and for SRAM (SWD testing).
 foreach(where flash ram)
     n540_image(loader_${where} loader_${where}.ld
-        ${LOADER_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${LWIP_SRC})
+        ${LOADER_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
 endforeach()
+
+n540_image(app app_ram.ld
+    ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
+target_compile_definitions(app.elf PRIVATE APP_IMAGE)

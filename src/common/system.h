@@ -9,6 +9,8 @@
 bool SystemClock_Config(void);     /* true = HSE, false = fell back to HSI */
 /* Why app image at `addr` is not bootable, or NULL if its vectors look sane. */
 const char *image_check_ram(uint32_t addr, uint32_t size);
+/* Same, plus: carries an app identity block linked for STAGE_ADDR. */
+const char *image_check_app(uint32_t size);
 const char *image_check_loader(const uint8_t *img, uint32_t size);
 void jump_to_image(uint32_t addr) __attribute__((noreturn));
 /* Replace internal flash with `size` staged bytes at `src`, then reset. */

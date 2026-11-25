@@ -25,6 +25,8 @@
 #define LWIP_DHCP_AUTOIP_COOP       1
 #define LWIP_DHCP_AUTOIP_COOP_TRIES 4
 #define LWIP_ACD                    1
+/* Skip the ~6 s conflict probe: this box should be back quickly after an update. */
+#define LWIP_DHCP_DOES_ACD_CHECK    0
 #define LWIP_IGMP                   1
 #define LWIP_UDP                    1
 #define LWIP_DNS                    0

@@ -1,12 +1,18 @@
 /*
- * http.c — Minimal HTTP/1.0-style control server for the loader (lwIP raw API).
+ * http.c — Minimal HTTP/1.0-style control server (lwIP raw API), built into
+ * both the loader and the app (APP_IMAGE selects the endpoints).
  *
  *   GET  /status                      JSON, open
  *   GET  /nonce                       32 hex chars, open
  *   GET  /flash/<0|1>?off=N&len=N     raw external flash      (auth)
- *   POST /run                         image -> SRAM, jump     (auth)
- *   POST /selfupdate                  replace the loader      (auth)
  *   POST /reboot                                              (auth)
+ * loader only:
+ *   POST /run                         image -> SRAM, jump     (auth)
+ *   POST /install                     image -> app slot       (auth)
+ *   POST /selfupdate                  replace the loader      (auth)
+ * app only:
+ *   POST /loader                      reboot into the loader  (auth)
+ *   POST /confirm                     keep the running image  (auth)
  *
  * Auth: X-Auth = hex HMAC-SHA256(key, "nonce\nMETHOD path\nbodysha256hex").
  * The nonce is single-use, and the MAC is checked before any body is accepted;
@@ -20,6 +26,7 @@
 #include "sha256.h"
 #include "system.h"
 #include "fw_id.h"
+#include "slots.h"
 #include "secret_key.h"
 #include "lwip/tcp.h"
 #include "stm32h7xx_hal.h"
@@ -32,7 +39,8 @@
 #define IDLE_TICKS 20            /* tcp_poll ticks (x 1 s) before abort */
 
 enum { ST_FREE, ST_HDR, ST_BODY, ST_SEND };
-enum { ACT_NONE, ACT_RUN, ACT_REBOOT, ACT_SELFUPDATE };
+enum { ACT_NONE, ACT_RUN, ACT_REBOOT, ACT_SELFUPDATE,
+       ACT_INSTALL, ACT_LOADER, ACT_CONFIRM };
 
 typedef struct {
     struct tcp_pcb *pcb;
@@ -41,7 +49,7 @@ typedef struct {
     uint32_t hdr_len, body_len, body_got;
     uint8_t  body_sha[32];
     sha256_t sha;
-    char     resp[900];
+    char     resp[1300];
     uint32_t resp_len, resp_off;
     int      fl_dev;
     uint32_t fl_off, fl_left;
@@ -54,6 +62,14 @@ static uint8_t  s_action;
 static uint32_t s_action_at, s_stage_size;
 extern uint32_t g_reset_cause;
 extern bool     g_clock_hse;
+
+#ifdef APP_IMAGE
+#define MODE "app"
+#define RUNNING_SLOT ((int)bkp_get(BKP_SLOT))
+#else
+#define MODE "loader"
+#define RUNNING_SLOT SLOT_NONE
+#endif
 
 /* ---- helpers ------------------------------------------------------------- */
 static void hexify(const uint8_t *in, size_t n, char *out)
@@ -194,15 +210,19 @@ static err_t fail(conn_t *c, const char *status, const char *why)
 /* ---- endpoints ----------------------------------------------------------- */
 static err_t do_status(conn_t *c)
 {
-    char ip[16], b[640];
+    char ip[16], b[1000];
+    slot_info_t sl[SLOT_COUNT];
+    for (int i = 0; i < SLOT_COUNT; i++) slots_get(i, &sl[i]);
     net_ip_str(ip);
     snprintf(b, sizeof b,
-        "{\"mode\":\"loader\",\"version\":\"%s\",\"link_addr\":\"0x%08lx\",\"host\":\"%s\","
+        "{\"mode\":\"" MODE "\",\"version\":\"%s\",\"link_addr\":\"0x%08lx\",\"host\":\"%s\","
         "\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\",\"ip\":\"%s\",\"uptime_ms\":%lu,"
         "\"clock\":\"%s\",\"sysclk\":%lu,\"reset_cause\":\"0x%08lx\",\"phy_addr\":%lu,"
         "\"phy_id\":\"0x%08lx\",\"speed\":%d,\"full_duplex\":%s,"
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu,"
-        "\"flash0\":\"0x%06lx\",\"flash1\":\"0x%06lx\"}\n",
+        "\"flash0\":\"0x%06lx\",\"flash1\":\"0x%06lx\",\"crashes\":%lu,\"running_slot\":%d,"
+        "\"slots\":[{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d},"
+        "{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d}]}\n",
         g_fw_id.version, g_fw_id.link_addr, g_hostname,
         g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip,
         (unsigned long)HAL_GetTick(), g_clock_hse ? "HSE" : "HSI",
@@ -211,7 +231,11 @@ static err_t do_status(conn_t *c)
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
         (unsigned long)g_eth.rx_frames, (unsigned long)g_eth.tx_frames,
         (unsigned long)g_eth.rx_errors, (unsigned long)g_eth.tx_drops,
-        (unsigned long)extflash_id(0), (unsigned long)extflash_id(1));
+        (unsigned long)extflash_id(0), (unsigned long)extflash_id(1),
+        (unsigned long)bkp_get(BKP_CRASHES), RUNNING_SLOT,
+#define SLOT_ARGS(s) (s).valid ? "true" : "false", (s).valid ? (unsigned long)(s).hdr.seq : 0ul, \
+        (s).valid ? (s).hdr.version : "", (s).confirmed ? "true" : "false", (s).tries_left
+        SLOT_ARGS(sl[0]), SLOT_ARGS(sl[1]));
     return reply(c, "200 OK", "application/json", b);
 }
 
@@ -256,10 +280,21 @@ static err_t body_done(conn_t *c)
     s_stage_size = c->body_len;
     if (c->action == ACT_RUN) why = image_check_ram(STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_SELFUPDATE) why = image_check_loader((const uint8_t *)STAGE_ADDR, s_stage_size);
+    else if (c->action == ACT_INSTALL) {
+        int slot;
+        why = image_check_app(s_stage_size);
+        if (!why) why = slots_install(s_stage_size, &slot);
+        if (!why) bkp_set(BKP_CRASHES, 0);
+    }
+    else if (c->action == ACT_CONFIRM) why = slots_confirm(RUNNING_SLOT) ? NULL : "confirm failed";
     else why = NULL;
     if (why) {
         c->action = ACT_NONE;
         return fail(c, "400 Bad Request", why);
+    }
+    if (c->action == ACT_INSTALL || c->action == ACT_CONFIRM) {
+        c->action = ACT_NONE;        /* already done; nothing deferred */
+        s_stage_owner = NULL;
     }
     return reply(c, "200 OK", "text/plain", "ok\n");
 }
@@ -294,19 +329,31 @@ static err_t on_request(conn_t *c)
     }
     if (strcmp(line, "POST")) return fail(c, "405 Method Not Allowed", "GET or POST only");
 
-    uint8_t act = !strcmp(path, "/run") ? ACT_RUN : !strcmp(path, "/reboot") ? ACT_REBOOT :
-                  !strcmp(path, "/selfupdate") ? ACT_SELFUPDATE : ACT_NONE;
+    static const struct { const char *path; uint8_t act; uint32_t max; } POSTS[] = {
+        { "/reboot",     ACT_REBOOT,     0 },
+#ifdef APP_IMAGE
+        { "/loader",     ACT_LOADER,     0 },
+        { "/confirm",    ACT_CONFIRM,    0 },
+#else
+        { "/run",        ACT_RUN,        STAGE_SIZE },
+        { "/install",    ACT_INSTALL,    STAGE_SIZE },
+        { "/selfupdate", ACT_SELFUPDATE, 128u * 1024u },
+#endif
+    };
+    uint8_t act = ACT_NONE;
+    uint32_t max = 0;
+    for (unsigned i = 0; i < sizeof POSTS / sizeof POSTS[0]; i++)
+        if (!strcmp(path, POSTS[i].path)) { act = POSTS[i].act; max = POSTS[i].max; }
     if (act == ACT_NONE) return fail(c, "404 Not Found", "no such endpoint");
-    if (c->body_len > (act == ACT_REBOOT ? 0 : act == ACT_SELFUPDATE ? 128u * 1024u : STAGE_SIZE))
-        return fail(c, "413 Payload Too Large", "too big");
-    if (act != ACT_REBOOT && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
+    if (c->body_len > max) return fail(c, "413 Payload Too Large", "too big");
+    if (max && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
     if (s_action != ACT_NONE) return fail(c, "409 Conflict", "busy");
     if (!authorised(c, line, path)) return fail(c, "401 Unauthorized", "bad auth");
 
     c->action = act;
     c->body_got = 0;
     sha256_init(&c->sha);
-    if (act != ACT_REBOOT) s_stage_owner = c;
+    if (max) s_stage_owner = c;
     if (c->body_len == 0) return body_done(c);
     c->state = ST_BODY;
     return ERR_OK;
@@ -424,8 +471,19 @@ void http_poll(void)
 {
     if (s_action == ACT_NONE || (int32_t)(HAL_GetTick() - s_action_at) < 0) return;
     switch (s_action) {
-    case ACT_RUN:        jump_to_image(STAGE_ADDR);
-    case ACT_SELFUPDATE: self_flash((const uint8_t *)STAGE_ADDR, s_stage_size);
-    default:             NVIC_SystemReset();
+#ifndef APP_IMAGE
+    case ACT_RUN:
+        bkp_set(BKP_SLOT, (uint32_t)SLOT_NONE);
+        jump_to_image(STAGE_ADDR);
+    case ACT_SELFUPDATE:
+        bkp_set(BKP_STAY, BKP_STAY_MAGIC);      /* come back up in the new loader */
+        self_flash((const uint8_t *)STAGE_ADDR, s_stage_size);
+#endif
+    case ACT_LOADER:
+        bkp_set(BKP_STAY, BKP_STAY_MAGIC);
+        __attribute__((fallthrough));
+    default:
+        bkp_set(BKP_CRASHES, 0);                /* deliberate, not a crash */
+        NVIC_SystemReset();
     }
 }

@@ -15,6 +15,16 @@ const char *image_check_ram(uint32_t addr, uint32_t size)
     return NULL;
 }
 
+const char *image_check_app(uint32_t size)
+{
+    const char *why = image_check_ram(STAGE_ADDR, size);
+    if (why) return why;
+    const fw_id_t *id = (const fw_id_t *)(STAGE_ADDR + FW_ID_OFFSET);
+    if (id->magic != FW_ID_MAGIC_APP) return "not an app image";
+    if (id->link_addr != STAGE_ADDR) return "app not linked for 0x24000000";
+    return NULL;
+}
+
 const char *image_check_loader(const uint8_t *img, uint32_t size)
 {
     uint32_t sp, pc;
@@ -32,7 +42,7 @@ const char *image_check_loader(const uint8_t *img, uint32_t size)
 
 void jump_to_image(uint32_t addr)
 {
-    eth_stop();
+    if (RCC->AHB1ENR & RCC_AHB1ENR_ETH1MACEN) eth_stop();
     __disable_irq();
     SysTick->CTRL = 0;
     for (int i = 0; i < 8; i++) {

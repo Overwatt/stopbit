@@ -1,5 +1,6 @@
 #include "extflash.h"
 #include "board.h"
+#include "wdt.h"
 
 typedef struct { GPIO_TypeDef *port; uint8_t pin; } pin_t;
 typedef struct { pin_t cs, clk, mosi, miso; } bus_t;
@@ -82,6 +83,58 @@ void extflash_read(int dev, uint32_t addr, void *dst, uint32_t len)
     lo(b->cs);
     xfer(b, 0x03);
     xfer(b, (uint8_t)(addr >> 16)); xfer(b, (uint8_t)(addr >> 8)); xfer(b, (uint8_t)addr);
-    while (len--) *p++ = xfer(b, 0);
+    while (len--) {
+        *p++ = xfer(b, 0);
+        if ((len & 0xFFFu) == 0) wdt_feed();
+    }
     hi(b->cs);
+}
+
+static bool wait_idle(const bus_t *b, uint32_t ms)
+{
+    uint32_t t0 = HAL_GetTick();
+    lo(b->cs);
+    xfer(b, 0x05);
+    bool ok = true;
+    while (xfer(b, 0) & 1u) {
+        wdt_feed();
+        if (HAL_GetTick() - t0 > ms) { ok = false; break; }
+    }
+    hi(b->cs);
+    return ok;
+}
+
+static void addr_cmd(const bus_t *b, uint8_t op, uint32_t a)
+{
+    cmd1(b, 0x06);
+    lo(b->cs);
+    xfer(b, op);
+    xfer(b, (uint8_t)(a >> 16)); xfer(b, (uint8_t)(a >> 8)); xfer(b, (uint8_t)a);
+}
+
+bool extflash_erase(int dev, uint32_t addr, uint32_t len)
+{
+    const bus_t *b = &BUS[dev];
+    for (uint32_t end = addr + len; addr < end; addr += 4096) {
+        addr_cmd(b, 0x20, addr);
+        hi(b->cs);
+        if (!wait_idle(b, 1000)) return false;
+    }
+    return true;
+}
+
+bool extflash_write(int dev, uint32_t addr, const void *src, uint32_t len)
+{
+    const bus_t *b = &BUS[dev];
+    const uint8_t *p = src;
+    while (len) {
+        uint32_t n = 256u - (addr & 255u);
+        if (n > len) n = len;
+        addr_cmd(b, 0x02, addr);
+        for (uint32_t i = 0; i < n; i++) xfer(b, p[i]);
+        hi(b->cs);
+        if (!wait_idle(b, 50)) return false;
+        addr += n; p += n; len -= n;
+    }
+    return true;
 }

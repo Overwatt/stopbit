@@ -10,6 +10,8 @@
 #include "extflash.h"
 #include "fw_id.h"
 #include "wdt.h"
+#include "slots.h"
+#include "board_init.h"
 
 extern const uint32_t g_pfnVectors[];
 
@@ -19,26 +21,22 @@ const fw_id_t g_fw_id = { FW_ID_MAGIC_LOADER, (uint32_t)g_pfnVectors, FW_VERSION
 uint32_t g_reset_cause;
 bool     g_clock_hse;
 
-/* Put every GPIO the stock firmware drove at its stock idle level. Which of
- * the high ones (if any) is the PHY reset is not known yet. */
-static void stock_outputs(void)
+/* Boots the best app slot; returns only if the loader should stay up. */
+static void try_boot_app(void)
 {
-    static const struct { GPIO_TypeDef *p; uint16_t hi, lo; } T[] = {
-        { GPIOA, GPIO_PIN_4 | GPIO_PIN_5, GPIO_PIN_3 | GPIO_PIN_12 | GPIO_PIN_15 },
-        { GPIOC, 0, GPIO_PIN_8 },            /* PC10 is the watchdog: wdt.h */
-        { GPIOD, GPIO_PIN_13, GPIO_PIN_4 | GPIO_PIN_12 | GPIO_PIN_15 },
-        { GPIOE, GPIO_PIN_4, GPIO_PIN_12 | GPIO_PIN_14 },
-    };
-    GPIO_InitTypeDef g = { .Mode = GPIO_MODE_OUTPUT_PP, .Speed = GPIO_SPEED_FREQ_LOW };
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    __HAL_RCC_GPIOD_CLK_ENABLE();
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-    for (unsigned i = 0; i < sizeof T / sizeof T[0]; i++) {
-        T[i].p->BSRR = T[i].hi | ((uint32_t)T[i].lo << 16);
-        g.Pin = T[i].hi | T[i].lo;
-        HAL_GPIO_Init(T[i].p, &g);
+    if (bkp_get(BKP_STAY) == BKP_STAY_MAGIC) {
+        bkp_set(BKP_STAY, 0);
+        return;
     }
+    if ((uint32_t)g_pfnVectors != FLASH_BANK1_BASE) return;   /* SWD RAM run */
+
+    uint32_t n = bkp_get(BKP_CRASHES);
+    if (n >= CRASH_LIMIT) return;
+    int s = slots_load_best();
+    if (s == SLOT_NONE) return;
+    bkp_set(BKP_CRASHES, n + 1);      /* the app clears this after 30 s */
+    bkp_set(BKP_SLOT, (uint32_t)s);
+    jump_to_image(STAGE_ADDR);
 }
 
 int main(void)
@@ -53,9 +51,12 @@ int main(void)
     RCC->RSR |= RCC_RSR_RMVF;
     g_clock_hse = SystemClock_Config();
 
-    stock_outputs();
+    board_outputs_init();
     wdt_feed();
+    bkp_init();
     extflash_init();
+    try_boot_app();
+
     HAL_Delay(50);                        /* let the PHY come out of reset */
     net_init();
     http_init();

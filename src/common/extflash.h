@@ -13,5 +13,8 @@
 #define EXTFLASH_SIZE  (2u * 1024u * 1024u)
 void     extflash_init(void);
 uint32_t extflash_id(int dev);        /* JEDEC: 0xC84015 = GD25Q16 */
+/* Both feed the external watchdog while they wait. `addr` is 4 KB aligned. */
+bool     extflash_erase(int dev, uint32_t addr, uint32_t len);
+bool     extflash_write(int dev, uint32_t addr, const void *src, uint32_t len);
 void     extflash_read(int dev, uint32_t addr, void *dst, uint32_t len);
 #endif

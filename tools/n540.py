@@ -5,6 +5,8 @@
   n540.py HOST dump FLASH OUT [OFF LEN]    read external flash 0 or 1
   n540.py HOST run IMAGE.bin               load into SRAM and jump (no flash)
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
+  n540.py HOST update APP.bin              install to the spare slot, boot, confirm
+  n540.py HOST loader                      leave the app, stay in the loader
   n540.py HOST reboot
 """
 import hashlib, hmac, http.client, json, os, socket, sys, time
@@ -60,6 +62,16 @@ def wait_back(d, secs=40):
     raise SystemExit("device did not come back")
 
 
+def enter_loader(d):
+    s = json.loads(d.get("/status"))
+    if s["mode"] != "loader":
+        d.auth("POST", "/loader")
+        s = wait_back(d)
+        if s["mode"] != "loader":
+            raise SystemExit("could not get into the loader")
+    return s
+
+
 def main(a):
     if len(a) < 2:
         raise SystemExit(__doc__)
@@ -81,14 +93,30 @@ def main(a):
         with open(out, "wb") as f:
             f.write(buf)
         print(f"{n} bytes in {time.time()-t:.1f}s  sha256 {hashlib.sha256(buf).hexdigest()}")
+    elif cmd == "update":
+        img = open(a[2], "rb").read()
+        want = img[0x2A8:0x2A8 + 24].split(b"\0")[0].decode()
+        enter_loader(d)
+        t = time.time()
+        d.auth("POST", "/install", img)
+        print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
+        d.auth("POST", "/reboot")
+        s = wait_back(d)
+        if s["mode"] != "app" or s["version"] != want:
+            raise SystemExit(f"new image did not come up (now {s['mode']} {s['version']}); not confirmed")
+        d.auth("POST", "/confirm")
+        print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
+    elif cmd == "loader":
+        print("in loader", enter_loader(d)["version"])
     elif cmd in ("run", "selfupdate"):
         img = open(a[2], "rb").read()
+        enter_loader(d)
         t = time.time()
         d.auth("POST", "/" + cmd, img)
         print(f"sent {len(img)} bytes in {time.time()-t:.1f}s")
         if cmd == "selfupdate":
             s = wait_back(d)
-            print(f"back up: version {s['version']} reset_cause {s['reset_cause']}")
+            print(f"back up: {s['mode']} {s['version']}")
     elif cmd == "reboot":
         d.auth("POST", "/reboot")
         print("back up:", wait_back(d)["version"])
