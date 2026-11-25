@@ -13,7 +13,9 @@
 #define COUNTER_MS 10000u          /* traffic counters at most this often */
 
 /* ---- entities ------------------------------------------------------------ */
-enum { CTRL = 1, DIAG = 2, HIDE = 4, BOOL = 8 };   /* HIDE: disabled by default in HA */
+/* HA reads a select's "none" as "unknown", so parity none needs another word. */
+#define NO_PARITY "no parity"
+enum { CTRL = 1, DIAG = 2, HIDE = 4, BOOL = 8, PAR = 16 };   /* HIDE: disabled by default in HA */
 typedef struct { const char *comp, *key, *name, *extra; uint8_t flags; } ent_t;
 
 #define TOTAL ",\"state_class\":\"total_increasing\""
@@ -24,7 +26,7 @@ static const ent_t PORT_E[] = {
     { "select", "mode",        "mode",             ",\"options\":[\"server\",\"client\",\"udp\"]", CTRL },
     { "number", "baud",        "baud rate",        NUM(300, 2000000), CTRL },
     { "select", "data_bits",   "data bits",        ",\"options\":[\"7\",\"8\"]", CTRL },
-    { "select", "parity",      "parity",           ",\"options\":[\"none\",\"even\",\"odd\"]", CTRL },
+    { "select", "parity",      "parity",           ",\"options\":[\"" NO_PARITY "\",\"even\",\"odd\"]", CTRL | PAR },
     { "select", "stop_bits",   "stop bits",        ",\"options\":[\"1\",\"2\"]", CTRL },
     { "number", "local_port",  "local port",       NUM(0, 65535), CTRL },
     { "text",   "remote_host", "remote host",      ",\"min\":0,\"max\":47", CTRL },
@@ -120,7 +122,8 @@ static void cb_data(void *arg, const u8_t *data, u16_t len, u8_t flags)
         if (!strcmp(s_in_val, "PRESS")) s_restart = true;
         return;
     }
-    const char *v = !strcmp(s_in_val, "ON") ? "1" : !strcmp(s_in_val, "OFF") ? "0" : s_in_val;
+    const char *v = !strcmp(s_in_val, "ON") ? "1" : !strcmp(s_in_val, "OFF") ? "0" :
+                    !strcmp(s_in_val, NO_PARITY) ? "none" : s_in_val;
     /* HA sends whole numbers as "9600", but some clients send "9600.0". */
     size_t l = strlen(s_in_val);
     if (l > 2 && !strcmp(s_in_val + l - 2, ".0")) s_in_val[l - 2] = 0;
@@ -285,6 +288,7 @@ static bool announce(int n, bool remove)
     if (strcmp(e->comp, "button")) {
         ADD(",\"state_topic\":\"~/%s\"", st);
         if (e->flags & BOOL) ADD(",\"value_template\":\"{{'ON' if value_json.%s else 'OFF'}}\"", e->key);
+        else if (e->flags & PAR) ADD(",\"value_template\":\"{{'" NO_PARITY "' if value_json.%s == 'none' else value_json.%s}}\"", e->key, e->key);
         else ADD(",\"value_template\":\"{{value_json.%s}}\"", e->key);
     }
     if (e->flags & CTRL) ADD(",\"command_topic\":\"~/%s/set/%s\",\"entity_category\":\"config\"", st, e->key);
@@ -324,7 +328,7 @@ static bool publish_device(void)
 {
     char topic[40], ip[16], name[72], rej[200];
     json_str(s_name, name, sizeof name);
-    json_str(s_reject[0] ? s_reject : "none", rej, sizeof rej);
+    json_str(s_reject[0] ? s_reject : "Nothing", rej, sizeof rej);
     net_ip_str(ip);
     snprintf(s_buf, sizeof s_buf, "{\"name\":%s,\"ip\":\"%s\",\"last_error\":%s}", name, ip, rej);
     uint32_t h = hash(s_buf);

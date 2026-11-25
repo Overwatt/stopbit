@@ -128,6 +128,19 @@ footer{height:48px}
   </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
+ </form></div>
+ <h2>Home Assistant (MQTT)</h2><div class="panel pad"><form id="mqtt">
+  <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>The gateway then appears in Home Assistant by itself.</span></span></label></div>
+  <div data-mqtt><div class="grid" style="margin-bottom:16px">
+   <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
+   <label>Port<input name="port" type="number" min="1" max="65535" required></label>
+   <label>User name<input name="user" maxlength="63" autocomplete="off"></label>
+   <label>Password<input name="password" type="password" maxlength="63" autocomplete="new-password"></label></div>
+  <div class="checks" style="margin-bottom:16px">
+   <label class="check"><input type="checkbox" name="control"><span>Let Home Assistant change settings<span>Adds port controls and a restart button. Anyone who can publish to your broker can then use them, without this page's password.</span></span></label>
+   <label class="check" id="mqclear" hidden><input type="checkbox" name="clear"><span>Remove the saved password</span></label></div></div>
+  <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
+  <p class="hint">Status: <span id="mqst">off</span></p>
  </form></div></section>
 
  <section><h2>Device</h2><div class="panel pad">
@@ -202,8 +215,8 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#dev button,#restart,#chpw,#keep"))b.disabled=!key;
- for(const b of document.querySelectorAll("#net button,#dev button,#restart,#chpw,#keep,[data-auth]"))b.title=key?"":"Sign in to change settings";
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#restart,#chpw,#keep"))b.disabled=!key;
+ for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#restart,#chpw,#keep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  if(!key)$("pwform").hidden=true}
 
 /* ---- ports ---- */
@@ -262,7 +275,7 @@ document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38
 function showStatic(){document.querySelector("[data-static]").hidden=$("net").elements.mode.value!=="static"}
 function fillForms(){const n=$("net").elements;for(const k of ["mode","ip","mask","gateway","dns"])n[k].value=cfg.net[k];
  if(cfg.net.mode==="dhcp"&&st){if(!n.ip.value)n.ip.value=st.ip;if(!n.mask.value)n.mask.value=st.mask;if(!n.gateway.value)n.gateway.value=st.gateway}
- $("dev").elements.name.value=cfg.device.name;showStatic();title()}
+ $("dev").elements.name.value=cfg.device.name;fillMqtt();showStatic();title()}
 function title(){const n=cfg.device.name||"N540 gateway";$("dname").textContent=n;document.title=n}
 $("net").elements.mode.onchange=showStatic;
 $("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("net").querySelector(".msg");
@@ -273,6 +286,15 @@ $("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("
   if(n.mode.value==="static"&&n.ip.value.trim()!==location.hostname&&!location.hostname.endsWith(".local"))
    say(m,"Moving to a new address. Within two minutes open http://"+n.ip.value.trim()+"/ and choose Keep settings.","warn");
   else say(m,"On trial. Choose Keep settings above.","warn")}catch(e){say(m,e.message,"bad")}};
+function fillMqtt(){const e=$("mqtt").elements,m=cfg.mqtt;for(const k of ["host","port","user"])e[k].value=m[k];e.enabled.checked=m.enabled;e.control.checked=m.control;e.clear.checked=false;
+ e.password.value="";e.password.placeholder=m.password_set?"Saved; type to replace":"";$("mqclear").hidden=!m.password_set;showMqtt()}
+function showMqtt(){document.querySelector("[data-mqtt]").hidden=!$("mqtt").elements.enabled.checked}
+$("mqtt").elements.enabled.onchange=showMqtt;
+$("mqtt").onsubmit=async ev=>{ev.preventDefault();const e=$("mqtt").elements,m=$("mqtt").querySelector(".msg"),
+  L=["mqtt.enabled="+(e.enabled.checked?1:0),"mqtt.host="+e.host.value.trim(),"mqtt.port="+(e.port.value||1883),"mqtt.user="+e.user.value.trim(),"mqtt.control="+(e.control.checked?1:0)].join("\n");
+ const pw=utf(e.password.value),send=pw.length>0||e.clear.checked,k=key;if(pw.length>63)return say(m,"That password is too long.","bad");
+ say(m,"Saving…");try{await post("/api/config",L,send?nonce=>{const pad=cat(hmac(k,utf("mqttpw0\n"+nonce)),hmac(k,utf("mqttpw1\n"+nonce))),v=new Uint8Array(64);if(!e.clear.checked)v.set(pw);
+   return "mqtt.password_enc="+hex(v.map((x,i)=>x^pad[i]))+"\n"+L}:null);cfg=await getj("/api/config");fillMqtt();say(m,"Saved.","ok");tick()}catch(x){say(m,x.message,"bad")}};
 $("keep").onclick=async()=>{try{await post("/api/keep","");cfg=await getj("/api/config");fillForms();say($("net").querySelector(".msg"),"Saved.","ok");tick()}catch(e){say($("net").querySelector(".msg"),e.message,"bad")}};
 $("dev").onsubmit=async ev=>{ev.preventDefault();const m=$("dev").querySelector(".msg");say(m,"Saving…");
  try{await post("/api/config","device.name="+$("dev").elements.name.value.trim());cfg=await getj("/api/config");title();say(m,"Saved.","ok")}catch(e){say(m,e.message,"bad")}};
@@ -306,6 +328,7 @@ async function tick(){clearTimeout(timer);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
   const rows=[["Address",s.ip+" ("+s.host+".local)"],["MAC",s.mac],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["Firmware",s.version+(s.slot>=0?", slot "+"AB"[s.slot]:"")],["Last start",RST(s.reset)+", "+dur(s.uptime_s)+" ago"]];
   $("info").replaceChildren(...rows.flatMap(([a,b])=>[el("dt",{},a),el("dd",{},b)]));
+  const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
   paint()}
  catch(e){failing++;if(failing>1){$("offline").hidden=false}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}

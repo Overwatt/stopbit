@@ -132,7 +132,7 @@ def control_adds_entities():
 def every_control_works():
     time.sleep(0.5)
     cases = [("baud", "57600", 57600), ("mode", "udp", "udp"), ("mode", "server", "server"), ("parity", "even", "even"),
-             ("data_bits", "7", 7), ("stop_bits", "2", 2), ("data_bits", "8", 8), ("parity", "none", "none"), ("local_port", "4100", 4100),
+             ("data_bits", "7", 7), ("stop_bits", "2", 2), ("data_bits", "8", 8), ("parity", "no parity", "none"), ("local_port", "4100", 4100),
              ("remote_host", "plc.lan", "plc.lan"), ("remote_port", "502", 502), ("gap_ms", "25", 25),
              ("packet_len", "256", 256), ("echo_cancel", "ON", True), ("echo_cancel", "OFF", False),
              ("loopback", "ON", True), ("name", 'A "b" \\ c', 'A "b" \\ c'), ("enabled", "ON", True), ("baud", "9600.0", 9600)]
@@ -165,7 +165,7 @@ def bad_values_rejected_and_shown():
         msgs.pop(f"{ID}/device", None)
         cmd(f"port1/set/{k}", v)
         time.sleep(0.4)
-    until(lambda: dj()["last_error"] != "none", 4, "error shown")
+    until(lambda: dj()["last_error"] != "Nothing", 4, "error shown")
     for t, v in (("port1/set/nope", "1"), ("port9/set/baud", "9600"), ("port1/set/baud", "x" * 400), ("net/set/mode", "static"),
                  ("mqtt/set/host", "evil"), ("device/set/web_key", "00"), ("port1/set/baud", "9600\nmqtt.host=evil"),
                  ("port1/set/name", "a\r\nport1.baud=300"), ("port1/set/name", "nul\0"), ("port1/set/name.x", "q")):
