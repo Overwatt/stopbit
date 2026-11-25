@@ -28,7 +28,11 @@ FetchContent_Declare(lwip
     GIT_REPOSITORY https://github.com/lwip-tcpip/lwip.git
     GIT_TAG        STABLE-2_2_1_RELEASE GIT_SHALLOW TRUE)
 
-foreach(dep cmsis_core cmsis_device_h7 stm32h7xx_hal_driver lwip)
+FetchContent_Declare(mbedtls
+    GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
+    GIT_TAG        v3.6.8        GIT_SHALLOW TRUE GIT_SUBMODULES "")
+
+foreach(dep cmsis_core cmsis_device_h7 stm32h7xx_hal_driver lwip mbedtls)
     FetchContent_GetProperties(${dep})
     if(NOT ${dep}_POPULATED)
         FetchContent_Populate(${dep})
@@ -74,6 +78,19 @@ file(GLOB LWIP_SRC
     "${lwip_SOURCE_DIR}/src/apps/mdns/*.c")
 list(APPEND LWIP_SRC "${lwip_SOURCE_DIR}/src/netif/ethernet.c")
 set(LWIP_MQTT_SRC "${lwip_SOURCE_DIR}/src/apps/mqtt/mqtt.c")
+
+# ---------------------------------------------------------------------------
+# mbedTLS (app only). The calls a handshake spends its time in are renamed where they
+# are made, to ones in tls.c that let the main loop in first; see worker.h.
+# ---------------------------------------------------------------------------
+file(GLOB MBEDTLS_SRC "${mbedtls_SOURCE_DIR}/library/*.c")
+set_source_files_properties(${MBEDTLS_SRC} PROPERTIES COMPILE_OPTIONS "-w")
+set_source_files_properties("${mbedtls_SOURCE_DIR}/library/ecp.c" PROPERTIES
+    COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS mbedtls_mpi_mul_mpi=tls_mpi_mul_mpi)
+set_source_files_properties("${mbedtls_SOURCE_DIR}/library/bignum_core.c" PROPERTIES
+    COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS memcpy=tls_core_memcpy)
+set_source_files_properties("${mbedtls_SOURCE_DIR}/library/bignum.c" "${mbedtls_SOURCE_DIR}/library/ecp_curves.c"
+    "${mbedtls_SOURCE_DIR}/library/aes.c" "${mbedtls_SOURCE_DIR}/library/gcm.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
 
 # ---------------------------------------------------------------------------
 # Update key: generated once into secrets/ (gitignored), compiled into images.
@@ -138,7 +155,9 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/web_page.h
     DEPENDS ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/tools/embed.py)
 n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
     ${CMAKE_BINARY_DIR}/gen/web_page.h
-    ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
+    ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
+target_include_directories(app.elf SYSTEM PRIVATE ${mbedtls_SOURCE_DIR}/include)
+target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h")
 # -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.
 set(APP_TEST "" CACHE STRING "broken-app variant for rollback tests")
 target_compile_definitions(app.elf PRIVATE APP_IMAGE ${APP_TEST})

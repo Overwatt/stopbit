@@ -13,6 +13,7 @@
 #include "board.h"
 #include "board_init.h"
 #include "hwinfo.h"
+#include "tls.h"
 #include "bridge.h"
 #include "api.h"
 
@@ -72,14 +73,18 @@ int main(void)
 #elif defined(TEST_NONET)                  /* rollback test: alive, unreachable */
     for (;;) { wdt_feed(); if (HAL_GetTick() > 15000u) NVIC_SystemReset(); }
 #endif
-    net_init();
+    net_init();                  /* marks the Ethernet memory uncacheable */
+    SCB_EnableDCache();          /* nothing else here uses DMA */
     bridge_init();
     api_init();
     http_init();
+    tls_init();
     for (;;) {
+        hwinfo_loop();
         wdt_feed();
         net_poll();
         http_poll();
+        tls_poll();
         bridge_poll();
         api_poll();
         supervise();

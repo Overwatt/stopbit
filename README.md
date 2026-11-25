@@ -50,10 +50,9 @@ have the details.
   at first, or the update key. Neither crosses the network in clear.
 - **The web password can install firmware**, which is full control. Replacing the loader and
   reading flash need the update key.
+- HTTPS can be turned on ([HTTPS.md](docs/HTTPS.md)); plain HTTP stays available beside it.
 - MQTT is unencrypted, and the gateway sends the broker's login in clear. With changes
   allowed over MQTT, anyone who can publish to the broker can make them.
-
-HTTPS is [designed, not built](docs/HTTPS.md).
 
 ## Build
 

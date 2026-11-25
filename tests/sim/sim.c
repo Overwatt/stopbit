@@ -8,6 +8,8 @@
 #include "fw_id.h"
 #include "net.h"
 #include "eth_mac.h"
+#include "tls.h"
+#include "worker.h"
 #include "sha256.h"
 #include "system.h"
 #include "stm32h7xx_hal.h"
@@ -29,11 +31,21 @@ struct tcp_pcb {
     int wnd; uint8_t out[TCP_SND_BUF]; int out_n; bool eof; uint32_t polled;
 };
 static struct tcp_pcb P[40];
+t_dwt_t t_dwt;
+uint32_t t_dwt_now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(((uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec) * 2 / 5); }   /* 400 MHz */
 static int s_max_gap;                        /* longest the main loop was away, ms */
 static bool s_reboot;
 
 static void drop(struct tcp_pcb *p) { if (p->fd >= 0) close(p->fd); memset(p, 0, sizeof *p); p->fd = -1; }
-void pbuf_free(struct pbuf *p) { while (p) { struct pbuf *n = p->next; free(p->payload); free(p); p = n; } }
+static int s_pbufs;
+void pbuf_free(struct pbuf *p) { while (p && --p->ref == 0) { struct pbuf *n = p->next; free(p->payload); free(p); s_pbufs--; p = n; } }
+void pbuf_ref(struct pbuf *p) { p->ref++; }
+void pbuf_cat(struct pbuf *h, struct pbuf *t)
+{
+    for (; h->next; h = h->next) h->tot_len += t->tot_len;
+    h->tot_len += t->tot_len;
+    h->next = t;
+}
 struct tcp_pcb *tcp_new(void)
 {
     for (int i = 0; i < 40; i++) if (!P[i].used) { memset(&P[i], 0, sizeof P[i]); P[i].used = true; P[i].fd = -1; P[i].wnd = TCP_WND; return &P[i]; }
@@ -41,8 +53,8 @@ struct tcp_pcb *tcp_new(void)
 }
 err_t tcp_bind(struct tcp_pcb *p, const void *a, u16_t port)
 {
-    (void)a; (void)port;
-    struct sockaddr_in s = { .sin_family = AF_INET, .sin_port = htons(8541), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+    (void)a;
+    struct sockaddr_in s = { .sin_family = AF_INET, .sin_port = htons(port == 443 ? 8543 : 8541), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
     int one = 1;
     p->fd = socket(AF_INET, SOCK_STREAM, 0);
     setsockopt(p->fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
@@ -85,6 +97,7 @@ void tcp_abort(struct tcp_pcb *p)
 }
 err_t tcp_close(struct tcp_pcb *p)
 {
+    if (p->listening) { drop(p); return ERR_OK; }
     if (p->wnd != TCP_WND) {                 /* lwIP: unacknowledged data means a reset */
         struct linger l = { 1, 0 };
         printf("close with %d bytes unacknowledged: reset\n", TCP_WND - p->wnd);
@@ -135,6 +148,8 @@ static void serve(struct tcp_pcb *p)
                 q->payload = malloc(n);
                 memcpy(q->payload, b + at, n);
                 q->len = (u16_t)n;
+                q->ref = 1;
+                s_pbufs++;
                 q->tot_len = (u16_t)((size_t)k - at);
                 *tail = q; tail = &q->next;
                 at += n;
@@ -158,19 +173,28 @@ bool g_clock_hse = true;
 static bool s_need;
 void net_ip_str(char o[16]) { strcpy(o, "127.0.0.1"); }
 bool rng_fill(void *d, uint32_t n) { arc4random_buf(d, n); return true; }
-const uint8_t *api_page(uint32_t *n) { *n = 5; return (const uint8_t *)"page\n"; }
+#include "web_page.h"
+const uint8_t *api_page(uint32_t *n) { *n = sizeof WEB_PAGE; return WEB_PAGE; }
 const uint8_t *api_web_key(void) { static uint8_t k[32]; memset(k, 0x77, 32); return k; }
 const char *api_fw_need(void) { return s_need ? "listen_only" : NULL; }
-bool api_is_post(const char *p) { return !strcmp(p, "/api/need") || !strcmp(p, "/api/check") || !strcmp(p, "/api/gap"); }
+bool api_is_post(const char *p) { return !strcmp(p, "/api/need") || !strcmp(p, "/api/check") || !strcmp(p, "/api/gap") || !strcmp(p, "/api/tls"); }
 const char *api_post(const char *p, api_req_t *r, char *o, size_t n)
 {
     if (!strcmp(p, "/api/need")) s_need = r->body[0] == '1';
     if (!strcmp(p, "/api/gap")) { snprintf(o, n, "{\"gap\":%d}", s_max_gap); s_max_gap = 0; return "200 OK"; }
+    if (!strcmp(p, "/api/tls")) {
+        const char *why = tls_command((const uint8_t *)r->body, r->len);
+        snprintf(o, n, "%s", why ? why : "{}");
+        return why ? "400 Bad Request" : "200 OK";
+    }
     snprintf(o, n, "{}");
     return "200 OK";
 }
 int api_get(const char *p, char *o, size_t n)
-{ return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
+{ if (!strcmp(p, "/api/tls")) return (int)tls_json(o, n);
+  if (!strcmp(p, "/api/tls/csr")) return (int)tls_csr(o, n);
+  if (!strcmp(p, "/api/pbufs")) return snprintf(o, n, "%d", s_pbufs);
+  return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
 void api_restart(void) { s_reboot = true; http_init(); for (;;) { extern jmp_buf s_loop; longjmp(s_loop, 1); } }
 void NVIC_SystemReset(void) { api_restart(); }
 jmp_buf s_loop;
@@ -194,7 +218,8 @@ static void boot(void)
     bkp_set(BKP_SLOT, (uint32_t)run);
     bkp_set(BKP_BOOTS, bkp_get(BKP_BOOTS) + 1);
     f_nno = 0;
-    f_no[f_nno++] = (range_t){ 1, 0x0C8000, 0x100000 };
+    f_no[f_nno++] = (range_t){ 1, 0x0C8000, 0x0F4000 };
+    f_no[f_nno++] = (range_t){ 1, 0x0F8000, 0x100000 };
     f_no[f_nno++] = (range_t){ 0, 0x1F4000, 0x200000 };
     f_no[f_nno++] = (range_t){ 1, slots_addr(run) + SLOT_HDR, slots_addr(run) + 0x80000 };
     slots_get(run, &in[run]);
@@ -225,11 +250,13 @@ int main(int argc, char **argv)
     fwlib_cancel();
     boot();
     http_init();
+    tls_init();
     for (uint32_t last = ms();;) {
         t_now = ms();
         if ((int)(t_now - last) > s_max_gap) s_max_gap = (int)(t_now - last);
         last = t_now;
         http_poll();
+        tls_poll();
         for (int i = 0; i < 40; i++) if (P[i].used) serve(&P[i]);
         usleep(50);
     }

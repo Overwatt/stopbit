@@ -1,54 +1,78 @@
-# HTTPS with a Let's Encrypt certificate (stretch goal)
+# HTTPS
 
-Not built. This records the design and what was checked on 2026-11-25, so it can be
-picked up later. Goal: the gateway serves HTTPS itself, with a certificate browsers
-trust, and renews it unattended. No reverse proxy.
+The gateway serves the same pages and API on port 443, with a key that is made on it and
+never leaves. Renewing a Let's Encrypt certificate by itself is not built yet.
 
-## Does it fit?
+## Use
 
-| | Have | Need |
-|---|---|---|
-| AXI SRAM (code and data) | 384 KB, about 270 KB free | estimate: mbedTLS 100-150 KB of code, about 40 KB per connection |
-| DTCM, D2 | about 28 KB and 16 KB free, part of DTCM being the stack | little; TLS buffers belong in AXI |
-| Random numbers | hardware RNG, already used | same |
-| Clock | none | network time (SNTP), only for renewal and expiry |
+Network page, or:
 
-So two connections should fit and three is tight. **Handshake time is unknown**: no
-published figure for this core was found, and the D-cache is off. Measure first.
+```sh
+tools/n540.py HOST https on                          # self-signed until you install one
+tools/n540.py HOST cert-request gateway.example.com request.pem
+#   have request.pem signed, e.g. with an ACME client that takes a signing request
+tools/n540.py HOST cert-install fullchain.pem
+tools/n540.py HOST https                             # state, fingerprint, timings
+```
 
-## Design
+- **Port 80 keeps working**, by address and by `.local` name, so a bad or expired
+  certificate cannot lock anyone out. Only the certificate's own name is redirected, and
+  with a 302. There is no HSTS. **So anyone on the network can still use plain HTTP**, and
+  the web password's protection there is as before.
+- The loader stays HTTP. The ports' data sockets and MQTT are not encrypted by this.
+- Off by default; nothing is set up until it is turned on. `forget` discards the keys.
+- A certificate that is for another key or another name is refused.
 
-1. **Private key made on the device** (P-256) and never sent over the network; only a
-   signing request leaves. Do not copy a wildcard key onto it: the flash is not
-   encrypted, so whoever holds the board could impersonate every host it covers. Keep
-   the key out of `/flash` dumps or treat dumps as secret.
-2. **HTTPS on 443**; the web page redirects there once a certificate is installed.
-3. **Signed updates stay on port 80**, and the loader stays HTTP. A bad or expired
-   certificate must never lock anyone out.
-4. **Keep-alive first.** The web server closes after every response, so each poll of the
-   page would cost a handshake. Add keep-alive and TLS session resumption.
-5. The certificate's expiry goes on the Hardware page and to Home Assistant.
+## How it works
 
-## Getting and renewing the certificate
+mbedTLS 3.6.8, TLS 1.2 only, one suite: ECDHE-ECDSA P-256 with AES-128-GCM. Sessions resume
+(tickets, keys changed every 12 hours and at every start). Up to 4 connections, kept open
+between requests for a minute; idle ones give way to new ones.
 
-- The gateway is not reachable from the internet, so HTTP-01 and TLS-ALPN-01 would mean
-  opening ports. Use **DNS-01**.
-- On Route 53, IAM can limit a key to one record: allow `ChangeResourceRecordSets` with
-  conditions on the record name (`_acme-challenge.<name>`), type `TXT` and action. Request
-  signing is HMAC-SHA256, which we already have.
+- **Handshakes do not hold up the ports.** The arithmetic runs on its own stack in slices of
+  1 ms between passes of the main loop (`src/app/worker.c`). It is cooperative: the calls it
+  spends its time in are renamed at build time to ones that yield (`CMakeLists.txt`).
+- **Records** are handled in the main loop, pieces of an upload as fast as flash takes them.
+- **Storage:** keys and certificate in two copies at `0x0F4000` / `0x0F6000` of external
+  flash 1. The flash is not encrypted: whoever holds the board has the key. `/flash` in the
+  app blanks that range; the loader's does not, so treat loader dumps as secret.
+- The data cache is on since this was added. Only the Ethernet controller uses DMA, and its
+  memory is marked uncacheable.
+
+| | Measured |
+|---|---|
+| Image | 223 KB, from 139 KB |
+| Memory, 4 connections and a handshake | 87 KB of 112 KB |
+| Emulated Cortex-M7: longest slice | 1.01 ms |
+| On the gateway | **not yet**: see `https` and Longest pause on the Hardware page |
+
+## Tests
+
+`tests/sim/run.sh`, then `tests/test_tls.py 127.0.0.1:8541 8543`: versions and suites,
+keep-alive, pipelining, resumption, more clients than places, a handshake cut at every
+stage, garbage, uploads, certificates from an RSA and P-384 authority, restarts, and after
+each that no memory or connection is left behind. `SIM_FLAGS=-DWORKER_SLICE_US=20u` makes
+the worker switch fifty times as often.
+
+## Not built: Let's Encrypt on the gateway
+
+Checked 2026-11-25:
+
+- The gateway is not reachable from the internet, so use **DNS-01**. On Route 53, IAM can
+  limit a key to one record: allow `ChangeResourceRecordSets` with conditions on the record
+  name (`_acme-challenge.<name>`), type `TXT` and action. Request signing is HMAC-SHA256,
+  which we have.
 - **DNS-PERSIST-01** would need no DNS key at all, one permanent TXT record instead. As of
   October 2026 Let's Encrypt had not announced a production date. Check again first.
-- Lifetimes are 90 days, 64 from 2027-02-10 and 45 from 2028-02-16, so renewal must be
-  automatic. Renew at two thirds of the lifetime, or follow ACME Renewal Information.
-- Certificates are publicly logged, so the host name becomes public.
-- The name needs a DNS record for the gateway's LAN address. Some routers block public
-  names that resolve to private addresses.
+- Lifetimes are 90 days, 64 from 2027-02-10 and 45 from 2028-02-16. Renew at two thirds of
+  the lifetime, or follow ACME Renewal Information.
+- Needed besides: network time (SNTP), a TLS client that checks certificates, and the ACME
+  and Route 53 requests. The certificate's expiry should go to the Hardware page and Home
+  Assistant.
+- **RAM:** 375 of 384 KB is spoken for, so it needs room made, e.g. by fewer connections.
+- Certificates are publicly logged, so the host name becomes public. The name needs a DNS
+  record for the gateway's LAN address; some routers block public names that resolve to
+  private addresses.
 
-## Steps, each usable alone
-
-1. Trial build: mbedTLS in the app, measure handshake time and memory.
-2. HTTPS with a certificate requested from a computer (`tools/n540.py HOST cert ...`).
-3. Renewal on the device: SNTP, ACME client, Route 53 (or DNS-PERSIST-01).
-
-Open decisions: the host name, and whether a restricted DNS key may live on the gateway.
-If not, renewal runs from another computer and only pushes the certificate.
+Open: the host name, and whether a restricted DNS key may live on the gateway. If not,
+renewal runs on another computer, which only needs the signing request once.

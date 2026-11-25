@@ -12,6 +12,9 @@ Set N540_HOST to leave HOST out. Besides the console's own commands:
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
   n540.py HOST update APP.bin [--loader]   install to the spare slot, boot, confirm
                                            (--loader: through the loader, not the app)
+  n540.py HOST https [on|off|forget]       HTTPS: show, or turn on or off; forget its certificate
+  n540.py HOST cert-request NAME [OUT]     make a key and a signing request for NAME
+  n540.py HOST cert-install FULLCHAIN.pem  install the certificate made from it
   n540.py HOST firmware                    firmware kept on the gateway
   n540.py HOST rollback VERSION            start a kept one, confirm
   n540.py HOST loader                      leave the app, stay in the loader
@@ -74,6 +77,17 @@ class Device:
         if st != 200:
             raise SystemExit(f"{method} {path}: {st} {data.decode(errors='replace').strip()}")
         return data
+
+
+def tls_command(d, body):
+    d.auth("POST", "/api/tls", body)
+    for _ in range(100):
+        time.sleep(.2)
+        t = json.loads(d.get("/api/tls"))
+        if not t["busy"]:
+            if t["error"]:
+                raise SystemExit(t["error"])
+            return
 
 
 def has_library(d):
@@ -323,6 +337,38 @@ def main(a):
             print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
             d.auth("POST", "/reboot")
         started(d, want, slot, before)
+    elif cmd == "https":
+        if a[2:]:
+            tls_command(d, a[2].encode())
+        t = json.loads(d.get("/api/tls"))
+        what = {"none": "no certificate", "self": "self-signed", "issued": "issued"}[t["kind"]]
+        print(("on" if t["live"] else "off") + f", {what}" + (f" for {t['name']}, until {t['until']}" if t["until"] else ""))
+        if t["sha256"]:
+            print("fingerprint", t["sha256"])
+        if t["request"]:
+            print("waiting for a certificate for", t["request"])
+        if t["error"]:
+            print("error:", t["error"])
+        print(f"{t['handshakes']} handshakes ({t['failed']} failed), last {t['last_ms']} ms in {t['last_slices']} slices, longest slice {t['slice_us']} us, "
+              f"stack {t['stack'][0]} of {t['stack'][1]}, memory peak {t['heap'][1]} of {t['heap'][2]}")
+    elif cmd == "cert-request":
+        tls_command(d, b"request " + a[2].encode())
+        b = json.loads(d.get("/api/tls/csr"))["csr"]
+        pem = "-----BEGIN CERTIFICATE REQUEST-----\n" + "".join(b[i:i + 64] + "\n" for i in range(0, len(b), 64)) + "-----END CERTIFICATE REQUEST-----\n"
+        if len(a) > 3:
+            with open(a[3], "w") as f:
+                f.write(pem)
+            print("written to", a[3])
+        else:
+            print(pem, end="")
+    elif cmd == "cert-install":
+        import re, base64
+        ders = [base64.b64decode(x) for x in re.findall(r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", open(a[2]).read(), re.S)]
+        if not ders:
+            raise SystemExit("no certificate in that file")
+        tls_command(d, b"cert\n" + b"".join(ders))
+        t = json.loads(d.get("/api/tls"))
+        print(f"installed: {t['name']}, until {t['until']}")
     elif cmd == "firmware":
         for i in sorted(json.loads(d.get("/api/library"))["images"], key=lambda i: -i["seq"]):
             state = "running" if i["running"] else "kept" if i["kept"] else "did not pass its trial" if i["tried"] else "not started yet"

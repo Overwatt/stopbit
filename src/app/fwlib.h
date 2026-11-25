@@ -30,6 +30,8 @@ void fwlib_get(int i, fwlib_entry_t *out);
  * SLOT_NONE). `need`, if not NULL, is text an image must contain to be started.
  * NULL, or why not. */
 const char *fwlib_receive(uint32_t size, const uint8_t sha[32], int running, const char *need);
+/* How much fwlib_feed() would take. */
+size_t fwlib_room(void);
 /* Takes all `n` bytes. The caller keeps no more than FWLIB_RING undrained. */
 void fwlib_feed(const uint8_t *d, size_t n);
 /* Start installing an image from the library. */

@@ -23,7 +23,8 @@
  * Auth: X-Auth = hex HMAC-SHA256(key, "nonce\nMETHOD path\nbodysha256hex").
  * The nonce is single-use, and the MAC is checked before any body is accepted;
  * the body hash (X-Body-SHA256) is checked before it is acted on. The key never
- * crosses the wire. Replies are not encrypted. In the app, some endpoints also
+ * crosses the wire. Replies on port 80 are not encrypted. The app serves the same
+ * on 443 once that is turned on (tls.c), and keeps those connections open. In the app, some endpoints also
  * accept the key derived from the web password: see web_key_allowed().
  */
 #include "http.h"
@@ -40,11 +41,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #ifdef APP_IMAGE
 #include "api.h"
 #include "cli.h"
 #include "fwlib.h"
+#include "tls.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
 #define BODY_MAX   3072
@@ -82,6 +85,8 @@ typedef struct {
     char     body[BODY_MAX];
     uint32_t held;               /* upload bytes not yet acknowledged to the sender */
     const char *why;             /* upload refused; the rest is read and dropped */
+    tls_t   *tls;                /* on port 443: pcb is NULL */
+    bool     keep;               /* another request may follow */
 #endif
 } conn_t;
 
@@ -201,6 +206,41 @@ static bool authorised(conn_t *c, const char *method, const char *path)
 }
 
 /* ---- connection lifecycle ------------------------------------------------ */
+/* Plain connections close after each reply; those on 443 stay, as opening one is slow. */
+static const char *conn_hdr(const conn_t *c)
+{
+#ifdef APP_IMAGE
+    if (c->keep) return "keep-alive";
+#else
+    (void)c;
+#endif
+    return "close";
+}
+
+static uint32_t out_room(conn_t *c)
+{
+#ifdef APP_IMAGE
+    if (c->tls) return tls_room(c->tls);
+#endif
+    return tcp_sndbuf(c->pcb);
+}
+
+static bool out_put(conn_t *c, const void *d, uint32_t n, uint8_t flags)
+{
+#ifdef APP_IMAGE
+    if (c->tls) { tls_write(c->tls, d, n); return true; }
+#endif
+    return tcp_write(c->pcb, d, (u16_t)n, flags) == ERR_OK;
+}
+
+static void out_go(conn_t *c)
+{
+#ifdef APP_IMAGE
+    if (c->tls) return;
+#endif
+    tcp_output(c->pcb);
+}
+
 static void conn_free(conn_t *c)
 {
     if (s_stage_owner == c) s_stage_owner = NULL;
@@ -212,6 +252,9 @@ static void conn_free(conn_t *c)
 #endif
     c->state = ST_FREE;
     c->pcb = NULL;
+#ifdef APP_IMAGE
+    c->tls = NULL;
+#endif
 }
 
 /* Returns ERR_ABRT if the pcb had to be aborted; callbacks must propagate it. */
@@ -219,6 +262,23 @@ static err_t conn_close(conn_t *c)
 {
     struct tcp_pcb *pcb = c->pcb;
     uint8_t act = c->action;
+#ifdef APP_IMAGE
+    if (c->tls) {
+        tls_t *t = c->tls;
+        if (c->keep && act == ACT_NONE) {        /* ready for the next one */
+            c->state = ST_HDR;
+            c->hdr_len = c->body_len = c->body_got = 0;
+            c->resp_len = c->resp_off = c->fl_left = c->mem_left = 0;
+            c->why = NULL;
+            c->keep = false;
+            return ERR_OK;
+        }
+        conn_free(c);
+        if (act != ACT_NONE) { s_action = act; s_action_at = HAL_GetTick() + 300; }
+        tls_close(t);
+        return ERR_OK;
+    }
+#endif
     tcp_arg(pcb, NULL);
     tcp_recv(pcb, NULL);
     tcp_sent(pcb, NULL);
@@ -233,48 +293,53 @@ static err_t conn_close(conn_t *c)
 static err_t pump(conn_t *c)
 {
     while (c->resp_off < c->resp_len) {
-        uint32_t n = c->resp_len - c->resp_off, room = tcp_sndbuf(c->pcb);
+        uint32_t n = c->resp_len - c->resp_off, room = out_room(c);
         if (n > room) n = room;
-        if (!n || tcp_write(c->pcb, c->resp + c->resp_off, (u16_t)n, TCP_WRITE_FLAG_COPY) != ERR_OK)
-            goto out;
+        if (!n || !out_put(c, c->resp + c->resp_off, n, TCP_WRITE_FLAG_COPY)) goto out;
         c->resp_off += n;
     }
     while (c->fl_left) {
         static uint8_t buf[TCP_MSS];
         uint32_t n = c->fl_left < sizeof buf ? c->fl_left : sizeof buf;
-        if (tcp_sndbuf(c->pcb) < n || tcp_sndqueuelen(c->pcb) >= TCP_SND_QUEUELEN - 4) goto out;
+        if (out_room(c) < n || (c->pcb && tcp_sndqueuelen(c->pcb) >= TCP_SND_QUEUELEN - 4)) goto out;
         extflash_read(c->fl_dev, c->fl_off, buf, n);
-        if (tcp_write(c->pcb, buf, (u16_t)n, TCP_WRITE_FLAG_COPY) != ERR_OK) goto out;
+#ifdef APP_IMAGE
+        tls_mask(c->fl_dev, c->fl_off, buf, n);
+#endif
+        if (!out_put(c, buf, n, TCP_WRITE_FLAG_COPY)) goto out;
         c->fl_off += n;
         c->fl_left -= n;
     }
     while (c->mem_left) {
-        uint32_t n = c->mem_left, room = tcp_sndbuf(c->pcb);
+        uint32_t n = c->mem_left, room = out_room(c);
         if (n > TCP_MSS) n = TCP_MSS;
         if (n > room) n = room;
-        if (!n || tcp_write(c->pcb, c->mem, (u16_t)n, 0) != ERR_OK) goto out;
+        if (!n || !out_put(c, c->mem, n, 0)) goto out;
         c->mem += n;
         c->mem_left -= n;
     }
-    tcp_output(c->pcb);
+    out_go(c);
     return conn_close(c);
 out:
-    tcp_output(c->pcb);
+    out_go(c);
     return ERR_OK;
 }
 
 static err_t reply(conn_t *c, const char *status, const char *type, const char *body)
 {
     if (s_stage_owner == c && c->action == ACT_NONE) s_stage_owner = NULL;
+#ifdef APP_IMAGE
+    if (c->body_got < c->body_len || c->action != ACT_NONE) c->keep = false;   /* the rest of a body nobody will read */
+#endif
     c->state = ST_SEND;
     c->resp_off = 0;
     c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
         "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %u\r\n"
-        "Cache-Control: no-store\r\nConnection: close\r\n\r\n%s",
-        status, type, (unsigned)strlen(body), body);
+        "Cache-Control: no-store\r\nConnection: %s\r\n\r\n%s",
+        status, type, (unsigned)strlen(body), conn_hdr(c), body);
     if (c->resp_len >= sizeof c->resp) {     /* never send a truncated body */
         c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
-            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: %s\r\n\r\n", conn_hdr(c));
     }
     return pump(c);
 }
@@ -348,7 +413,7 @@ static err_t do_flash(conn_t *c, const char *path)
     c->resp_off = 0;
     c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
         "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
-        "Content-Length: %lu\r\nConnection: close\r\n\r\n", (unsigned long)len);
+        "Content-Length: %lu\r\nConnection: %s\r\n\r\n", (unsigned long)len, conn_hdr(c));
     return pump(c);
 }
 
@@ -363,7 +428,7 @@ static err_t do_page(conn_t *c)
         "Content-Length: %lu\r\nCache-Control: no-cache\r\nX-Frame-Options: DENY\r\n"
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; "
         "script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'\r\n"
-        "X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", (unsigned long)c->mem_left);
+        "X-Content-Type-Options: nosniff\r\nConnection: %s\r\n\r\n", (unsigned long)c->mem_left, conn_hdr(c));
     return pump(c);
 }
 #endif
@@ -386,6 +451,26 @@ static void release(conn_t *c)
 #endif
 }
 
+#ifdef APP_IMAGE
+/* Asked for by the name on the certificate. Any other name or the address still gets
+ * the page here, so a bad certificate cannot lock anyone out. */
+static bool go_secure(conn_t *c)
+{
+    const char *name = tls_name(), *h = header(c, "Host");
+    size_t n = name ? strlen(name) : 0;
+    return !c->tls && n && h && !strncasecmp(h, name, n) && (h[n] == '\r' || h[n] == ':');
+}
+
+static err_t redirect(conn_t *c)
+{
+    c->state = ST_SEND;
+    c->resp_off = 0;
+    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+        "HTTP/1.1 302 Found\r\nLocation: https://%s/\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", tls_name());
+    return pump(c);
+}
+#endif
+
 static err_t body_done(conn_t *c)
 {
     uint8_t d[32];
@@ -404,7 +489,7 @@ static err_t body_done(conn_t *c)
 #ifdef APP_IMAGE
     if (c->action == ACT_API) {
         static char msg[CLI_OUT];
-        api_req_t rq = { c->key == SECRET_KEY, c->key, c->nonce, c->body };
+        api_req_t rq = { c->key == SECRET_KEY, c->key, c->nonce, c->body, c->body_len };
         c->action = ACT_NONE;
         c->body[c->body_len] = 0;
         const char *st = api_post(c->path, &rq, msg, sizeof msg);
@@ -472,10 +557,14 @@ static err_t on_request(conn_t *c)
 
     const char *cl = header(c, "Content-Length");
     c->body_len = cl ? strtoul(cl, NULL, 10) : 0;
+#ifdef APP_IMAGE
+    const char *ch = header(c, "Connection");
+    c->keep = c->tls && end && !strncmp(end + 1, "HTTP/1.1", 8) && !(ch && (*ch | 32) == 'c');
+#endif
 
     if (!strcmp(line, "GET")) {
 #ifdef APP_IMAGE
-        if (!strcmp(path, "/")) return do_page(c);
+        if (!strcmp(path, "/")) return go_secure(c) ? redirect(c) : do_page(c);
         if (!strncmp(path, "/api/", 5)) {
             static char js[RESP_MAX - 256];
             int n = api_get(path, js, sizeof js);
@@ -605,6 +694,75 @@ static err_t cb_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
     pbuf_free(p);
     return r;
 }
+
+#ifdef APP_IMAGE
+/* ---- the same, on 443 (tls.c) --------------------------------------------- */
+void *http_tls_open(tls_t *t)
+{
+    for (int i = 0; i < MAX_CONN; i++) {
+        conn_t *c = &s_conn[i];
+        if (c->state != ST_FREE) continue;
+        memset(c, 0, sizeof *c);
+        c->state = ST_HDR;
+        c->tls = t;
+        return c;
+    }
+    return NULL;
+}
+
+uint32_t http_tls_want(void *conn)
+{
+    conn_t *c = conn;
+    uint32_t left = c->body_len - c->body_got;
+    if (c->state == ST_HDR) return HDR_MAX - c->hdr_len;
+    if (c->state != ST_BODY) return 0;
+    if (c->action == ACT_INSTALL && !c->why && fwlib_room() < left) left = (uint32_t)fwlib_room();
+    return left;
+}
+
+void http_tls_data(void *conn, const uint8_t *d, uint32_t n)
+{
+    conn_t *c = conn;
+    tls_t *t = c->tls;
+    while (n && c->tls == t) {              /* until closed, or the next request is cut short */
+        if (c->state == ST_HDR) {
+            c->hdr[c->hdr_len++] = (char)*d++;
+            n--;
+            c->hdr[c->hdr_len] = 0;
+            if (c->hdr_len >= 4 && !memcmp(c->hdr + c->hdr_len - 4, "\r\n\r\n", 4)) on_request(c);
+            else if (c->hdr_len >= HDR_MAX) fail(c, "431 Headers Too Large", "headers too large");
+        } else if (c->state == ST_BODY) {
+            uint32_t k = c->body_len - c->body_got;
+            if (k > n) k = n;
+            d += k;
+            n -= k;
+            on_body(c, d - k, k);
+        } else {                            /* more came before the reply went: not supported */
+            c->keep = false;
+            return;
+        }
+    }
+}
+
+void http_tls_sent(void *conn)
+{
+    conn_t *c = conn;
+    if (c->state == ST_SEND) pump(c);
+}
+
+void http_tls_gone(void *conn)
+{
+    conn_t *c = conn;
+    c->action = ACT_NONE;
+    conn_free(c);
+}
+
+bool http_tls_idle(void *conn)
+{
+    conn_t *c = conn;
+    return c->state == ST_HDR && !c->hdr_len;
+}
+#endif
 
 static err_t cb_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
 {

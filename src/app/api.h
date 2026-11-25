@@ -10,6 +10,7 @@ typedef struct {
     const uint8_t *key;          /* whichever key signed it */
     const char    *nonce;
     char          *body;
+    uint32_t       len;          /* of body, which may be binary */
 } api_req_t;
 
 void api_init(void);             /* loads config, starts network settings + bridge */

@@ -56,18 +56,18 @@ so watching a live bus cannot disturb it.
   the loader and reading flash need a separate key file.
 - Ports' data sockets have no login. Each port can be limited to listed IP addresses, to
   read or to read and write; nothing is encrypted.
-- HTTP only, so browser features that require a secure context are unavailable. HTTPS is
-  a documented stretch goal, not a capability (`docs/HTTPS.md`).
+- HTTP always, HTTPS when turned on (`docs/HTTPS.md`). On HTTP, browser features that
+  require a secure context are unavailable, so the page must not need them.
 - **Must work with no internet:** no outside fonts, scripts, images or services. Size may
   grow when that helps.
 - The page is part of the firmware image, gzipped (about 20 KB today). The image runs
-  from a 384 KB RAM and is about 130 KB today. Uploads go straight to external flash, so
+  from a 384 KB RAM and is about 225 KB today. Uploads go straight to external flash, so
   size is limited by that RAM alone. Larger assets would have to be served from the 4 MB
   of external flash, which is not built.
 - Up to seven firmware images are kept in external flash besides the two boot slots, and
   any can be started from the Firmware page.
-- Up to 8 simultaneous web connections, closed after each response; the page polls once a
-  second.
+- Up to 8 simultaneous web connections, closed after each response on HTTP; 4 of them on
+  HTTPS, kept open. The page polls once a second.
 - Not tested: several ports busy at once, long or terminated buses, more than 1,000,000
   baud, and silence on the wire in listen-only (checked by counters, not measured).
 

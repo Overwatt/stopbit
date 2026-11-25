@@ -13,7 +13,7 @@ enum { ERR_OK = 0, ERR_MEM = -1, ERR_VAL = -6, ERR_ABRT = -13, ERR_RST = -14 };
 #define TCP_SND_QUEUELEN 24
 #define TCP_WRITE_FLAG_COPY 1
 #define IP_ADDR_ANY NULL
-struct pbuf { struct pbuf *next; void *payload; u16_t tot_len, len; };
+struct pbuf { struct pbuf *next; void *payload; u16_t tot_len, len; int ref; };
 struct tcp_pcb;
 typedef err_t (*tcp_accept_fn)(void *, struct tcp_pcb *, err_t);
 typedef err_t (*tcp_recv_fn)(void *, struct tcp_pcb *, struct pbuf *, err_t);
@@ -21,6 +21,8 @@ typedef err_t (*tcp_sent_fn)(void *, struct tcp_pcb *, u16_t);
 typedef err_t (*tcp_poll_fn)(void *, struct tcp_pcb *);
 typedef void  (*tcp_err_fn)(void *, err_t);
 void pbuf_free(struct pbuf *p);
+void pbuf_ref(struct pbuf *p);
+void pbuf_cat(struct pbuf *h, struct pbuf *t);
 struct tcp_pcb *tcp_new(void);
 err_t tcp_bind(struct tcp_pcb *, const void *, u16_t);
 struct tcp_pcb *tcp_listen_with_backlog(struct tcp_pcb *, u8_t);

@@ -21,11 +21,11 @@ static uint32_t s_rand;
 u32_t sys_now(void) { return HAL_GetTick(); }
 
 /* Readable over SWD after a failure. */
-const char *volatile g_assert_msg;
+void *volatile g_assert_at;
 
-void lwip_assert_fail(const char *msg)
+void lwip_assert_fail(void)
 {
-    g_assert_msg = msg;
+    g_assert_at = __builtin_return_address(0);
     if (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) __BKPT(0);
     NVIC_SystemReset();
 }

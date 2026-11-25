@@ -6,6 +6,7 @@
 #include "hwinfo.h"
 #include "history.h"
 #include "fwlib.h"
+#include "tls.h"
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
@@ -168,6 +169,8 @@ int api_get(const char *path, char *out, size_t max)
         return (int)history_json(path[13] - '1', out, max);
     if (!strncmp(path, "/api/access/", 12) && path[12] >= '1' && path[12] <= '0' + PORTS && !path[13])
         return (int)bridge_access_json(path[12] - '1', out, max);
+    if (!strcmp(path, "/api/tls")) return (int)tls_json(out, max);
+    if (!strcmp(path, "/api/tls/csr")) return (int)tls_csr(out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
     if (strcmp(path, "/api/state")) return -1;
@@ -427,7 +430,8 @@ void cli_wiretest(char *out, size_t max)
 bool api_is_post(const char *path)
 {
     return !strcmp(path, "/api/config") || !strcmp(path, "/api/password") ||
-           !strcmp(path, "/api/keep") || !strcmp(path, "/api/check") || !strcmp(path, "/api/cli");
+           !strcmp(path, "/api/keep") || !strcmp(path, "/api/check") || !strcmp(path, "/api/cli") ||
+           !strcmp(path, "/api/tls");
 }
 
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
@@ -438,6 +442,11 @@ const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
         return "200 OK";
     }
     if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
+    if (!strcmp(path, "/api/tls")) {
+        const char *why = tls_command((const uint8_t *)rq->body, rq->len);
+        snprintf(out, max, "%s", why ? why : "{}");
+        return why ? "400 Bad Request" : "200 OK";
+    }
     if (!strcmp(path, "/api/keep") && !cli_keep(out, max)) return "500 Internal Server Error";
     snprintf(out, max, "{}");            /* /api/check: the signature was the point */
     return "200 OK";

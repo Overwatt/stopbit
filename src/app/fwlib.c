@@ -257,6 +257,8 @@ const char *fwlib_receive(uint32_t size, const uint8_t sha[32], int running, con
     return NULL;
 }
 
+size_t fwlib_room(void) { return s_job == J_STORE ? FWLIB_RING - s_count : 0; }
+
 void fwlib_feed(const uint8_t *d, size_t n)
 {
     if (s_job != J_STORE) return;

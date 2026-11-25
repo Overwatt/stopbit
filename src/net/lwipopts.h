@@ -17,7 +17,7 @@
 #define MEMP_NUM_PBUF               16
 #ifdef APP_IMAGE                    /* 4 ports x 4 clients + web */
 #define MEMP_NUM_TCP_PCB            32
-#define MEMP_NUM_TCP_PCB_LISTEN     6
+#define MEMP_NUM_TCP_PCB_LISTEN     8
 #define MEMP_NUM_TCP_SEG            96
 #define MEMP_NUM_UDP_PCB            9
 #else

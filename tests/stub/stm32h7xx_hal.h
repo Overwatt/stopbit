@@ -9,6 +9,10 @@ extern t_regs_t t_regs;
 typedef struct { uint32_t BKP0R, rest[31]; } t_rtc_t;
 extern t_rtc_t t_rtc;
 extern uint32_t SystemCoreClock;
+typedef struct { uint32_t CYCCNT; } t_dwt_t;
+extern t_dwt_t t_dwt;
+uint32_t t_dwt_now(void);
+#define DWT (t_dwt.CYCCNT = t_dwt_now(), &t_dwt)
 #define RCC (&t_regs)
 #define PWR (&t_regs)
 #define RTC (&t_rtc)

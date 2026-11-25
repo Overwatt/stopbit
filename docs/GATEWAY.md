@@ -176,7 +176,7 @@ the UI, or `n540.py $H keep`). The loader always uses DHCP.
 
 Requests are signed with an HMAC over a single-use nonce, the path and the body.
 The browser derives its key from the password (PBKDF2, 30000 rounds). The password
-never crosses the wire, but pages and data are not encrypted, so a listener could
+never crosses the wire, but on port 80 pages and data are not encrypted, so a listener could
 attempt to guess a weak password offline. The web password can change settings, restart and
 install firmware; it cannot read flash, replace the loader, or enter it.
 

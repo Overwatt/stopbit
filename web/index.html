@@ -73,7 +73,9 @@ form{margin:0}fieldset{border:0;margin:0 0 26px;padding:0;min-width:0}legend{fon
 .grid-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px 18px}
 label{display:block;font-size:.9375rem;color:var(--soft)}label.wide{grid-column:span 2}
 input,select{font:inherit;color:var(--ink);display:block;width:100%;margin-top:4px;padding:9px 12px;border:0;border-bottom:2px solid var(--foot);border-radius:6px 6px 2px 2px;background:var(--well);caret-color:var(--sea);min-height:44px;transition:border-color .15s}
-input:hover,select:hover,input:focus,select:focus{border-color:var(--sea)}input:disabled,select:disabled{opacity:.6;border-color:var(--foot)}
+input:hover,select:hover,textarea:hover,input:focus,select:focus,textarea:focus{border-color:var(--sea)}
+textarea{font:.8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);display:block;width:100%;margin-top:4px;padding:9px 12px;border:0;border-bottom:2px solid var(--foot);border-radius:6px 6px 2px 2px;background:var(--well);resize:vertical;white-space:pre;overflow-x:auto}
+dl.list a{color:inherit;text-underline-offset:3px}input:disabled,select:disabled{opacity:.6;border-color:var(--foot)}
 ::placeholder{color:var(--soft);opacity:1}
 input[type=file]{padding:6px;overflow:hidden}input::file-selector-button{font:inherit;font-weight:600;color:var(--ink);background:var(--key-h);border:0;border-radius:4px;padding:5px 14px;margin-right:12px;cursor:pointer}
 label.check{display:flex;gap:12px;align-items:flex-start;color:var(--ink);font-size:1rem;max-width:62ch}label.check input{width:20px;height:20px;min-height:0;margin:2px 0 0;flex:none;accent-color:var(--accent)}label.check span span{display:block;color:var(--soft);font-size:.875rem}
@@ -141,7 +143,16 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
- </form></section></div></div>
+ </form></section></div>
+ <div class="two"><section><h3>HTTPS</h3><dl class="list" id="tlsinfo"></dl>
+  <div class="acts" style="margin-top:18px"><button id="tlson" type="button">Turn on</button><button id="tlsforget" type="button" hidden>Forget certificate</button><p class="msg" id="tlsmsg" role="status"></p></div>
+  <p class="hint">Port 80 keeps working, so a bad certificate cannot lock you out.</p></section>
+ <section><h3>Certificate</h3><form id="tlsreq"><div class="grid-f" style="margin-bottom:16px"><label class="wide">Host name<input name="name" autocomplete="off" spellcheck="false" maxlength="63" placeholder="gateway.example.com"></label></div>
+  <div class="acts"><button class="primary">Make signing request</button><p class="msg" role="status"></p></div>
+  <p class="hint">The key is made here and stays here. Public certificates list the name publicly.</p></form>
+  <form id="tlscert" style="margin-top:22px" hidden><label>Signing request<textarea id="tlscsr" rows="8" readonly spellcheck="false"></textarea></label>
+  <label style="margin:16px 0">Certificate chain (PEM)<input type="file" name="file" accept=".pem,.crt,.cer" required></label>
+  <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div></div>
  <div id="p-mqtt" hidden><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>Publishes the ports' state and traffic.</span></span></label></div>
   <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
@@ -235,11 +246,11 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,#tlson,#tlsforget,#tlsreq button,#tlscert button"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
- for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+ for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
 
 /* ---- port settings ---- */
@@ -357,7 +368,7 @@ async function tick(){clearTimeout(timer);
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
   fillDl($("netinfo"),[["Address",s.ip],["Name",s.host+".local"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
-  paint();hardware()}
+  paint();hardware();https()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not answering")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
 /* ---- hardware ---- */
@@ -367,6 +378,7 @@ function fillDl(dl,rows){if(dl.childElementCount!==rows.length*2)dl.replaceChild
  rows.forEach(([a,...b],i)=>{put(dl.children[2*i],a);put(dl.children[2*i+1],...b)})}
 function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.querySelector(".row"))tb.replaceChildren(...rows.map(r=>el("tr",{class:"row"},...r.map((_,i)=>el("td",i?{"data-h":heads[i]}:{})))));
  rows.forEach((r,i)=>r.forEach((c,k)=>put(tb.children[i].children[k],...(Array.isArray(c)?c:[c]))))}
+const ms=us=>nb(us<10000?(us/1000).toFixed(1)+" ms":Math.round(us/1000)+" ms");
 const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
 const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?nb(x+" × "+n):x).join(", ");
@@ -396,7 +408,8 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
    [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):null]],
   [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
   [nm("Reload button"),[],[h.button.pressed?"Pressed":"Released",h.button.presses?sub(num(h.button.presses)+(h.button.presses===1?" press":" presses")+(h.button.held_ms?", last held "+(h.button.held_ms/1000).toFixed(1)+" s":"")):null]],
-  [nm("Watchdog"),"UM706SS","1.6 s timeout"]]);
+  [nm("Watchdog"),"UM706SS","1.6 s timeout"],
+  [nm("Main loop"),[],h.loop?["Longest pause "+ms(h.loop.recent_us),sub(ms(h.loop.max_us)+" since the start")]:[]]]);
  fillRows($("wiring"),["Port","UART","Transmit","Receive","Direction"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
  const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?i===h.slot?", on trial":", not kept":"")};
@@ -535,9 +548,37 @@ function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PA
  editing=false;document.body.dataset.view=route==="status"?"list":"sheet";
  for(const p of ["port","network","mqtt","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
  nav();showSheet();scrollTo(0,0);
- hwAt=0;hardware()}
+ hwAt=tlsAt=0;hardware();https()}
 addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
+
+/* ---- HTTPS ---- */
+let tlsAt=0,tls=null,tlsArm=0;
+const pem=(b,k)=>"-----BEGIN "+k+"-----\n"+(b.match(/.{1,64}/g)||[]).join("\n")+"\n-----END "+k+"-----\n";
+async function https(force){const now=performance.now();if(page!=="network"||(!force&&tlsAt&&now-tlsAt<5000))return;tlsAt=now;
+ try{tls=await getj("/api/tls")}catch(e){tlsAt=0;return}
+ const t=tls,K={none:"None",self:"Self-signed; browsers warn",issued:"Issued"},url="https://"+(t.kind==="issued"?t.name:st?st.ip:"")+"/";
+ fillDl($("tlsinfo"),[["Status",t.error?el("span",{class:"bad"},t.error):t.busy?"Preparing…":t.live?el("span",{class:"ok"},"On"):"Off"],["Address",t.live?el("a",{href:url},url):"None"],["Certificate",K[t.kind],t.name?sub(t.name+(t.until?", until "+t.until.replace(/-/g,"\u2011"):"")):null],["Fingerprint",t.sha256?el("code",{},t.sha256):"None"],
+  ["Handshakes",num(t.handshakes),t.handshakes?sub("last "+t.last_ms+" ms"+(t.failed?", "+num(t.failed)+" failed":"")):null]]);
+ $("tlson").textContent=t.on?"Turn off":"Turn on";$("tlsforget").hidden=t.kind==="none"&&!t.request;
+ $("tlscert").hidden=!t.csr;
+ if(t.csr&&$("tlscsr").dataset.n!==t.request){try{$("tlscsr").value=pem((await getj("/api/tls/csr")).csr,"CERTIFICATE REQUEST");$("tlscsr").dataset.n=t.request}catch(e){}}
+ if(!$("tlsreq").elements.name.value&&t.request)$("tlsreq").elements.name.value=t.request}
+async function tlsDo(body,m,done){say(m,"Working…");
+ try{await post("/api/tls",body);for(let k=0;k<60;k++){await pause(400);try{await https(true)}catch(e){}if(tls&&!tls.busy)break}
+  if(tls.error)throw new Error(tls.error);say(m,done,"ok")}catch(e){say(m,e.message,"bad")}}
+$("tlson").onclick=async()=>{const off=tls&&tls.on,secure=location.protocol==="https:";
+ if(off&&secure){try{await post("/api/tls","off");location.href="http://"+(st?st.ip:location.hostname)+"/#network"}catch(e){say($("tlsmsg"),e.message,"bad")}return}
+ tlsDo(off?"off":"on",$("tlsmsg"),off?"Off.":"On.")};
+$("tlsforget").onclick=()=>{const b=$("tlsforget");
+ if(!tlsArm){b.textContent="Confirm forget";b.className="danger";tlsArm=setTimeout(()=>{tlsArm=0;b.textContent="Forget certificate";b.className=""},4000);return}
+ clearTimeout(tlsArm);tlsArm=0;b.textContent="Forget certificate";b.className="";$("tlsreq").elements.name.value="";delete $("tlscsr").dataset.n;tlsDo("forget",$("tlsmsg"),"Forgotten. HTTPS is off.")};
+$("tlsreq").onsubmit=ev=>{ev.preventDefault();delete $("tlscsr").dataset.n;const n=$("tlsreq").elements.name;n.value=n.value.trim().toLowerCase();tlsDo("request "+n.value,$("tlsreq").querySelector(".msg"),"Ready. Have it signed, then install the certificate.")};
+$("tlscsr").onfocus=()=>$("tlscsr").select();
+$("tlscert").onsubmit=async ev=>{ev.preventDefault();const m=$("tlscert").querySelector(".msg"),f=ev.target.elements.file.files[0];if(!f)return;
+ const L=[...(await f.text()).matchAll(/-----BEGIN CERTIFICATE-----([^-]+)-----END CERTIFICATE-----/g)].map(x=>{try{return Uint8Array.from(atob(x[1].replace(/\s/g,"")),c=>c.charCodeAt(0))}catch(e){return null}});
+ if(!L.length||L.includes(null))return say(m,"No certificate in that file.","bad");
+ tlsDo(L.reduce(cat,utf("cert\n")),m,"Installed.")};
 
 /* ---- firmware update ---- */
 let image=null;

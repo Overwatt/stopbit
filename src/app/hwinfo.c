@@ -99,6 +99,25 @@ static bool measure(void)
     return s_valid = true;
 }
 
+/* ---- main loop ----------------------------------------------------------- */
+/* Longest time between passes: since the start, and in the last 10 to 20 s. */
+static uint32_t s_loop_at, s_loop_max, s_loop[2], s_loop_turn;
+static bool s_loop_on;
+
+void hwinfo_loop(void)
+{
+    uint32_t now = DWT->CYCCNT, us = (now - s_loop_at) / (SystemCoreClock / 1000000u);
+    s_loop_at = now;
+    if (!s_loop_on) { s_loop_on = true; return; }
+    if (HAL_GetTick() - s_loop_turn >= 10000u) {
+        s_loop_turn = HAL_GetTick();
+        s_loop[1] = s_loop[0];
+        s_loop[0] = 0;
+    }
+    if (us > s_loop[0]) s_loop[0] = us;
+    if (us > s_loop_max) s_loop_max = us;
+}
+
 /* ---- JSON ---------------------------------------------------------------- */
 size_t hwinfo_json(char *out, size_t max)
 {
@@ -140,6 +159,7 @@ size_t hwinfo_json(char *out, size_t max)
         U((uint32_t)&_eaxi - D1_AXISRAM_BASE), U(384u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
         U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10));
 
+    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu}", U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max));
     const fw_id_t *ld = (const fw_id_t *)(FLASH_BASE + FW_ID_OFFSET);
     OUT(",\"loader\":\"%.23s\",\"slot\":%d,\"slots\":[", ld->magic == FW_ID_MAGIC_LOADER ? ld->version : "", run);
     for (int i = 0; i < SLOT_COUNT; i++)
