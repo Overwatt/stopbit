@@ -13,6 +13,9 @@ enum { ERR_OK = 0, ERR_MEM = -1, ERR_VAL = -6, ERR_ABRT = -13, ERR_RST = -14 };
 #define TCP_SND_QUEUELEN 24
 #define TCP_WRITE_FLAG_COPY 1
 #define IP_ADDR_ANY NULL
+#define SOF_REUSEADDR 4
+struct tcp_pcb;
+void ip_set_option(struct tcp_pcb *, int);
 struct pbuf { struct pbuf *next; void *payload; u16_t tot_len, len; int ref; };
 struct tcp_pcb;
 typedef err_t (*tcp_accept_fn)(void *, struct tcp_pcb *, err_t);

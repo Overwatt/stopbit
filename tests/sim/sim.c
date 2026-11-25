@@ -32,8 +32,11 @@ struct tcp_pcb {
     void *arg; tcp_accept_fn acc; tcp_recv_fn rx; tcp_sent_fn sent; tcp_err_fn err; tcp_poll_fn poll;
     int wnd; uint8_t out[TCP_SND_BUF]; int out_n; bool eof; uint32_t polled;
     err_t (*connected)(void *, struct tcp_pcb *, err_t);
+    bool reuse; u16_t port;
 };
 static struct tcp_pcb P[40];
+static uint32_t s_closed_at[2];          /* when a connection on 80 / 443 last closed */
+static void closed(struct tcp_pcb *p) { if (p->port) s_closed_at[p->port == 443] = t_now; }
 t_dwt_t t_dwt;
 uint32_t t_dwt_now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(((uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec) * 2 / 5); }   /* 400 MHz */
 static int s_max_gap;                        /* longest the main loop was away, ms */
@@ -54,8 +57,14 @@ struct tcp_pcb *tcp_new(void)
     for (int i = 0; i < 40; i++) if (!P[i].used) { memset(&P[i], 0, sizeof P[i]); P[i].used = true; P[i].fd = -1; P[i].wnd = TCP_WND; return &P[i]; }
     return NULL;
 }
+/* lwIP refuses to bind a port that connections closed in the last two minutes still
+ * hold (TIME-WAIT), unless SOF_REUSEADDR is set. The host's sockets would not. */
+static int lingering(u16_t port) { uint32_t t = s_closed_at[port == 443]; return t && t_now - t < 120000; }
+void ip_set_option(struct tcp_pcb *p, int o) { if (o == SOF_REUSEADDR) p->reuse = true; }
 err_t tcp_bind(struct tcp_pcb *p, const void *a, u16_t port)
 {
+    if (!p->reuse && lingering(port)) return ERR_VAL;
+    p->port = port;
     (void)a;
     struct sockaddr_in s = { .sin_family = AF_INET, .sin_port = htons(port == 443 ? 8543 : 8541), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
     int one = 1;
@@ -153,6 +162,7 @@ static void serve(struct tcp_pcb *p)
         if (!n) { close(fd); return; }
         fcntl(fd, F_SETFL, O_NONBLOCK);
         n->fd = fd;
+        n->port = p->port;
         n->polled = t_now;
         p->acc(p->arg, n, ERR_OK);
         return;
@@ -167,7 +177,7 @@ static void serve(struct tcp_pcb *p)
     }
     if (!p->used) return;
     if (p->closing) {
-        if (!p->out_n) { shutdown(p->fd, SHUT_WR); drop(p); }
+        if (!p->out_n) { shutdown(p->fd, SHUT_WR); closed(p); drop(p); }
         return;
     }
     if (p->wnd > 0 && !p->eof) {
@@ -322,6 +332,7 @@ int main(int argc, char **argv)
     t_now = ms();
     setjmp(s_loop);
     for (int i = 0; i < 40; i++) if (P[i].used) drop(&P[i]);
+    memset(s_closed_at, 0, sizeof s_closed_at);   /* a restart forgets them, as lwIP does */
     fwlib_cancel();
     boot();
     http_init();

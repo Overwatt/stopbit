@@ -299,6 +299,11 @@ def host(h):
 assert host(N) == (302, f"https://{N}/") and host(N.upper() + ":80") == (302, f"https://{N}/")
 for x in (H, "n540-sim.local", N + ".evil.com", "x" + N, N[:-1], ""): assert host(x)[0] == 200, x
 ok("only that name is redirected")
+# a new certificate while connections have just closed (lwIP keeps the port for a while)
+for i in range(5): s = conn(good, N); get(s, "/status"); s.close()
+cmd("request " + N); csr = base64.b64decode(json.loads(d.get("/api/tls/csr"))["csr"]); open(T + "/r.der", "wb").write(csr)
+cmd(b"cert\n" + sign([N])); time.sleep(2); t = tls(); assert t["live"] and not t["error"], t
+s = conn(good, N); assert get(s, "/status")[0] == 200; s.close(); ok("a new certificate goes live straight after connections closed")
 # it survives a restart, and so does a pending request
 n = json.loads(d.get("/status"))["boots"]; cmd("request new.example.com"); d.auth("POST", "/reboot"); back(n); time.sleep(1)
 t = tls(); assert t["kind"] == "issued" and t["live"] and t["request"] == "new.example.com" and t["csr"], t

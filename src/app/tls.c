@@ -128,7 +128,10 @@ static mbedtls_ssl_config       s_conf;
 static mbedtls_ssl_ticket_context s_tick;
 static mbedtls_x509_crt         s_crt;
 static mbedtls_pk_context       s_key;
-static bool s_ready, s_live;             /* library set up; certificate in place */
+static bool s_ready, s_live;             /* library set up; certificate in place and listening */
+static bool s_loaded;                    /* certificate and key in place, maybe not listening yet */
+static uint32_t s_listen_at;
+static void listen_443(void);
 static uint32_t s_tick_at;
 static const char *s_err = "";
 
@@ -597,7 +600,7 @@ static void deactivate(void)
     if (s_listen) tcp_close(s_listen);
     s_listen = NULL;
     for (int i = 0; i < TLS_MAX; i++) if (s_t[i].state != T_FREE) finish(&s_t[i]);
-    s_live = false;
+    s_live = s_loaded = false;
     mbedtls_ssl_config_free(&s_conf);
     mbedtls_ssl_config_init(&s_conf);
     mbedtls_ssl_ticket_free(&s_tick);
@@ -624,14 +627,25 @@ static void go_live(bool loaded)
     mbedtls_ssl_conf_groups(&s_conf, GROUPS);
     mbedtls_ssl_conf_session_tickets_cb(&s_conf, mbedtls_ssl_ticket_write, mbedtls_ssl_ticket_parse, &s_tick);
     s_tick_at = HAL_GetTick();
+    s_loaded = true;
+    listen_443();
+}
+
+/* Connections just closed linger on the port for a couple of minutes, which lwIP treats as
+ * "in use" unless told otherwise. If it still fails, tls_poll() tries again. */
+static void listen_443(void)
+{
     struct tcp_pcb *l = tcp_new();
+    if (l) ip_set_option(l, SOF_REUSEADDR);
     if (!l || tcp_bind(l, IP_ADDR_ANY, 443) != ERR_OK || !(s_listen = tcp_listen_with_backlog(l, TLS_MAX))) {
-        s_err = "Port 443 could not be opened";
+        s_err = "Port 443 could not be opened; trying again";
         if (l) tcp_close(l);
         s_listen = NULL;
+        s_listen_at = HAL_GetTick() + 5000;
         return;
     }
     tcp_accept(s_listen, cb_accept);
+    s_err = "";
     s_live = true;
 }
 
@@ -664,6 +678,7 @@ void tls_poll(void)
         else if (j != JOB_CSR && !save()) s_err = "Could not write to flash";
         else if (j == JOB_SELF) activate();
     }
+    if (s_loaded && !s_live && (int32_t)(HAL_GetTick() - s_listen_at) >= 0) listen_443();
     if (s_job == JOB_NONE && s_soon && (int32_t)(HAL_GetTick() - s_soon_at) >= 0) {
         s_soon = false;
         activate();
