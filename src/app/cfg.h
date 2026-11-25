@@ -34,11 +34,20 @@ typedef struct {
 } net_cfg_t;
 
 typedef struct {
+    uint32_t port;                 /* first and 32-bit: fixes the struct's alignment */
+    char     host[48], user[64], password[64];
+    uint8_t  enabled;
+    uint8_t  control;              /* accept changes over MQTT */
+} mqtt_cfg_t;
+
+typedef struct {
     char       device_name[32];
     net_cfg_t  net;
     port_cfg_t port[PORTS];
     uint8_t    web_set;            /* a web password exists */
     uint8_t    web_salt[16], web_key[32];
+    /* --- end of schema 1 --- */
+    mqtt_cfg_t mqtt;
 } cfg_t;
 
 void cfg_defaults(cfg_t *c);
@@ -47,6 +56,8 @@ bool cfg_parse(cfg_t *c, char *body, char *err, size_t errlen);
 bool cfg_validate(const cfg_t *c, char *err, size_t errlen);
 /* JSON without secrets. Returns length, or 0 if it did not fit. */
 size_t cfg_json(const cfg_t *c, char *out, size_t max);
+/* One port's settings as a JSON object. */
+size_t cfg_port_json(const port_cfg_t *p, char *out, size_t max);
 /* "..." with escapes; returns chars written (no NUL counted). */
 size_t json_str(const char *s, char *out, size_t max);
 bool ip4_parse(const char *s, uint32_t *out);

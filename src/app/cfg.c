@@ -35,11 +35,23 @@ static const field_t PORT_F[] = {
 };
 #define NPORT_F (sizeof PORT_F / sizeof PORT_F[0])
 
+/* The password is not here: it arrives encrypted, see api.c. */
+#define M(k, t, lo, hi) { #k, t, offsetof(mqtt_cfg_t, k), sizeof(((mqtt_cfg_t *)0)->k), lo, hi, NULL }
+static const field_t MQTT_F[] = {
+    M(enabled, T_BOOL, 0, 1),
+    M(host,    T_HOST, 0, 0),
+    M(port,    T_U32,  1, 65535),
+    M(user,    T_STR,  0, 0),
+    M(control, T_BOOL, 0, 1),
+};
+#define NMQTT_F (sizeof MQTT_F / sizeof MQTT_F[0])
+
 void cfg_defaults(cfg_t *c)
 {
     memset(c, 0, sizeof *c);
     snprintf(c->device_name, sizeof c->device_name, "N540 gateway");
     c->net.dhcp = 1;
+    c->mqtt.port = 1883;
     for (int i = 0; i < PORTS; i++) {
         port_cfg_t *p = &c->port[i];
         snprintf(p->name, sizeof p->name, "Port %d", i + 1);
@@ -138,6 +150,11 @@ static bool apply(cfg_t *c, const char *k, const char *v)
                 return set_field(&c->port[k[4] - '1'], &PORT_F[i], v);
         return false;
     }
+    if (!strncmp(k, "mqtt.", 5)) {
+        for (size_t i = 0; i < NMQTT_F; i++)
+            if (!strcmp(MQTT_F[i].key, k + 5)) return set_field(&c->mqtt, &MQTT_F[i], v);
+        return false;
+    }
     if (!strcmp(k, "device.name")) return set_str(c->device_name, sizeof c->device_name, v, false);
     if (!strcmp(k, "net.mode")) {
         bool d = !strcmp(v, "dhcp");
@@ -191,6 +208,14 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             snprintf(err, errlen, "The gateway must be another address in the same subnet");
             return false;
         }
+    }
+    if (c->mqtt.enabled && !c->mqtt.host[0]) {
+        snprintf(err, errlen, "Enter the MQTT broker's host name or address");
+        return false;
+    }
+    if (c->mqtt.password[0] && !c->mqtt.user[0]) {
+        snprintf(err, errlen, "MQTT needs a user name with that password");
+        return false;
     }
     for (int i = 0; i < PORTS; i++) {
         const port_cfg_t *p = &c->port[i];
@@ -251,40 +276,60 @@ size_t json_str(const char *s, char *out, size_t max)
     return n;
 }
 
-size_t cfg_json(const cfg_t *c, char *out, size_t max)
-{
-    size_t n = 0;
-    char ip[4][16];
-    ip4_fmt(c->net.ip, ip[0]); ip4_fmt(c->net.mask, ip[1]);
-    ip4_fmt(c->net.gw, ip[2]); ip4_fmt(c->net.dns, ip[3]);
 #define ADD(...) do { int w = snprintf(out + n, max - n, __VA_ARGS__); \
         if (w < 0 || (size_t)w >= max - n) { return 0; } n += (size_t)w; } while (0)
 #define STR(s) do { size_t w = json_str(s, out + n, max - n); if (!w) { return 0; } n += w; } while (0)
+
+static size_t fields_json(const void *base, const field_t *fs, size_t nf, char *out, size_t max)
+{
+    size_t n = 0;
+    ADD("{");
+    for (size_t k = 0; k < nf; k++) {
+        const field_t *f = &fs[k];
+        const uint8_t *p = (const uint8_t *)base + f->off;
+        uint32_t u32;
+        uint16_t u16;
+        ADD("%s\"%s\":", k ? "," : "", f->key);
+        switch (f->type) {
+        case T_STR: case T_HOST: STR((const char *)p); break;
+        case T_ENUM: ADD("\"%s\"", f->names[*p]); break;
+        case T_BOOL: ADD("%s", *p ? "true" : "false"); break;
+        case T_U32: memcpy(&u32, p, 4); ADD("%lu", (unsigned long)u32); break;
+        case T_U16: memcpy(&u16, p, 2); ADD("%u", u16); break;
+        default: ADD("%u", *p);
+        }
+    }
+    ADD("}");
+    return n;
+}
+
+size_t cfg_port_json(const port_cfg_t *p, char *out, size_t max)
+{
+    return fields_json(p, PORT_F, NPORT_F, out, max);
+}
+
+size_t cfg_json(const cfg_t *c, char *out, size_t max)
+{
+    size_t n = 0, w;
+    char ip[4][16];
+    if (!max) return 0;
+    ip4_fmt(c->net.ip, ip[0]); ip4_fmt(c->net.mask, ip[1]);
+    ip4_fmt(c->net.gw, ip[2]); ip4_fmt(c->net.dns, ip[3]);
     ADD("{\"device\":{\"name\":");
     STR(c->device_name);
     ADD("},\"net\":{\"mode\":\"%s\"", c->net.dhcp ? "dhcp" : "static");
     static const char *const NK[] = { "ip", "mask", "gateway", "dns" };
     const uint32_t nv[] = { c->net.ip, c->net.mask, c->net.gw, c->net.dns };
     for (int i = 0; i < 4; i++) ADD(",\"%s\":\"%s\"", NK[i], nv[i] ? ip[i] : "");
-    ADD("},\"password_set\":%s,\"ports\":[", c->web_set ? "true" : "false");
+    ADD("},\"mqtt\":");
+    if (!(w = fields_json(&c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
+    n += w - 1;                        /* reopen to add one more key */
+    ADD(",\"password_set\":%s},\"password_set\":%s,\"ports\":[",
+        c->mqtt.password[0] ? "true" : "false", c->web_set ? "true" : "false");
     for (int i = 0; i < PORTS; i++) {
-        ADD("%s{", i ? "," : "");
-        for (size_t k = 0; k < NPORT_F; k++) {
-            const field_t *f = &PORT_F[k];
-            const uint8_t *p = (const uint8_t *)&c->port[i] + f->off;
-            uint32_t u32;
-            uint16_t u16;
-            ADD("%s\"%s\":", k ? "," : "", f->key);
-            switch (f->type) {
-            case T_STR: case T_HOST: STR((const char *)p); break;
-            case T_ENUM: ADD("\"%s\"", f->names[*p]); break;
-            case T_BOOL: ADD("%s", *p ? "true" : "false"); break;
-            case T_U32: memcpy(&u32, p, 4); ADD("%lu", (unsigned long)u32); break;
-            case T_U16: memcpy(&u16, p, 2); ADD("%u", u16); break;
-            default: ADD("%u", *p);
-            }
-        }
-        ADD("}");
+        if (i) ADD(",");
+        if (!(w = cfg_port_json(&c->port[i], out + n, max - n))) return 0;
+        n += w;
     }
     ADD("]}\n");
     return n;

@@ -396,6 +396,18 @@ void bridge_poll(void)
     }
 }
 
+void bridge_info(int i, bridge_info_t *o)
+{
+    port_t *p = &s_p[i];
+    volatile uart_stats_t *u = &g_uart[i];
+    o->state = LS_NAME[p->state];
+    o->clients = 0;
+    for (int k = 0; k < MAX_CLIENTS; k++) o->clients += p->cl[k].pcb && p->cl[k].up;
+    o->serial_rx = u->rx_bytes;
+    o->serial_tx = u->tx_bytes;
+    o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
+}
+
 size_t bridge_json(char *out, size_t max)
 {
     size_t n = 0;

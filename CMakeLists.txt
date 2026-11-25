@@ -73,6 +73,7 @@ file(GLOB LWIP_SRC
     "${lwip_SOURCE_DIR}/src/core/ipv4/*.c"
     "${lwip_SOURCE_DIR}/src/apps/mdns/*.c")
 list(APPEND LWIP_SRC "${lwip_SOURCE_DIR}/src/netif/ethernet.c")
+set(LWIP_MQTT_SRC "${lwip_SOURCE_DIR}/src/apps/mqtt/mqtt.c")
 
 # ---------------------------------------------------------------------------
 # Update key: generated once into secrets/ (gitignored), compiled into images.
@@ -135,7 +136,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/web_page.h
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/embed.py
             ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_BINARY_DIR}/gen/web_page.h
     DEPENDS ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/tools/embed.py)
-n540_image(app app_ram.ld
+n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
     ${CMAKE_BINARY_DIR}/gen/web_page.h
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
 # -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.

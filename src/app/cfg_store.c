@@ -5,7 +5,9 @@
 
 #define DEV    1
 #define MAGIC  0x47464335u
-#define SCHEMA 1u                       /* bump when cfg_t's layout changes */
+#define SCHEMA 2u                       /* bump when cfg_t's layout changes */
+#define SIZE1  472u                     /* schema 1: cfg_t without mqtt */
+_Static_assert(offsetof(cfg_t, mqtt) == SIZE1, "schema 1 layout must not move");
 static const uint32_t ADDR[2] = { 0x0F0000u, 0x0F1000u };
 
 typedef struct {
@@ -24,7 +26,7 @@ static void digest(const rec_t *r, uint8_t out[32])
     sha256_t s;
     sha256_init(&s);
     sha256_update(&s, &r->schema, 12);
-    sha256_update(&s, &r->cfg, sizeof r->cfg);
+    sha256_update(&s, &r->cfg, r->size);
     sha256_final(&s, out);
 }
 
@@ -32,7 +34,9 @@ static bool read_valid(int i)
 {
     uint8_t d[32];
     extflash_read(DEV, ADDR[i], &s_r, sizeof s_r);
-    if (s_r.magic != MAGIC || s_r.schema != SCHEMA || s_r.size != sizeof(cfg_t)) return false;
+    if (s_r.magic != MAGIC) return false;
+    if (!(s_r.schema == SCHEMA && s_r.size == sizeof(cfg_t)) &&
+        !(s_r.schema == 1u && s_r.size == SIZE1)) return false;
     digest(&s_r, d);
     return ct_equal(d, s_r.sha, 32);
 }
@@ -44,7 +48,8 @@ bool cfg_load(cfg_t *c)
         if (!read_valid(i) || (s_cur >= 0 && s_r.seq <= s_seq)) continue;
         s_cur = i;
         s_seq = s_r.seq;
-        *c = s_r.cfg;
+        cfg_defaults(c);                 /* newer fields, if this is an old record */
+        memcpy(c, &s_r.cfg, s_r.size);
     }
     if (s_cur >= 0 && cfg_validate(c, err, sizeof err)) return true;
     cfg_defaults(c);

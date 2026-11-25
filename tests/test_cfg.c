@@ -66,10 +66,20 @@ int main(void)
     BAD("net.gateway=10.76.0.1"); BAD("net.gateway=10.20.1.210");
     OK("net.gateway="); OK("net.dns=1.1.1.1"); OK("net.mode=dhcp");
 
+    /* MQTT */
+    assert(c.mqtt.port == 1883 && !c.mqtt.enabled && !c.mqtt.control);
+    BAD("mqtt.enabled=1"); BAD("mqtt.port=0"); BAD("mqtt.port=65536"); BAD("mqtt.host=a/b");
+    BAD("mqtt.password=x"); BAD("mqtt.password_enc=00");
+    OK("mqtt.enabled=1\nmqtt.host=homeassistant.local\nmqtt.user=n540\nmqtt.control=1");
+    strcpy(c.mqtt.password, "hunter2-secret");
+    BAD("mqtt.user=");                          /* password without user */
+    assert(offsetof(cfg_t, mqtt) == 472);       /* schema 1 size: stored configs depend on it */
+
     size_t l = cfg_json(&c, j, sizeof j);
     assert(l && l == strlen(j));
     assert(strstr(j, "\"name\":\"Pump \\\"A\\\" \\\\ x\""));
-    assert(!strstr(j, "web_key") && !strstr(j, "salt"));
+    assert(!strstr(j, "web_key") && !strstr(j, "salt") && !strstr(j, "hunter2"));
+    assert(strstr(j, "\"password_set\":true},\"password_set\":false"));
     for (size_t k = 0; k < l; k++) assert(cfg_json(&c, j, k) == 0);     /* never overruns */
     /* Worst case must fit the HTTP response buffer alongside its headers. */
     for (int i = 0; i < PORTS; i++) {

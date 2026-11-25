@@ -3,6 +3,7 @@
 #include "cfg_store.h"
 #include "bridge.h"
 #include "net.h"
+#include "mqtt_ha.h"
 #include "eth_mac.h"
 #include "sha256.h"
 #include "slots.h"
@@ -12,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#define SAVE_MS 3000u            /* batch settings that arrive one by one */
 #define KEEP_MS 120000u          /* unconfirmed network settings revert after this */
 
 static cfg_t     s_cfg;          /* what is saved */
@@ -20,6 +22,17 @@ static bool      s_pending;
 static uint32_t  s_deadline;
 static bool      s_net_dirty;
 static uint32_t  s_net_at;
+static bool      s_unsaved;
+static uint32_t  s_save_at;
+
+/* Saves `c` and makes it current. On failure nothing changes. */
+static bool commit(const cfg_t *c)
+{
+    if (!cfg_save(c)) return false;
+    s_cfg = *c;
+    s_unsaved = false;
+    return true;
+}
 
 static void run_net(const net_cfg_t *n)
 {
@@ -31,11 +44,36 @@ void api_init(void)
     cfg_load(&s_cfg);
     if (!s_cfg.net.dhcp) run_net(&s_cfg.net);
     bridge_configure(s_cfg.port);
+    mqtt_ha_configure(&s_cfg);
+}
+
+void api_flush(void)
+{
+    if (s_unsaved) commit(&s_cfg);
+}
+
+bool api_set_line(char *line, char *err, size_t errlen)
+{
+    static cfg_t c;
+    c = s_cfg;
+    if (!cfg_parse(&c, line, err, errlen) || !cfg_validate(&c, err, errlen)) return false;
+    if (!memcmp(&c, &s_cfg, sizeof c)) return true;
+    s_cfg = c;
+    s_unsaved = true;
+    s_save_at = HAL_GetTick() + SAVE_MS;
+    bridge_configure(s_cfg.port);
+    mqtt_ha_configure(&s_cfg);
+    return true;
 }
 
 void api_poll(void)
 {
     uint32_t now = HAL_GetTick();
+    mqtt_ha_poll(&s_cfg);
+    if (s_unsaved && (int32_t)(now - s_save_at) >= 0) {
+        s_save_at = now + 30000;        /* if it fails, try again later */
+        commit(&s_cfg);
+    }
     if (s_net_dirty && (int32_t)(now - s_net_at) >= 0) {
         s_net_dirty = false;
         run_net(s_pending ? &s_trial : &s_cfg.net);
@@ -91,12 +129,14 @@ int api_get(const char *path, char *out, size_t max)
     size_t n = (size_t)snprintf(out, max,
         "{\"version\":\"%s\",\"uptime_s\":%lu,\"host\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\","
         "\"ip\":\"%s\",\"mask\":\"%s\",\"gateway\":\"%s\",\"speed\":%d,\"full_duplex\":%s,"
-        "\"net_pending\":%s,\"net_pending_s\":%d,\"slot\":%d,\"boots\":%lu,\"reset\":\"%lx\",\"ports\":",
+        "\"net_pending\":%s,\"net_pending_s\":%d,\"slot\":%d,\"boots\":%lu,\"reset\":\"%lx\","
+        "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\"},\"ports\":",
         g_fw_id.version, (unsigned long)(HAL_GetTick() / 1000), g_hostname,
         g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip, mask, gw,
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
         s_pending ? "true" : "false", left, (int)bkp_get(BKP_SLOT),
-        (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_RSTLOG));
+        (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_RSTLOG),
+        mqtt_ha_state(), mqtt_ha_error());
     if (n >= max) return 0;
     size_t b = bridge_json(out + n, max - n);
     if (!b || n + b + 3 > max) return 0;
@@ -104,24 +144,57 @@ int api_get(const char *path, char *out, size_t max)
     return (int)(n + b + 2);
 }
 
-static const char *post_config(char *body, char *out, size_t max)
+/* Optional "mqtt.password_enc=<128 hex>" line: 64 zero-padded bytes XORed with
+ * HMAC(key, "mqttpw0\n" nonce) and HMAC(key, "mqttpw1\n" nonce). Takes the line
+ * out of the body. False if it is malformed. */
+static bool take_mqtt_password(api_req_t *rq, cfg_t *c, bool *found)
+{
+    static const char K[] = "mqtt.password_enc=";
+    uint8_t v[64], pad[64];
+    char *p = strstr(rq->body, K);
+    *found = p != NULL;
+    if (!p) return true;
+    if ((p != rq->body && p[-1] != '\n') || !unhex(p + sizeof K - 1, v, 64)) return false;
+    hmac_sha256(rq->key, "mqttpw0\n", 8, rq->nonce, strlen(rq->nonce), pad);
+    hmac_sha256(rq->key, "mqttpw1\n", 8, rq->nonce, strlen(rq->nonce), pad + 32);
+    for (int i = 0; i < 64; i++) v[i] ^= pad[i];
+    char *e = strchr(p, '\n');
+    if (e) memmove(p, e + 1, strlen(e + 1) + 1);
+    else *p = 0;
+    size_t n = 0;
+    while (n < 64 && v[n]) {
+        if (v[n] < 0x20 || v[n] == 0x7f) return false;
+        n++;
+    }
+    for (size_t i = n; i < 64; i++) if (v[i]) return false;
+    if (n > 63) return false;
+    memcpy(c->mqtt.password, v, 64);
+    return true;
+}
+
+static const char *post_config(api_req_t *rq, char *out, size_t max)
 {
     static cfg_t c;
+    bool pw;
     net_cfg_t shown = s_pending ? s_trial : s_cfg.net;
     c = s_cfg;
     c.net = shown;                       /* edit what the page is showing */
-    if (!cfg_parse(&c, body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";
+    if (!take_mqtt_password(rq, &c, &pw)) {
+        snprintf(out, max, "That MQTT password cannot be used");
+        return "400 Bad Request";
+    }
+    if (!cfg_parse(&c, rq->body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";
 
     net_cfg_t want = c.net;
     bool net_changed = memcmp(&want, &shown, sizeof want) != 0;
     c.net = s_cfg.net;                   /* network is saved only once kept */
     if (memcmp(&c, &s_cfg, sizeof c)) {
-        if (!cfg_save(&c)) {
+        if (!commit(&c)) {
             snprintf(out, max, "Could not write settings to flash; nothing changed");
             return "500 Internal Server Error";
         }
-        s_cfg = c;
         bridge_configure(s_cfg.port);
+        mqtt_ha_configure(&s_cfg);
     }
     if (net_changed) {
         s_trial = want;
@@ -149,11 +222,10 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
         c.web_set = 0;
         memset(c.web_salt, 0, sizeof c.web_salt);
         memset(c.web_key, 0, sizeof c.web_key);
-        if (!cfg_save(&c)) {
+        if (!commit(&c)) {
             snprintf(out, max, "Could not write to flash; the password is unchanged");
             return "500 Internal Server Error";
         }
-        s_cfg = c;
         snprintf(out, max, "{}");
         return "200 OK";
     }
@@ -167,11 +239,10 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
     for (int i = 0; i < 32; i++) c.web_key[i] = key[i] ^ pad[i];
     memcpy(c.web_salt, salt, 16);
     c.web_set = 1;
-    if (!cfg_save(&c)) {
+    if (!commit(&c)) {
         snprintf(out, max, "Could not write the password to flash; it is unchanged");
         return "500 Internal Server Error";
     }
-    s_cfg = c;
     snprintf(out, max, "{}");
     return "200 OK";
 }
@@ -184,18 +255,17 @@ bool api_is_post(const char *path)
 
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
 {
-    if (!strcmp(path, "/api/config")) return post_config(rq->body, out, max);
+    if (!strcmp(path, "/api/config")) return post_config(rq, out, max);
     if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
     if (!strcmp(path, "/api/keep")) {
         static cfg_t c;
         if (s_pending) {
             c = s_cfg;
             c.net = s_trial;
-            if (!cfg_save(&c)) {
+            if (!commit(&c)) {
                 snprintf(out, max, "Could not write settings to flash");
                 return "500 Internal Server Error";
             }
-            s_cfg = c;
             s_pending = false;
         }
     }

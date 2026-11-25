@@ -595,6 +595,9 @@ void http_poll(void)
         bkp_set(BKP_STAY, BKP_STAY_MAGIC);
         __attribute__((fallthrough));
     default:
+#ifdef APP_IMAGE
+        api_flush();
+#endif
         bkp_set(BKP_CRASHES, 0);                /* deliberate, not a crash */
         NVIC_SystemReset();
     }

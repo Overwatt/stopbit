@@ -47,6 +47,12 @@
 #define LWIP_DNS                    0
 #endif
 #define LWIP_NETIF_HOSTNAME         1
+#define LWIP_DNS_SUPPORT_MDNS_QUERIES 1      /* so homeassistant.local works */
+
+#define MQTT_OUTPUT_RINGBUF_SIZE    4096
+#define MQTT_VAR_HEADER_BUFFER_LEN  256
+#define MQTT_REQ_MAX_IN_FLIGHT      8
+#define MQTT_CONNECT_TIMOUT         15
 #define LWIP_NETIF_EXT_STATUS_CALLBACK 1
 
 /* n540-xxxxxx.local */
