@@ -94,7 +94,7 @@ footer{height:48px}
  tr.edit{display:block}tr.edit>td{display:block;padding:16px}
  label.wide{grid-column:1/-1}
  #board td:first-child,#wiring td:first-child{grid-column:1/-1}
- #wiring tr.row{grid-template-columns:1fr 1fr}
+ #board td:empty{display:none}
  button{min-height:44px}
  nav{padding:0 4px}nav a{padding:11px 12px}
 }
@@ -161,15 +161,14 @@ footer{height:48px}
  <div id="p-hardware" hidden>
  <h2>Board</h2>
  <div class="panel"><table>
-  <thead><tr><th>Part</th><th>Model</th><th>Now</th></tr></thead>
+  <thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead>
   <tbody id="board"><tr><td colspan="3" class="idle">Reading the hardware…</td></tr></tbody>
  </table></div>
- <h2>Serial port wiring</h2>
+ <h2>Serial port pins</h2>
  <div class="panel"><table>
-  <thead><tr><th>Port</th><th>Serial unit</th><th>Transmit pin</th><th>Receive pin</th><th>Direction pin</th></tr></thead>
+  <thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead>
   <tbody id="wiring"><tr><td colspan="5" class="idle">Reading the hardware…</td></tr></tbody>
  </table></div>
- <p class="hint">Processor pins. A high direction pin makes the port transmit.</p>
  <div class="two">
  <section><h2>Firmware</h2><div class="panel pad"><dl id="fwinfo"></dl></div>
  <h2>Memory in use</h2><div class="panel pad"><dl id="meminfo"></dl></div></section>
@@ -385,20 +384,20 @@ const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([
 async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)return;hwAt=now;
  let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
- fillRows($("board"),["Part","Model","Now"],[
-  [nm("Processor"),[c.id==="0x450"?"STM32H750":"Unknown",sub("Chip ID "+c.id+", revision "+(REV[c.rev]||c.rev))],
-   [c.mhz+" MHz, "+(c.crystal?"from the crystal":"crystal not running"),c.temp_c==null?sub("Temperature not available"):sub(c.temp_c.toFixed(1)+" °C inside the chip, "+(c.mv/1000).toFixed(2)+" V supply")]],
-  [nm("Internal flash"),c.flash_kb+" KB, in the processor",["Holds the loader",h.loader?sub("Version "+h.loader):null]],
-  ...h.flash.map((id,i)=>[nm("Flash chip "+i),[el("span",{class:bad(FLASH(id))?"bad":""},FLASH(id)),sub("Chip ID "+id.slice(2))],i?["Firmware A and B, settings",sub("Plus the stock firmware's data")]:"Stock firmware, kept untouched"]),
-  [nm("Ethernet"),[e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown",sub("Chip ID "+e.phy_id.slice(2)+", address "+e.phy_addr)],
-   [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):sub("No errors")]],
-  [nm("RS485 drivers"),["4 × TI SN65HVD75",sub("From the chip markings")],"One per port; they have no ID to read"],
-  [nm("Watchdog"),["Separate chip on pin PC10",sub("Model not known")],"Resets the gateway if it stalls for about 1.6 s"]]);
- fillRows($("wiring"),["Port","Serial unit","Transmit pin","Receive pin","Direction pin"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
+ const reads=[c.mhz+" MHz"];if(c.temp_c!=null)reads.push(c.temp_c.toFixed(1)+" °C",(c.mv/1000).toFixed(2)+" V");
+ fillRows($("board"),["Part","Model","Status"],[
+  [nm("Processor"),c.id==="0x450"?"STM32H750, revision "+(REV[c.rev]||c.rev):"Unknown ("+c.id+")",[reads.join(", "),c.crystal?null:el("span",{class:"sub warn"},"Crystal not running")]],
+  [nm("Internal flash"),c.flash_kb+" KB",h.loader?"Loader "+h.loader:[]],
+  ...h.flash.map((id,i)=>{const t=FLASH(id);return [nm("Flash chip "+i),bad(t)?el("span",{class:"bad"},t+" ("+id+")"):t,i?"Firmware and settings":"Stock firmware"]}),
+  [nm("Ethernet"),e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown ("+e.phy_id+")",
+   [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):null]],
+  [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
+  [nm("Watchdog"),"External","1.6 s timeout"]]);
+ fillRows($("wiring"),["Port","UART","Transmit","Receive","Direction"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
  const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?", on trial":"")};
- fillDl($("fwinfo"),[["Running",st?st.version:""],["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Up for",st?dur(st.uptime_s):""],["Starts",num(h.boots)],["Failed starts",el("span",{class:fails?"bad":""},fails?num(fails):"None")],["Recent starts",runs(h.resets.map(RST))||"None recorded",new Set(h.resets).size>1?sub("Newest first"):null]]);
- const M={AXI:"Program (AXI)",DTCM:"Data (DTCM)",D2:"Buffers (D2)"};
+ fillDl($("fwinfo"),[["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Starts",num(h.boots)],["Failed starts",el("span",{class:fails?"bad":""},fails?num(fails):"None")],["Recent starts",runs(h.resets.map(RST))||"None recorded"]]);
+ const M={AXI:"Program",DTCM:"Data",D2:"Buffers"};
  fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
  fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}
 
