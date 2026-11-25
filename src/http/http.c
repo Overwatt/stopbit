@@ -271,6 +271,7 @@ static err_t do_flash(conn_t *c, const char *path)
 static err_t body_done(conn_t *c)
 {
     uint8_t d[32];
+    char ok[24] = "ok\n";
     const char *why;
     sha256_final(&c->sha, d);
     if (!ct_equal(d, c->body_sha, 32)) {
@@ -281,10 +282,13 @@ static err_t body_done(conn_t *c)
     if (c->action == ACT_RUN) why = image_check_ram(STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_SELFUPDATE) why = image_check_loader((const uint8_t *)STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_INSTALL) {
-        int slot;
+        int slot = SLOT_NONE;
         why = image_check_app(s_stage_size);
         if (!why) why = slots_install(s_stage_size, &slot);
-        if (!why) bkp_set(BKP_CRASHES, 0);
+        if (!why) {
+            bkp_set(BKP_CRASHES, 0);
+            snprintf(ok, sizeof ok, "ok slot=%d\n", slot);
+        }
     }
     else if (c->action == ACT_CONFIRM) why = slots_confirm(RUNNING_SLOT) ? NULL : "confirm failed";
     else why = NULL;
@@ -296,7 +300,7 @@ static err_t body_done(conn_t *c)
         c->action = ACT_NONE;        /* already done; nothing deferred */
         s_stage_owner = NULL;
     }
-    return reply(c, "200 OK", "text/plain", "ok\n");
+    return reply(c, "200 OK", "text/plain", ok);
 }
 
 static err_t on_request(conn_t *c)

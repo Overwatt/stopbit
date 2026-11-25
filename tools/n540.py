@@ -98,12 +98,14 @@ def main(a):
         want = img[0x2A8:0x2A8 + 24].split(b"\0")[0].decode()
         enter_loader(d)
         t = time.time()
-        d.auth("POST", "/install", img)
+        slot = int(d.auth("POST", "/install", img).split(b"slot=")[1])
         print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
         d.auth("POST", "/reboot")
         s = wait_back(d)
-        if s["mode"] != "app" or s["version"] != want:
-            raise SystemExit(f"new image did not come up (now {s['mode']} {s['version']}); not confirmed")
+        # The version alone can't tell a rollback apart from success; the slot can.
+        if s["mode"] != "app" or s["running_slot"] != slot or s["version"] != want:
+            raise SystemExit("new image did not come up " f"(rolled back: now {s['mode']} "
+                             f"{s['version']} slot {s['running_slot']}, wanted slot {slot}); not confirmed")
         d.auth("POST", "/confirm")
         print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
     elif cmd == "loader":
