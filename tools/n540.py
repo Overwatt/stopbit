@@ -15,6 +15,9 @@ Set N540_HOST to leave HOST out. Besides the console's own commands:
   n540.py HOST https [on|off|forget]       HTTPS: show, or turn on or off; forget its certificate
   n540.py HOST cert-request NAME [OUT]     make a key and a signing request for NAME
   n540.py HOST cert-install FULLCHAIN.pem  install the certificate made from it
+  n540.py HOST renewal [ZONE KEY_ID [on|off]]  renewal state, or set its Route 53 details
+                                           (asks for the secret; N540_AWS_SECRET to pass it)
+  n540.py HOST renew [--test]              renew now, or try on Let's Encrypt staging
   n540.py HOST firmware                    firmware kept on the gateway
   n540.py HOST rollback VERSION            start a kept one, confirm
   n540.py HOST loader                      leave the app, stay in the loader
@@ -145,6 +148,32 @@ def set_mqtt_password(d, pw, extra=""):
     pad = b"".join(hmac.new(d.key, b"mqttpw%d\n" % i + nonce.encode(), hashlib.sha256).digest() for i in (0, 1))
     enc = bytes(x ^ y for x, y in zip(raw.ljust(64, b"\0"), pad))
     d.auth("POST", "/api/config", f"mqtt.password_enc={enc.hex()}\n{extra}".encode(), nonce)
+
+
+def acme_post(d, lines, secret=None):
+    d.load_key()
+    nonce = d.get("/nonce").decode().strip()
+    body = lines
+    if secret is not None:
+        raw = secret.encode()
+        if len(raw) > 63:
+            raise SystemExit("at most 63 bytes")
+        pad = b"".join(hmac.new(d.key, b"acmesec%d\n" % i + nonce.encode(), hashlib.sha256).digest() for i in (0, 1))
+        body += "\nsecret_enc=" + bytes(x ^ y for x, y in zip(raw.ljust(64, b"\0"), pad)).hex()
+    d.auth("POST", "/api/acme", body.encode(), nonce)
+
+
+def show_renewal(d):
+    a = json.loads(d.get("/api/acme"))
+    print(f"clock {a['clock'] or 'not set'}, automatic {'on' if a['auto'] else 'off'}, zone {a['zone'] or '-'}, "
+          f"key {a['key_id'][:4] + '...' if a['key_id'] else '-'}, secret {'set' if a['secret_set'] else 'not set'}")
+    if a["name"]:
+        print(f"{a['name']}: due {'now' if a['due_in_s'] <= 0 else 'in %d days' % (a['due_in_s'] // 86400)}")
+    if a["running"]:
+        print(("testing: " if a["staging"] else "renewing: ") + a["step"])
+    if a["result"]:
+        print("last:", a["result"])
+    return a
 
 
 def enter_loader(d):
@@ -369,6 +398,26 @@ def main(a):
         tls_command(d, b"cert\n" + b"".join(ders))
         t = json.loads(d.get("/api/tls"))
         print(f"installed: {t['name']}, until {t['until']}")
+    elif cmd == "renewal":
+        if len(a) > 3:
+            secret = os.environ.get("N540_AWS_SECRET") or getpass.getpass("AWS secret access key: ")
+            auto = "1" if a[4:] == ["on"] else "0" if a[4:] == ["off"] else None
+            acme_post(d, f"zone={a[2]}\nkey_id={a[3]}" + (f"\nauto={auto}" if auto else ""), secret)
+        show_renewal(d)
+    elif cmd == "renew":
+        d.auth("POST", "/api/acme", b"test" if a[2:] == ["--test"] else b"renew")
+        last = ""
+        while True:
+            time.sleep(1)
+            r = json.loads(d.get("/api/acme"))
+            if r["step"] and r["step"] != last:
+                print(" ", r["step"])
+                last = r["step"]
+            if not r["running"]:
+                print(r["result"])
+                if not r["result"].startswith(("Renewed", "Test passed")):
+                    raise SystemExit(1)
+                break
     elif cmd == "firmware":
         for i in sorted(json.loads(d.get("/api/library"))["images"], key=lambda i: -i["seq"]):
             state = "running" if i["running"] else "kept" if i["kept"] else "did not pass its trial" if i["tried"] else "not started yet"
