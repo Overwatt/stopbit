@@ -27,7 +27,7 @@ extern const uint32_t g_pfnVectors[];
 __attribute__((section(".fw_id"), used))
 const fw_id_t g_fw_id = { FW_ID_MAGIC_APP, (uint32_t)g_pfnVectors, FW_VERSION };
 
-uint32_t g_reset_cause;
+uint32_t g_reset_cause, g_last_crumb;
 bool     g_clock_hse;
 
 static void supervise(void)
@@ -76,31 +76,33 @@ int main(void)
     wdt_feed();
     bkp_init();
     g_reset_cause = bkp_get(BKP_RSTLOG);   /* the loader cleared RCC_RSR */
+    g_last_crumb = bkp_get(BKP_CRUMB);     /* where the last run was when it stopped */
+#define CRUMB(n) bkp_set(BKP_CRUMB, (n))
     extflash_init();
 #if defined(TEST_HANG)                     /* rollback test: watchdog reset */
     for (;;) { }
 #elif defined(TEST_NONET)                  /* rollback test: alive, unreachable */
     for (;;) { wdt_feed(); if (HAL_GetTick() > 15000u) NVIC_SystemReset(); }
 #endif
-    net_init();                  /* marks the Ethernet memory uncacheable */
-    SCB_EnableDCache();          /* nothing else here uses DMA */
-    bridge_init();
-    api_init();
+    CRUMB(1); net_init();        /* marks the Ethernet memory uncacheable */
+    CRUMB(2); SCB_EnableDCache();    /* nothing else here uses DMA */
+    CRUMB(3); bridge_init();
+    CRUMB(4); api_init();
     extflash_meanwhile(meanwhile);
-    http_init();
-    tls_init();
-    acme_init();
-    clock_init();
+    CRUMB(5); http_init();
+    CRUMB(6); tls_init();
+    CRUMB(7); acme_init();
+    CRUMB(8); clock_init();
     for (;;) {
         hwinfo_loop();
         wdt_feed();
-        net_poll();
-        http_poll();
-        tls_poll();
-        acme_poll();
-        bridge_poll();
-        api_poll();
-        supervise();
+        CRUMB(11); net_poll();
+        CRUMB(12); http_poll();
+        CRUMB(13); tls_poll();
+        CRUMB(14); acme_poll();
+        CRUMB(15); bridge_poll();
+        CRUMB(16); api_poll();
+        CRUMB(17); supervise();
         led_poll();
     }
 }

@@ -204,7 +204,7 @@ void sim_version(const char *);          /* id.c */
 uint8_t g_mac[6] = { 2, 0x54, 0, 0, 0, 1 };
 char g_hostname[16] = "n540-sim";
 eth_info_t g_eth;
-uint32_t g_reset_cause;
+uint32_t g_reset_cause, g_last_crumb;
 bool g_clock_hse = true;
 static bool s_need;
 void net_ip_str(char o[16]) { strcpy(o, "127.0.0.1"); }
@@ -290,8 +290,22 @@ uint32_t sim_tick(void)          /* moves on while the code runs, as a real one 
 }
 static uint32_t ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000 + t.tv_nsec / 1000000); }
 
+#include <mach-o/getsect.h>
+#include <mach-o/ldsyms.h>
+/* Across the whole section, the checker's guard bytes between variables included. */
+__attribute__((no_sanitize("address"))) static void junk_fill(volatile uint8_t *p, unsigned long n)
+{
+    for (unsigned long i = 0; i < n; i++) p[i] = 0xA5;   /* odd: a bool here reads as true */
+}
 int main(int argc, char **argv)
 {
+    /* On the board these are not zeroed at start-up; here they start as junk too. */
+    unsigned long nz = 0;
+    uint8_t *junk = getsectiondata(&_mh_execute_header, "__DATA", "__nozero", &nz);
+    junk_fill(junk, nz);
+    printf("%lu bytes start as junk\n", nz);
+    for (int w = 0; w < WORKERS; w++)                /* a job nobody started would be run */
+        if (worker_busy(w)) { printf("WORKER %d STARTS BUSY\n", w); abort(); }
     signal(SIGPIPE, SIG_IGN);
     for (int i = 0; i < EXTFLASH_SIZE; i++) { F[0][i] = (uint8_t)rand(); F[1][i] = (uint8_t)(i < 0x9a000 ? rand() : 0xFF); }
     for (int s = 0; s < 2; s++) {            /* two kept images, as on the device */

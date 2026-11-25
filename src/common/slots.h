@@ -51,7 +51,10 @@ void     bkp_init(void);
 uint32_t bkp_get(int i);
 void     bkp_set(int i, uint32_t v);
 enum { BKP_STAY = 0, BKP_SLOT = 1, BKP_CRASHES = 2, BKP_BOOTS = 3,
-       BKP_RSTLOG = 4 /* .. 4+RSTLOG_N-1, newest first */ };
+       BKP_RSTLOG = 4, /* .. 4+RSTLOG_N-1, newest first */
+       BKP_FAULT = 12, /* 12..16: magic, PC, LR, CFSR, fault address; see stm32h7xx_it.c */
+       BKP_CRUMB = 17  /* how far the app got: start-up step, or the main loop's last call */ };
+#define FAULT_MAGIC 0xFA170000u      /* | the exception number */
 #define RSTLOG_N 6
 /* Log this boot's RCC_RSR. Called once per reset, by the loader. */
 void     bkp_log_reset(uint32_t rsr);

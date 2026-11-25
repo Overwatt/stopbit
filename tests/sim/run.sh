@@ -21,7 +21,7 @@ if [ ! -f "$O/done" ] || [ src/app/mbedtls_cfg.h -nt "$O/done" ] || [ src/app/cr
   done
   touch "$O/done"
 fi
-cc $FLAGS "$(echo $CFG | cut -d' ' -f1)" "$(echo $CFG | cut -d' ' -f2)" -DAPP_IMAGE -DFLASH_REAL -DSIM_TICK -DCLOCK_HOST -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= -DTLS_HEAP=180000 -DCONN_MEM= -DWORKER_STACK=131072 ${SIM_FLAGS} \
+cc $FLAGS "$(echo $CFG | cut -d' ' -f1)" "$(echo $CFG | cut -d' ' -f2)" -DAPP_IMAGE -DFLASH_REAL -DSIM_TICK -DCLOCK_HOST -DWDT_H '-Dwdt_feed()=(void)0' '-DAXI_BSS=__attribute__((section("__DATA,__nozero")))' -DTLS_HEAP=180000 '-DCONN_MEM=__attribute__((section("__DATA,__nozero")))' -DWORKER_STACK=131072 ${SIM_FLAGS} \
   -Itests/sim -Itests/stub -Isrc/common -Isrc/http -Isrc/net -Ibuild/gen \
   tests/sim/sim.c tests/sim/id.c src/http/http.c src/app/fwlib.c src/app/tls.c src/app/worker.c src/app/acme.c src/app/hclient.c src/app/clock.c src/app/roots.c \
   src/common/slots.c src/common/image.c src/common/sha256.c "$O"/*.o -o "${TMPDIR:-/tmp}/n540sim" && exec "${TMPDIR:-/tmp}/n540sim" build/app.bin

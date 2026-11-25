@@ -10,15 +10,19 @@
 #endif
 #define FILL 0x5AFE57ACu
 
+/* Only the stacks go in AXI_BSS (D3), which is not zeroed at start-up; the rest must be. */
+typedef union { uint64_t align; uint32_t w[WORKER_STACK / 4]; uint8_t b[WORKER_STACK]; } stack_t;
+static AXI_BSS stack_t s_stacks[WORKERS];
+
 typedef struct {
-    union { uint64_t align; uint32_t w[WORKER_STACK / 4]; uint8_t b[WORKER_STACK]; } stack;
+    stack_t *s;
     void *sp;
     void (*fn)(void *);
     void *arg;
     bool busy;
     uint32_t slices, longest;
 } job_t;
-static AXI_BSS job_t s_w[WORKERS];
+static job_t s_w[WORKERS];
 static void *s_main_sp;
 static job_t *s_cur;                    /* the one running, or NULL in the main loop */
 static uint32_t s_from;
@@ -70,8 +74,9 @@ bool worker_start(int w, void (*fn)(void *), void *arg)
 {
     job_t *j = &s_w[w];
     if (j->busy) return false;
-    for (uint32_t i = 0; i < WORKER_STACK / 4; i++) j->stack.w[i] = FILL;
-    reg_t *sp = (reg_t *)(void *)(j->stack.b + WORKER_STACK) - 2 - FRAME;   /* 8-byte aligned on entry */
+    j->s = &s_stacks[w];
+    for (uint32_t i = 0; i < WORKER_STACK / 4; i++) j->s->w[i] = FILL;
+    reg_t *sp = (reg_t *)(void *)(j->s->b + WORKER_STACK) - 2 - FRAME;   /* 8-byte aligned on entry */
 #if defined(__aarch64__)
     sp = (reg_t *)((uintptr_t)sp & ~(uintptr_t)15);
 #endif
@@ -101,7 +106,7 @@ void worker_poll(int w)
     if (us > j->longest) j->longest = us;
     j->slices++;
     /* Ran off the end of its stack: what lies below it is no longer to be trusted. */
-    if (j->stack.w[0] != FILL) NVIC_SystemReset();
+    if (j->s->w[0] != FILL) NVIC_SystemReset();
 }
 
 void worker_yield(void)
@@ -118,7 +123,7 @@ void worker_stats(int w, worker_stats_t *o)
 {
     const job_t *j = &s_w[w];
     uint32_t n = 0;
-    while (n < WORKER_STACK / 4 && j->stack.w[n] == FILL) n++;
+    while (j->s && n < WORKER_STACK / 4 && j->s->w[n] == FILL) n++;
     o->slices = j->slices;
     o->longest_us = j->longest;
     o->stack_used = j->slices ? WORKER_STACK - 4 * n : 0;

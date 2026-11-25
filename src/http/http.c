@@ -124,6 +124,9 @@ static uint32_t s_action_at;
 static uint32_t s_stage_size;
 #endif
 extern uint32_t g_reset_cause;
+#ifdef APP_IMAGE
+extern uint32_t g_last_crumb;
+#endif
 extern bool     g_clock_hse;
 
 #ifdef APP_IMAGE
@@ -377,7 +380,7 @@ static err_t fail(conn_t *c, const char *status, const char *why)
 /* ---- endpoints ----------------------------------------------------------- */
 static err_t do_status(conn_t *c)
 {
-    char ip[16], b[1300];
+    char ip[16], b[1450];
     slot_info_t sl[SLOT_COUNT];
     for (int i = 0; i < SLOT_COUNT; i++) slots_get(i, &sl[i]);
     net_ip_str(ip);
@@ -389,6 +392,7 @@ static err_t do_status(conn_t *c)
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu,"
         "\"flash0\":\"0x%06lx\",\"flash1\":\"0x%06lx\",\"crashes\":%lu,\"boots\":%lu,"
         "\"reset_log\":[\"%lx\",\"%lx\",\"%lx\",\"%lx\",\"%lx\",\"%lx\"],\"running_slot\":%d,"
+        "\"fault\":[\"%lx\",\"%lx\",\"%lx\",\"%lx\",\"%lx\"],\"crumb\":%lu,"
         "\"slots\":[{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d},"
         "{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d}]}\n",
         g_fw_id.version, g_fw_id.link_addr, g_hostname,
@@ -405,6 +409,13 @@ static err_t do_status(conn_t *c)
         (unsigned long)bkp_get(BKP_RSTLOG + 2), (unsigned long)bkp_get(BKP_RSTLOG + 3),
         (unsigned long)bkp_get(BKP_RSTLOG + 4), (unsigned long)bkp_get(BKP_RSTLOG + 5),
         RUNNING_SLOT,
+        (unsigned long)bkp_get(BKP_FAULT), (unsigned long)bkp_get(BKP_FAULT + 1), (unsigned long)bkp_get(BKP_FAULT + 2),
+        (unsigned long)bkp_get(BKP_FAULT + 3), (unsigned long)bkp_get(BKP_FAULT + 4),
+#ifdef APP_IMAGE
+        (unsigned long)g_last_crumb,
+#else
+        (unsigned long)bkp_get(BKP_CRUMB),
+#endif
 #define SLOT_ARGS(s) (s).valid ? "true" : "false", (s).valid ? (unsigned long)(s).hdr.seq : 0ul, \
         (s).valid ? (s).hdr.version : "", (s).confirmed ? "true" : "false", (s).tries_left
         SLOT_ARGS(sl[0]), SLOT_ARGS(sl[1]));
