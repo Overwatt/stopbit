@@ -334,3 +334,41 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
     ADD("]}\n");
     return n;
 }
+
+static size_t fields_lines(const char *pre, const void *base, const field_t *fs, size_t nf, char *out, size_t max)
+{
+    size_t n = 0;
+    for (size_t k = 0; k < nf; k++) {
+        const field_t *f = &fs[k];
+        const uint8_t *p = (const uint8_t *)base + f->off;
+        uint32_t v = *p;
+        uint16_t h;
+        ADD("%s.%s=", pre, f->key);
+        if (f->type == T_U32) memcpy(&v, p, 4);
+        if (f->type == T_U16) { memcpy(&h, p, 2); v = h; }
+        if (f->type == T_STR || f->type == T_HOST) ADD("%s\n", (const char *)p);
+        else if (f->type == T_ENUM) ADD("%s\n", f->names[*p]);
+        else ADD("%lu\n", (unsigned long)v);
+    }
+    return n;
+}
+
+size_t cfg_lines(const cfg_t *c, char *out, size_t max)
+{
+    size_t n = 0, w;
+    char ip[4][16], pre[8];
+    if (!max) return 0;
+    ip4_fmt(c->net.ip, ip[0]); ip4_fmt(c->net.mask, ip[1]);
+    ip4_fmt(c->net.gw, ip[2]); ip4_fmt(c->net.dns, ip[3]);
+    ADD("device.name=%s\nnet.mode=%s\nnet.ip=%s\nnet.mask=%s\nnet.gateway=%s\nnet.dns=%s\n", c->device_name,
+        c->net.dhcp ? "dhcp" : "static", c->net.ip ? ip[0] : "", c->net.mask ? ip[1] : "",
+        c->net.gw ? ip[2] : "", c->net.dns ? ip[3] : "");
+    if (!(w = fields_lines("mqtt", &c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
+    n += w;
+    for (int i = 0; i < PORTS; i++) {
+        snprintf(pre, sizeof pre, "port%d", i + 1);
+        if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;
+        n += w;
+    }
+    return n;
+}

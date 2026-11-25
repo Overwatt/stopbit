@@ -2,6 +2,8 @@
 #include "cfg.h"
 #include "cfg_store.h"
 #include "bridge.h"
+#include "cli.h"
+#include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
 #include "eth_mac.h"
@@ -24,6 +26,8 @@ static uint32_t  s_deadline;
 static bool      s_net_dirty;
 static uint32_t  s_net_at;
 static bool      s_unsaved;
+static bool      s_restart;
+static uint32_t  s_restart_at;
 static uint32_t  s_save_at;
 
 /* Saves `c` and makes it current. On failure nothing changes. */
@@ -78,6 +82,7 @@ void api_poll(void)
 {
     uint32_t now = HAL_GetTick();
     mqtt_ha_poll(&s_cfg);
+    if (s_restart && (int32_t)(now - s_restart_at) >= 0) api_restart();
     if (s_unsaved && (int32_t)(now - s_save_at) >= 0) {
         s_save_at = now + 30000;        /* if it fails, try again later */
         commit(&s_cfg);
@@ -180,18 +185,29 @@ static bool take_mqtt_password(api_req_t *rq, cfg_t *c, bool *found)
     return true;
 }
 
+/* Validates `body` against what is running and applies it all, or nothing. */
+static const char *change(cfg_t *c, char *body, char *out, size_t max);
+
 static const char *post_config(api_req_t *rq, char *out, size_t max)
 {
     static cfg_t c;
     bool pw;
-    net_cfg_t shown = s_pending ? s_trial : s_cfg.net;
     c = s_cfg;
-    c.net = shown;                       /* edit what the page is showing */
     if (!take_mqtt_password(rq, &c, &pw)) {
         snprintf(out, max, "That MQTT password cannot be used");
         return "400 Bad Request";
     }
-    if (!cfg_parse(&c, rq->body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";
+    const char *st = change(&c, rq->body, out, max);
+    if (st[0] == '2') snprintf(out, max, "{\"net_pending\":%s}", s_pending ? "true" : "false");
+    return st;
+}
+
+static const char *change(cfg_t *cp, char *body, char *out, size_t max)
+{
+    cfg_t c = *cp;
+    net_cfg_t shown = s_pending ? s_trial : s_cfg.net;
+    c.net = shown;                       /* edit what the page is showing */
+    if (!cfg_parse(&c, body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";
 
     net_cfg_t want = c.net;
     bool net_changed = memcmp(&want, &shown, sizeof want) != 0;
@@ -211,7 +227,6 @@ static const char *post_config(api_req_t *rq, char *out, size_t max)
         s_net_dirty = true;
         s_net_at = HAL_GetTick() + 500;  /* let this reply out first */
     }
-    snprintf(out, max, "{\"net_pending\":%s}", s_pending ? "true" : "false");
     return "200 OK";
 }
 
@@ -255,28 +270,134 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
     return "200 OK";
 }
 
+/* ---- console hooks (cli.h) ------------------------------------------------ */
+const cfg_t *cli_cfg(void) { return &s_cfg; }
+
+bool cli_change(char *lines, char *err, size_t errlen, bool *pending)
+{
+    bool ok = change(&s_cfg, lines, err, errlen)[0] == '2';
+    *pending = s_pending;
+    return ok;
+}
+
+bool cli_keep(char *err, size_t errlen)
+{
+    static cfg_t c;
+    if (!s_pending) return true;
+    c = s_cfg;
+    c.net = s_trial;
+    if (!commit(&c)) {
+        snprintf(err, errlen, "Could not write settings to flash");
+        return false;
+    }
+    s_pending = false;
+    return true;
+}
+
+void cli_port(int i, cli_port_t *o)
+{
+    bridge_info_t b;
+    volatile uart_stats_t *u = &g_uart[i];
+    bridge_info(i, &b);
+    memset(o, 0, sizeof *o);
+    o->state = b.state;
+    o->clients = b.clients;
+    memcpy(o->peers, b.peers, sizeof o->peers);
+    o->serial_rx = b.serial_rx;
+    o->serial_tx = b.serial_tx;
+    o->net_lost = b.net_lost;
+    o->refused = b.refused;
+    o->rx_lost = u->rx_lost;
+    o->parity = u->parity;
+    o->framing = u->framing;
+    o->noise = u->noise;
+    o->overrun = u->overrun;
+}
+
+void cli_sys(cli_sys_t *o)
+{
+    memset(o, 0, sizeof *o);
+    o->version = g_fw_id.version;
+    o->host = g_hostname;
+    o->mqtt_state = mqtt_ha_state();
+    o->mqtt_error = mqtt_ha_error();
+    net_addrs(o->ip, o->mask, o->gateway);
+    snprintf(o->mac, sizeof o->mac, "%02x:%02x:%02x:%02x:%02x:%02x",
+             g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5]);
+    o->now_ms = HAL_GetTick();
+    o->uptime_s = o->now_ms / 1000;
+    o->boots = bkp_get(BKP_BOOTS);
+    o->crashes = bkp_get(BKP_CRASHES);
+    for (int i = 0; i < RSTLOG_N; i++) o->reset_log[i] = bkp_get(BKP_RSTLOG + i);
+    o->slot = (int)bkp_get(BKP_SLOT);
+    o->speed = g_eth.speed100 ? 100 : 10;
+    o->full_duplex = g_eth.full_duplex;
+    o->net_pending_s = s_pending ? (int)(s_deadline - o->now_ms) / 1000 : -1;
+}
+_Static_assert(RSTLOG_N == sizeof((cli_sys_t *)0)->reset_log / sizeof(uint32_t), "reset log size");
+
+bool cli_send(int i, const uint8_t *d, size_t n, char *err, size_t errlen)
+{
+    if (!s_cfg.port[i].enabled) snprintf(err, errlen, "port %d is off; run enable %d first", i + 1, i + 1);
+    else if (bridge_send(i, d, n)) return true;
+    else snprintf(err, errlen, "port %d cannot take that right now", i + 1);
+    return false;
+}
+
+void cli_restart(void)
+{
+    s_restart = true;
+    s_restart_at = HAL_GetTick() + 500;      /* let the reply out first */
+}
+
+/* Only called with every port off, so the UARTs are free. Blocks ~0.4 s. */
+void cli_wiretest(char *out, size_t max)
+{
+    port_cfg_t p = { .baud = 9600, .data_bits = 8, .stop_bits = 1 };
+    uint8_t pat[16], got[64];
+    size_t n = 0;
+    bool any = false;
+#define OUT(...) do { int w = snprintf(out + n, max - n, __VA_ARGS__); \
+        if (w > 0 && (size_t)w < max - n) n += (size_t)w; } while (0)
+    out[0] = 0;
+    for (int i = 0; i < PORTS; i++) uart485_open(i, &p);
+    for (int i = 0; i < PORTS; i++) {
+        for (int k = 0; k < PORTS; k++) while (uart485_read(k, got, sizeof got)) { }
+        for (int k = 0; k < 16; k++) pat[k] = (uint8_t)((i + 1) * 0x10 + k) ^ (k & 1 ? 0xFF : 0);
+        uart485_write(i, pat, sizeof pat);
+        uint32_t t0 = HAL_GetTick();
+        while (HAL_GetTick() - t0 < 80) wdt_feed();
+        OUT("sent on %d:", i + 1);
+        bool heard = false;
+        for (int k = 0; k < PORTS; k++) {
+            size_t g = uart485_read(k, got, sizeof got);
+            if (!g) continue;
+            heard = any = true;
+            OUT(" port %d %s%s;", k + 1, g == sizeof pat && !memcmp(got, pat, g) ? "heard it correctly" : "heard something garbled",
+                k == i ? " (own echo)" : "");
+        }
+        OUT(heard ? "\n" : " nobody heard it\n");
+    }
+    for (int i = 0; i < PORTS; i++) uart485_close(i);
+    if (!any) OUT("No port heard another. Expected if nothing is wired between ports.\n");
+#undef OUT
+}
+
 bool api_is_post(const char *path)
 {
     return !strcmp(path, "/api/config") || !strcmp(path, "/api/password") ||
-           !strcmp(path, "/api/keep") || !strcmp(path, "/api/check");
+           !strcmp(path, "/api/keep") || !strcmp(path, "/api/check") || !strcmp(path, "/api/cli");
 }
 
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
 {
     if (!strcmp(path, "/api/config")) return post_config(rq, out, max);
-    if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
-    if (!strcmp(path, "/api/keep")) {
-        static cfg_t c;
-        if (s_pending) {
-            c = s_cfg;
-            c.net = s_trial;
-            if (!commit(&c)) {
-                snprintf(out, max, "Could not write settings to flash");
-                return "500 Internal Server Error";
-            }
-            s_pending = false;
-        }
+    if (!strcmp(path, "/api/cli")) {
+        cli_run(rq->body, out, max);
+        return "200 OK";
     }
+    if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
+    if (!strcmp(path, "/api/keep") && !cli_keep(out, max)) return "500 Internal Server Error";
     snprintf(out, max, "{}");            /* /api/check: the signature was the point */
     return "200 OK";
 }

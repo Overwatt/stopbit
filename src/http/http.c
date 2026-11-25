@@ -40,6 +40,7 @@
 
 #ifdef APP_IMAGE
 #include "api.h"
+#include "cli.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
 #define BODY_MAX   2048
@@ -356,12 +357,13 @@ static err_t body_done(conn_t *c)
     }
 #ifdef APP_IMAGE
     if (c->action == ACT_API) {
-        static char msg[160];
+        static char msg[CLI_OUT];
         api_req_t rq = { c->key == SECRET_KEY, c->key, c->nonce, c->body };
         c->action = ACT_NONE;
         c->body[c->body_len] = 0;
         const char *st = api_post(c->path, &rq, msg, sizeof msg);
-        return reply(c, st, st[0] == '2' ? "application/json" : "text/plain", msg);
+        bool json = st[0] == '2' && strcmp(c->path, "/api/cli");
+        return reply(c, st, json ? "application/json" : "text/plain", msg);
     }
 #endif
     s_stage_size = c->body_len;

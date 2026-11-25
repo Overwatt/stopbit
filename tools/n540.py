@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Control an N540 loader over the network.
+"""Control an N540 gateway over the network.
+
+  n540.py HOST                             interactive console
+  n540.py HOST COMMAND ...                 run one console command (see: n540.py HOST help)
+
+Set N540_HOST to leave HOST out. Besides the console's own commands:
 
   n540.py HOST status
   n540.py HOST dump FLASH OUT [OFF LEN]    read external flash 0 or 1
@@ -7,15 +12,16 @@
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
   n540.py HOST update APP.bin              install to the spare slot, boot, confirm
   n540.py HOST loader                      leave the app, stay in the loader
-  n540.py HOST config                      show settings
-  n540.py HOST set KEY=VALUE ...           e.g. port1.enabled=1 port1.baud=19200
-  n540.py HOST state                       live port counters
-  n540.py HOST keep                        keep new network settings
+  n540.py HOST config | state              settings or live counters as JSON
+  n540.py HOST save FILE                   save settings (no passwords)
+  n540.py HOST load FILE                   load settings saved earlier
+  n540.py HOST connect PORT                talk to a TCP-server port; Ctrl-] quits
+  n540.py HOST watch PORT                  follow a port's traffic; Ctrl-C quits
   n540.py HOST mqtt-passwd                 set the MQTT broker password
   n540.py HOST passwd [--clear]            set or remove the web password
   n540.py HOST reboot
 """
-import getpass, hashlib, hmac, http.client, json, os, socket, sys, time
+import atexit, getpass, hashlib, hmac, http.client, json, os, select, socket, sys, termios, time, tty
 
 KEYFILE = os.environ.get("N540_KEY", os.path.join(os.path.dirname(__file__), "..", "secrets", "n540.key"))
 
@@ -112,10 +118,148 @@ def enter_loader(d):
     return s
 
 
+LOCAL = ("config", "state", "save", "load", "connect", "watch", "update", "dump", "passwd", "mqtt-passwd", "reboot",
+         "loader", "selfupdate", "run")
+
+
+def join(words):
+    """Back to one command line; the console does its own quoting."""
+    return " ".join('"' + w.replace('"', '\\"') + '"' if not w or " " in w or '"' in w else w for w in words)
+
+
+def cli(d, line):
+    return d.auth("POST", "/api/cli", line.encode()).decode(errors="replace")
+
+
+def port_cfg(d, n):
+    c = json.loads(d.get("/api/config"))["ports"]
+    if not 1 <= n <= len(c):
+        raise SystemExit("port must be 1 to 4")
+    return c[n - 1]
+
+
+def connect(d, n):
+    p = port_cfg(d, n)
+    if not p["enabled"] or p["mode"] != "server":
+        raise SystemExit(f"port {n} is not an enabled TCP server")
+    s = socket.create_connection((d.host, p["local_port"]), timeout=5)
+    s.settimeout(None)
+    tty_in = sys.stdin.isatty()
+    print(f"connected to port {n} ({p['baud']} baud). Ctrl-] to quit.", file=sys.stderr)
+    old = termios.tcgetattr(0) if tty_in else None
+    try:
+        if tty_in:
+            tty.setraw(0)
+        eof_at = None
+        while True:
+            r, _, _ = select.select([s] + ([0] if eof_at is None else []), [], [], 0.2)
+            if s in r:
+                b = s.recv(4096)
+                if not b:
+                    break
+                sys.stdout.buffer.write(b)
+                sys.stdout.buffer.flush()
+                if eof_at:
+                    eof_at = time.time()
+            if 0 in r:
+                b = os.read(0, 1024)
+                if tty_in and b"\x1d" in b:
+                    break
+                if not b:
+                    eof_at = time.time()
+                else:
+                    s.sendall(b)
+            if eof_at and time.time() - eof_at > 1:      # piped input: wait for the answer
+                break
+    finally:
+        if old:
+            termios.tcsetattr(0, termios.TCSADRAIN, old)
+        s.close()
+
+
+def watch(d, n):
+    port_cfg(d, n)
+    seen = None
+    print(f"traffic on port {n}; Ctrl-C to stop", file=sys.stderr)
+    try:
+        while True:
+            t = d.auth("POST", "/api/cli", f"log {n}".encode()).decode(errors="replace").splitlines()
+            rows = [x.split("ago  ", 1)[1] for x in t if "ago  " in x]
+            if seen is None:
+                new = rows
+            else:                                        # longest old tail that starts the new list
+                k = next((k for k in range(len(rows), -1, -1) if seen[len(seen) - k:] == rows[:k] and k <= len(seen)), 0)
+                new = rows[k:]
+            for r in new:
+                print(time.strftime("%H:%M:%S"), r, flush=True)
+            seen = rows
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print()
+
+
+def shell(d):
+    import readline
+    hist = os.path.expanduser("~/.n540_history")
+    try:
+        readline.read_history_file(hist)
+    except OSError:
+        pass
+    readline.set_history_length(500)
+    atexit.register(lambda: readline.write_history_file(hist))
+    words = [l.split()[0] for l in cli(d, "help").splitlines()] + [x for x in LOCAL if x not in ("run", "selfupdate", "loader")] + ["exit"]
+    keys = [l.split("=")[0] + "=" for l in cli(d, "get").splitlines()]
+
+    def complete(text, i):
+        line = readline.get_line_buffer()
+        pool = words if readline.get_begidx() == 0 else [k if line.startswith("set") else k[:-1] for k in keys]
+        m = [w for w in pool if w.startswith(text)]
+        return m[i] if i < len(m) else None
+    readline.set_completer(complete)
+    readline.set_completer_delims(" ")
+    readline.parse_and_bind("bind ^I rl_complete" if "libedit" in (readline.__doc__ or "") else "tab: complete")
+    name = json.loads(d.get("/api/state"))["host"]
+    print(cli(d, "status"), end="")
+    print("Type help for commands, exit to leave.")
+    while True:
+        try:
+            line = input(f"{name}> ").strip()
+        except EOFError:
+            print()
+            return
+        except KeyboardInterrupt:
+            print()
+            continue
+        if line in ("exit", "quit"):
+            return
+        try:
+            w = line.split()
+            if w and w[0] in LOCAL:
+                main([d.name] + w)
+            elif line:
+                print(cli(d, line), end="")
+                if line == "help":
+                    print("\nOn this computer: " + ", ".join(x for x in words if x in LOCAL))
+        except SystemExit as e:
+            if e.code:
+                print(e.code)
+        except (OSError, http.client.HTTPException, ValueError, IndexError) as e:
+            print(f"error: {e}")
+
+
 def main(a):
-    if len(a) < 2:
+    if a and a[0] in ("-h", "--help"):
+        print(__doc__)
+        return
+    env = os.environ.get("N540_HOST")
+    if env and (not a or a[0] not in (env,) and "." not in a[0]):
+        a = [env] + a
+    if not a:
         raise SystemExit(__doc__)
-    d, cmd = Device(a[0]), a[1]
+    d = Device(a[0])
+    if len(a) == 1:
+        return shell(d)
+    cmd = a[1]
     if cmd == "status":
         print(json.dumps(json.loads(d.get("/status")), indent=2))
     elif cmd == "dump":
@@ -150,13 +294,21 @@ def main(a):
         print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
     elif cmd in ("config", "state"):
         print(json.dumps(json.loads(d.get("/api/" + cmd)), indent=2))
-    elif cmd == "set":
-        r = json.loads(d.auth("POST", "/api/config", "\n".join(a[2:]).encode()))
-        print("saved" if not r["net_pending"] else
-              "network settings are on trial: run 'keep' within 2 minutes or they revert")
-    elif cmd == "keep":
-        d.auth("POST", "/api/keep")
-        print("kept")
+    elif cmd == "save":
+        text = d.auth("POST", "/api/cli", b"get").decode()
+        if "cut short" in text or text.startswith("error"):
+            raise SystemExit("could not read all settings")
+        with open(a[2], "w") as f:
+            f.write(text)
+        print(f"{len(text.splitlines())} settings saved to {a[2]}")
+    elif cmd == "load":
+        body = "\n".join(l for l in open(a[2]).read().splitlines() if l.strip() and not l.startswith("#"))
+        r = json.loads(d.auth("POST", "/api/config", body.encode()))
+        print("network settings are on trial: run keep within 2 minutes or they revert" if r["net_pending"] else "loaded")
+    elif cmd == "connect":
+        connect(d, int(a[2]))
+    elif cmd == "watch":
+        watch(d, int(a[2]))
     elif cmd == "mqtt-passwd":
         set_mqtt_password(d, getpass.getpass("MQTT broker password (empty to remove): "))
         print("saved")
@@ -185,7 +337,10 @@ def main(a):
         d.auth("POST", "/reboot")
         print("back up:", wait_back(d)["version"])
     else:
-        raise SystemExit(__doc__)
+        text = cli(d, join(a[1:]))
+        print(text, end="")
+        if text.startswith("error"):
+            sys.exit(1)
 
 
 if __name__ == "__main__":

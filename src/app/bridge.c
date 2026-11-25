@@ -8,6 +8,7 @@
  */
 #include "bridge.h"
 #include "uart485.h"
+#include "traffic.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -50,6 +51,18 @@ static port_t s_p[PORTS];
 static D2 uint8_t s_ring[PORTS][MAX_CLIENTS][RING];
 static port_cfg_t s_want[PORTS];
 static bool s_dirty;
+
+static size_t to_line(int i, const uint8_t *d, size_t n)
+{
+    n = uart485_write(i, d, n);
+    traffic_add(i, true, d, n, HAL_GetTick());
+    return n;
+}
+
+bool bridge_send(int i, const uint8_t *d, size_t n)
+{
+    return s_p[i].state != LS_OFF && uart485_tx_room(i) >= n && to_line(i, d, n) == n;
+}
 
 /* ---- TCP connections ----------------------------------------------------- */
 static void client_detach(client_t *c)
@@ -236,7 +249,7 @@ static void cb_udp(void *arg, struct udp_pcb *u, struct pbuf *q, const ip_addr_t
     }
     if (uart485_tx_room(i) >= q->tot_len) {
         p->net_rx += q->tot_len;
-        for (struct pbuf *b = q; b; b = b->next) uart485_write(i, b->payload, b->len);
+        for (struct pbuf *b = q; b; b = b->next) to_line(i, b->payload, b->len);
     } else {
         p->net_lost += q->tot_len;          /* never send half a datagram */
     }
@@ -286,6 +299,7 @@ static void port_stop(int i)
 void bridge_init(void)
 {
     uart485_init();
+    traffic_init();
     memset(s_p, 0, sizeof s_p);
 }
 
@@ -320,6 +334,7 @@ static void serial_to_net(int i)
     if (!a || (a < p->cfg.packet_len && uart485_rx_idle_us(i) < gap_us(&p->cfg))) return;
     if (a > p->cfg.packet_len) a = p->cfg.packet_len;
     uint16_t n = (uint16_t)uart485_read(i, buf, a);
+    traffic_add(i, false, buf, n, HAL_GetTick());
 
     if (p->cfg.mode == MODE_UDP) {
         struct pbuf *q = p->udp_have_peer ? pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM) : NULL;
@@ -356,7 +371,7 @@ static void net_to_serial(int i)
         while (c->count) {
             uint32_t n = RING - c->head;
             if (n > c->count) n = c->count;
-            n = (uint32_t)uart485_write(i, &s_ring[i][k][c->head], n);
+            n = (uint32_t)to_line(i, &s_ring[i][k][c->head], n);
             if (!n) break;
             c->head = (c->head + n) % RING;
             c->count -= n;
@@ -402,7 +417,18 @@ void bridge_info(int i, bridge_info_t *o)
     volatile uart_stats_t *u = &g_uart[i];
     o->state = LS_NAME[p->state];
     o->clients = 0;
-    for (int k = 0; k < MAX_CLIENTS; k++) o->clients += p->cl[k].pcb && p->cl[k].up;
+    o->peers[0] = 0;
+    size_t w = 0;
+    char ip[16];
+    for (int k = 0; k < MAX_CLIENTS; k++) {
+        if (!p->cl[k].pcb || !p->cl[k].up) continue;
+        ipaddr_ntoa_r(&p->cl[k].pcb->remote_ip, ip, sizeof ip);
+        int n = snprintf(o->peers + w, sizeof o->peers - w, "%s%s:%u", w ? ", " : "", ip, p->cl[k].pcb->remote_port);
+        if (n > 0 && (size_t)n < sizeof o->peers - w) w += (size_t)n;
+        o->clients++;
+    }
+    o->net_lost = p->net_lost;
+    o->refused = p->refused;
     o->serial_rx = u->rx_bytes;
     o->serial_tx = u->tx_bytes;
     o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;

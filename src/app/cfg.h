@@ -58,6 +58,8 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen);
 size_t cfg_json(const cfg_t *c, char *out, size_t max);
 /* One port's settings as a JSON object. */
 size_t cfg_port_json(const port_cfg_t *p, char *out, size_t max);
+/* Every setting as "key=value" lines that cfg_parse accepts back (no secrets). */
+size_t cfg_lines(const cfg_t *c, char *out, size_t max);
 /* "..." with escapes; returns chars written (no NUL counted). */
 size_t json_str(const char *s, char *out, size_t max);
 bool ip4_parse(const char *s, uint32_t *out);
