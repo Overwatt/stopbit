@@ -56,10 +56,10 @@ between requests for a minute; idle ones give way to new ones.
 | Memory, 4 connections and a handshake | 101 KB of 124 KB |
 | Emulated Cortex-M7: longest slice | 1.01 ms |
 | Handshake arithmetic, emulated | 28.4 million instructions (26.3 with mbedTLS 3.6) |
-| On the gateway: full handshake, resumed, four at once | 92 ms in 63 slices, 3.7 ms, 357 ms (3.6: 77, 2.2, 305) |
+| On the gateway: full handshake, resumed, four at once | 91 ms in 67 slices, 4.8 ms, 364 ms (mbedTLS 3.6: 77, 2.2, 305) |
 | On the gateway: page (25 KB), status, on an open connection | 13 ms, 1.6 ms |
-| On the gateway: longest pause of the main loop meanwhile | 5.4 ms; 57 ms while a certificate is saved (flash erase) |
-| On the gateway: longest slice, arithmetic stack | 3.8 ms (steps that do not yield yet), 2.2 KB of 12 KB |
+| On the gateway: longest pause of the main loop meanwhile | 3.9 ms; saves no longer pause the ports |
+| On the gateway: longest slice, arithmetic stack | 2.2 ms, 2.2 KB of 12 KB |
 | Let's Encrypt's chain, November 2026 | 4 certificates, 3.4 KB; up to 4 KB can be stored and sent |
 
 **On the gateway (2026-11-25):** a Let's Encrypt certificate, curl, Python and Chromium, and
