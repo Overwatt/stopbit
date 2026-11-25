@@ -44,10 +44,23 @@ the gateway and is reached through signed requests, so there is no telnet port.
 |---|---|
 | Ports | status, traffic and settings of the four serial ports |
 | Network | address, and Home Assistant (MQTT) |
-| Hardware | chips found, processor temperature and supply, pin map, memory, firmware slots, starts; device name, restart, password |
+| Hardware | chips found, processor temperature and supply, pin map, memory, device name, restart, password |
+| Firmware | upload an `app.bin`, slots, starts |
 
 The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no password. The
 temperature is the processor's own sensor, so it reads above room temperature.
+
+## Updating from the web page
+
+Choose `app.bin` on the Firmware page. The page checks the file, uploads it signed with
+the web password's key, waits for the restart, and keeps the new firmware once it answers.
+If it does not start, the loader goes back to the previous one. An image that starts but is
+never kept is given up after three 3-minute trials. The upload goes into spare RAM and is
+checked before flash is touched, and never replaces the running slot.
+
+**So the web password can install firmware, which is full control of the gateway.** Loader
+updates and flash dumps still need the update key. `POST /install` and `POST /confirm` are
+the endpoints; `tests/test_install.py HOST` checks the refusals.
 
 ## Reload button
 
