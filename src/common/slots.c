@@ -38,7 +38,7 @@ static bool payload_ok(const slot_hdr_t *h)
     sha256_init(&c);
     sha256_update(&c, (const void *)STAGE_ADDR, h->size);
     sha256_final(&c, d);
-    return ct_equal(d, h->sha, 32) && !image_check_app(h->size);
+    return ct_equal(d, h->sha, 32) && !image_check_app((const void *)STAGE_ADDR, h->size);
 }
 
 int slots_load_best(void)
@@ -62,14 +62,13 @@ int slots_load_best(void)
     return SLOT_NONE;
 }
 
-const char *slots_install(uint32_t size, int *slot)
+const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slot)
 {
     static uint8_t chk[256];
     slot_info_t in[SLOT_COUNT];
     slot_hdr_t h = { .magic = MAGIC, .size = size };
     sha256_t c;
     uint32_t seq = 0;
-    const uint8_t *img = (const uint8_t *)STAGE_ADDR;
 
     for (int s = 0; s < SLOT_COUNT; s++) {
         slots_get(s, &in[s]);
@@ -81,6 +80,7 @@ const char *slots_install(uint32_t size, int *slot)
     if (in[0].valid != in[1].valid) t = in[0].valid ? 1 : 0;
     else if (in[0].valid && in[0].confirmed != in[1].confirmed) t = in[0].confirmed ? 1 : 0;
     else t = in[1].hdr.seq < in[0].hdr.seq ? 1 : 0;
+    if (t == avoid) t ^= 1;
 
     h.seq = seq + 1;
     memcpy(h.version, ((const fw_id_t *)(img + FW_ID_OFFSET))->version, sizeof h.version);
@@ -114,6 +114,14 @@ bool slots_confirm(int s)
     if (!extflash_write(DEV, BASE[s] + OFF_CONFIRM, &zero, 4)) return false;
     slots_get(s, &i);
     return i.valid && i.confirmed;
+}
+
+bool slots_is_confirmed(int s)
+{
+    slot_info_t i;
+    if (s < 0 || s >= SLOT_COUNT) return true;
+    slots_get(s, &i);
+    return i.confirmed;
 }
 
 void bkp_init(void)

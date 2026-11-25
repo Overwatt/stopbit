@@ -32,9 +32,11 @@ typedef struct {
 void slots_get(int slot, slot_info_t *out);
 /* Copies the best bootable slot to STAGE_ADDR. Returns its index, or SLOT_NONE. */
 int  slots_load_best(void);
-/* Installs the image at STAGE_ADDR. Returns an error string, or NULL. */
-const char *slots_install(uint32_t size, int *slot);
+/* Installs `img`, never into slot `avoid` (the running one, or SLOT_NONE).
+ * Returns an error string, or NULL. */
+const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slot);
 bool slots_confirm(int slot);
+bool slots_is_confirmed(int slot);       /* true for SLOT_NONE (started by /run) */
 
 /* Backup registers: survive resets and, on this board, short power cycles. */
 void     bkp_init(void);

@@ -8,7 +8,8 @@
  *   POST /reboot                                              (auth)
  * loader only:
  *   POST /run                         image -> SRAM, jump     (auth)
- *   POST /install                     image -> app slot       (auth)
+ *   POST /install                     image -> app slot       (auth; the app also
+ *                                     takes the web password, and restarts)
  *   POST /selfupdate                  replace the loader      (auth)
  * app only:
  *   GET  /                            web UI, open
@@ -80,6 +81,14 @@ typedef struct {
 static CONN_MEM conn_t s_conn[MAX_CONN];
 static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
+#ifdef APP_IMAGE
+/* The app runs from the bottom of AXI SRAM; uploads go in the rest of it. */
+extern uint8_t _image_end;
+#define UPLOAD      ((uint8_t *)(((uint32_t)&_image_end + 31u) & ~31u))
+#define UPLOAD_MAX  (STAGE_ADDR + STAGE_SIZE - (uint32_t)UPLOAD)
+#else
+#define UPLOAD      ((uint8_t *)STAGE_ADDR)
+#endif
 static uint8_t  s_action;
 static uint32_t s_action_at, s_stage_size;
 extern uint32_t g_reset_cause;
@@ -151,7 +160,8 @@ static uint32_t s_fails, s_fail_at;
 
 static bool web_key_allowed(const char *path)
 {
-    return !strncmp(path, "/api/", 5) || !strcmp(path, "/reboot");
+    return !strncmp(path, "/api/", 5) || !strcmp(path, "/reboot") ||
+           !strcmp(path, "/install") || !strcmp(path, "/confirm");
 }
 #endif
 
@@ -367,12 +377,15 @@ static err_t body_done(conn_t *c)
     }
 #endif
     s_stage_size = c->body_len;
-    if (c->action == ACT_RUN) why = image_check_ram(STAGE_ADDR, s_stage_size);
+    if (c->action == ACT_RUN) why = image_check_ram(UPLOAD, STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_SELFUPDATE) why = image_check_loader((const uint8_t *)STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_INSTALL) {
         int slot = SLOT_NONE;
-        why = image_check_app(s_stage_size);
-        if (!why) why = slots_install(s_stage_size, &slot);
+        why = image_check_app(UPLOAD, s_stage_size);
+#ifdef APP_IMAGE
+        if (!why && !slots_is_confirmed(RUNNING_SLOT)) why = "the running firmware is still on trial";
+#endif
+        if (!why) why = slots_install(UPLOAD, s_stage_size, RUNNING_SLOT, &slot);
         if (!why) {
             bkp_set(BKP_CRASHES, 0);
             snprintf(ok, sizeof ok, "ok slot=%d\n", slot);
@@ -385,7 +398,11 @@ static err_t body_done(conn_t *c)
         return fail(c, "400 Bad Request", why);
     }
     if (c->action == ACT_INSTALL || c->action == ACT_CONFIRM) {
+#ifdef APP_IMAGE
+        c->action = c->action == ACT_INSTALL ? ACT_REBOOT : ACT_NONE;
+#else
         c->action = ACT_NONE;        /* already done; nothing deferred */
+#endif
         s_stage_owner = NULL;
     }
     return reply(c, "200 OK", "text/plain", ok);
@@ -437,6 +454,7 @@ static err_t on_request(conn_t *c)
 #ifdef APP_IMAGE
         { "/loader",     ACT_LOADER,     0 },
         { "/confirm",    ACT_CONFIRM,    0 },
+        { "/install",    ACT_INSTALL,    STAGE_SIZE },
 #else
         { "/run",        ACT_RUN,        STAGE_SIZE },
         { "/install",    ACT_INSTALL,    STAGE_SIZE },
@@ -448,6 +466,7 @@ static err_t on_request(conn_t *c)
     for (unsigned i = 0; i < sizeof POSTS / sizeof POSTS[0]; i++)
         if (!strcmp(path, POSTS[i].path)) { act = POSTS[i].act; max = POSTS[i].max; }
 #ifdef APP_IMAGE
+    if (act == ACT_INSTALL) max = UPLOAD_MAX;
     if (api_is_post(path)) { act = ACT_API; max = BODY_MAX - 1; }
 #endif
     if (act == ACT_NONE) return fail(c, "404 Not Found", "no such endpoint");
@@ -474,9 +493,9 @@ static err_t on_body(conn_t *c, const uint8_t *p, uint32_t n)
     uint32_t want = c->body_len - c->body_got;
     if (n > want) n = want;
 #ifdef APP_IMAGE
-    memcpy(c->body + c->body_got, p, n);   /* STAGE_ADDR is our own code here */
+    memcpy((c->action == ACT_INSTALL ? UPLOAD : (uint8_t *)c->body) + c->body_got, p, n);
 #else
-    memcpy((uint8_t *)STAGE_ADDR + c->body_got, p, n);
+    memcpy(UPLOAD + c->body_got, p, n);
 #endif
     sha256_update(&c->sha, p, n);
     c->body_got += n;

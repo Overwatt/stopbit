@@ -41,16 +41,17 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 button:disabled,button.primary:disabled{background:transparent;color:var(--soft);border-color:var(--line);cursor:default}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px}
 .pad{padding:18px 20px}
-table{width:100%;border-collapse:collapse}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
 th{font-weight:550;color:var(--soft);font-size:.875rem;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top}
 tbody tr:first-child td{border-top:0}
 th:first-child,td:first-child{padding-left:20px}th:last-child,td:last-child{padding-right:20px}
-td.n,th.n{text-align:right}
+td.n,th.n{text-align:right}td.n .sub{white-space:nowrap}
+#board-t th:first-child{width:22%}
 .sub{display:block;font-size:.875rem;overflow-wrap:anywhere;color:var(--soft)}
 .sub.warn{color:var(--warn)}
 .name{font-weight:600;overflow-wrap:anywhere}
-.st{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.st{display:flex;align-items:center;gap:7px}
 .st svg{width:9px;height:9px;flex:none}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.idle{color:var(--idle)}
 tr.edit>td{background:var(--bg);padding:18px 20px 20px}
@@ -62,6 +63,8 @@ label{display:block;font-size:.875rem;color:var(--soft)}
 label.wide{grid-column:span 2}
 input,select{font:inherit;color:var(--ink);display:block;width:100%;margin-top:3px;padding:7px 9px;border:1px solid var(--field-line);border-radius:6px;background:var(--field);caret-color:var(--accent);min-height:38px}
 input:disabled,select:disabled{opacity:.6}
+input[type=file]{padding:6px 9px;overflow:hidden}
+input::file-selector-button{font:inherit;font-weight:550;color:var(--ink);background:var(--tint);border:0;border-radius:4px;padding:4px 10px;margin-right:12px;cursor:pointer}
 label.check{display:flex;gap:9px;align-items:flex-start;color:var(--ink);font-size:.9375rem;max-width:62ch}
 label.check input{width:17px;height:17px;min-height:0;margin:3px 0 0;flex:none;accent-color:var(--accent)}
 label.check span span{display:block;color:var(--soft);font-size:.875rem}
@@ -81,12 +84,12 @@ td .name+.sub{margin-top:1px}
 
 [hidden]{display:none!important}
 footer{height:48px}
-@media(max-width:760px){
+@media(max-width:960px){
  .two{grid-template-columns:1fr;gap:0}
  main,header .in{padding-left:16px;padding-right:16px}
  thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
  table,tbody{display:block}
- tbody tr.row{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;padding:14px 16px;border-top:1px solid var(--line)}
+ tbody tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 16px;padding:14px 16px;border-top:1px solid var(--line)}
  tbody tr.row:first-child{border-top:0}
  tr.row td{display:block;border:0;padding:3px 0!important}
  tr.row td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}
@@ -114,15 +117,17 @@ footer{height:48px}
  <button id="signout" type="button" hidden>Sign out</button>
  <p class="msg bad" id="loginmsg" role="alert" hidden></p>
 </div>
-<nav aria-label="Pages"><a href="#ports">Ports</a><a href="#network">Network</a><a href="#hardware">Hardware</a></nav></header>
+<nav aria-label="Pages"><a href="#ports">Ports</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav></header>
 <main>
  <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
  <div id="nopw" class="note warn" hidden><p>No web password is set, so nothing can be saved here yet. On the computer that builds the firmware, in the project folder, run <code id="pwcmd"></code> This page will then offer Sign in.</p></div>
  <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
 
+ <div id="fwtrial" class="note warn" role="status" hidden><p>This firmware is on trial. The gateway goes back to the previous one unless you keep it.</p><button id="fwkeep" type="button">Keep firmware</button></div>
  <div id="p-ports">
  <h2>Serial ports</h2>
  <div class="panel"><table>
+  <colgroup><col style="width:15%"><col style="width:16%"><col style="width:15%"><col style="width:15%"><col style="width:11%"><col style="width:10%"><col style="width:9%"><col style="width:9%"></colgroup>
   <thead><tr><th>Port</th><th>Status</th><th>Line</th><th>Network</th><th class="n">From serial</th><th class="n">To serial</th><th class="n">Errors</th><th><span hidden>Edit</span></th></tr></thead>
   <tbody id="ports"><tr><td colspan="8" class="idle">Loading ports…</td></tr></tbody>
  </table></div>
@@ -160,7 +165,7 @@ footer{height:48px}
 
  <div id="p-hardware" hidden>
  <h2>Board</h2>
- <div class="panel"><table>
+ <div class="panel"><table id="board-t">
   <thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead>
   <tbody id="board"><tr><td colspan="3" class="idle">Reading the hardware…</td></tr></tbody>
  </table></div>
@@ -170,8 +175,7 @@ footer{height:48px}
   <tbody id="wiring"><tr><td colspan="5" class="idle">Reading the hardware…</td></tr></tbody>
  </table></div>
  <div class="two">
- <section><h2>Firmware</h2><div class="panel pad"><dl id="fwinfo"></dl></div>
- <h2>Memory in use</h2><div class="panel pad"><dl id="meminfo"></dl></div></section>
+ <section><h2>Memory in use</h2><div class="panel pad"><dl id="meminfo"></dl></div></section>
  <section><h2>Device</h2><div class="panel pad">
   <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
   <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
@@ -182,6 +186,15 @@ footer{height:48px}
    <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
  </div></section>
+ </div></div>
+ <div id="p-firmware" hidden><div class="two">
+ <section><h2>Update</h2><div class="panel pad"><form id="fw">
+  <label style="margin-bottom:16px">Firmware file (app.bin)<input type="file" name="file" accept=".bin" required></label>
+  <dl id="fwfile" style="margin-bottom:16px" hidden></dl>
+  <div class="acts"><button class="primary">Install</button><p class="msg" role="status"></p></div>
+  <p class="hint">The gateway restarts. If the new firmware does not start, it goes back to the current one.</p>
+ </form></div></section>
+ <section><h2>Installed</h2><div class="panel pad"><dl id="fwinfo"></dl></div></section>
  </div></div>
  <footer></footer>
 </main>
@@ -225,17 +238,17 @@ const dur=s=>s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/360
 function say(m,text,cls){m.textContent=text;m.className="msg "+(cls||"")}
 
 /* ---- API ---- */
-let key=null,cfg=null,st=null,salt="",pwset=false,prev=null,rate=[];
+let updating=false,key=null,cfg=null,st=null,salt="",pwset=false,prev=null,rate=[];
 try{const k=sessionStorage.getItem("n540key");if(k)key=unhex(k)}catch(e){}
-async function req(path,opt){const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
- try{const r=await fetch(path,{cache:"no-store",signal:c.signal,...opt});return {ok:r.ok,status:r.status,text:await r.text()}}
+async function req(path,opt){const {wait=8000,...o}=opt||{},c=new AbortController(),t=setTimeout(()=>c.abort(),wait);
+ try{const r=await fetch(path,{cache:"no-store",signal:c.signal,...o});return {ok:r.ok,status:r.status,text:await r.text()}}
  catch(e){throw new Error("The gateway did not answer. Check the connection and try again.")}finally{clearTimeout(t)}}
 async function getj(p){const r=await req(p);if(!r.ok)throw new Error(r.text.trim()||"Request failed ("+r.status+")");return JSON.parse(r.text)}
-async function post(path,body,mk,withKey){const k=withKey||key;if(!k)throw new Error("Sign in first.");
+async function post(path,body,mk,withKey,wait){const k=withKey||key;if(!k)throw new Error("Sign in first.");
  for(let tries=0;;tries++){
   const nonce=(await req("/nonce")).text.trim();if(mk)body=mk(nonce);
-  const h=hex(sha(utf(body))),mac=hex(hmac(k,utf(nonce+"\nPOST "+path+"\n"+h)));
-  const r=await req(path,{method:"POST",body,headers:{"X-Auth":mac,"X-Body-SHA256":h,"Content-Type":"text/plain"}});
+  const h=hex(sha(body instanceof Uint8Array?body:utf(body))),mac=hex(hmac(k,utf(nonce+"\nPOST "+path+"\n"+h)));
+  const r=await req(path,{method:"POST",body,wait,headers:{"X-Auth":mac,"X-Body-SHA256":h,"Content-Type":"text/plain"}});
   if(r.ok)return r.text;
   if(r.status===401){if(!tries)continue; /* another client may have used the nonce */
    if(!withKey)setKey(null);throw new Error(withKey?"That password was not accepted. After several wrong tries, wait a few seconds.":"You are signed out. Sign in again.")}
@@ -244,10 +257,10 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#restart,#chpw,#keep"))b.disabled=!key;
- for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#restart,#chpw,#keep,[data-auth]"))b.title=key?"":"Sign in to change settings";
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#fw")!==null);
+ for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  if(!key)$("pwform").hidden=true;
- for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,tr.edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+ for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,tr.edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
 
 /* ---- ports ---- */
@@ -360,19 +373,19 @@ async function tick(){clearTimeout(timer);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
   fillDl($("netinfo"),[["Now",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
-  paint();if(page==="hardware")hardware()}
- catch(e){failing++;if(failing>1){$("offline").hidden=false}}
+  $("fwtrial").hidden=!s.fw_trial||updating;paint();if(page==="hardware"||page==="firmware")hardware()}
+ catch(e){failing++;if(failing>1){$("offline").hidden=updating}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
 /* ---- pages ---- */
-const PAGES=["ports","network","hardware"];let page="ports";
+const PAGES=["ports","network","hardware","firmware"];let page="ports";
 function show(){const h=location.hash.slice(1);page=PAGES.includes(h)?h:"ports";
  for(const p of PAGES)$("p-"+p).hidden=p!==page;
  for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")==="#"+page?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
- scrollTo(0,0);if(page==="hardware"){hwAt=0;hardware()}}
+ scrollTo(0,0);if(page==="hardware"||page==="firmware"){hwAt=0;hardware()}}
 addEventListener("hashchange",show);
 
 /* ---- hardware ---- */
-let hwAt=0;
+let hwAt=0,hw=null;
 const sub=t=>el("span",{class:"sub"},t),kb=n=>Math.round(n/1024).toLocaleString()+" KB",num=n=>n.toLocaleString();
 function fillDl(dl,rows){if(dl.childElementCount!==rows.length*2)dl.replaceChildren(...rows.flatMap(()=>[el("dt"),el("dd")]));
  rows.forEach(([a,...b],i)=>{put(dl.children[2*i],a);put(dl.children[2*i+1],...b)})}
@@ -382,7 +395,7 @@ const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
 const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?x+" × "+n:x).join(", ");
 async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)return;hwAt=now;
- let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}
+ let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}hw=h;
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
  const reads=[c.mhz+" MHz"];if(c.temp_c!=null)reads.push(c.temp_c.toFixed(1)+" °C",(c.mv/1000).toFixed(2)+" V");
  fillRows($("board"),["Part","Model","Status"],[
@@ -401,6 +414,35 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)ret
  const M={AXI:"Program",DTCM:"Data",D2:"Buffers"};
  fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
  fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}
+
+/* ---- firmware update ---- */
+let image=null;
+const pause=ms=>new Promise(r=>setTimeout(r,ms)),fwsay=(t,c)=>say($("fw").querySelector(".msg"),t,c);
+function inspect(b){const v=new DataView(b.buffer);
+ if(b.length<0x400||v.getUint32(0x2A0,true)!==0x5041354E)return {why:b.length>=0x400&&v.getUint32(0x2A0,true)===0x444C354E?"That is the loader. Choose app.bin.":"That is not gateway firmware. Choose app.bin."};
+ if(v.getUint32(0x2A4,true)!==0x24000000)return {why:"That firmware is built for a different address."};
+ const n=b.subarray(0x2A8,0x2C0),z=n.indexOf(0);return {version:new TextDecoder().decode(z<0?n:n.subarray(0,z))}}
+$("fw").elements.file.onchange=async ev=>{image=null;$("fwfile").hidden=true;fwsay("");const f=ev.target.files[0];if(!f)return;
+ if(f.size>393216)return fwsay("That file is too large to be gateway firmware.","bad");
+ const b=new Uint8Array(await f.arrayBuffer()),i=inspect(b);if(i.why)return fwsay(i.why,"bad");
+ image={b,version:i.version};fillDl($("fwfile"),[["Version",i.version+(st&&i.version===st.version?" (already running)":"")],["Size",kb(b.length)]]);$("fwfile").hidden=false;if(!key)fwsay(lock(),"warn lock")};
+$("fw").onsubmit=async ev=>{ev.preventDefault();if(!image)return fwsay("Choose a firmware file first.","bad");
+ const img=image;updating=true;authUI();let sent=false;
+ try{await post("/api/check","");const before=(await getj("/status")).boots;fwsay("Uploading…");
+  const slot=+(/slot=(\d)/.exec(await post("/install",img.b,null,null,40000))||[])[1];sent=true;
+  fwsay("Installed. Restarting…");await pause(2500);
+  const end=Date.now()+90000;let s=null;
+  while(Date.now()<end){try{s=await getj("/status");if(s.mode==="app"&&s.boots>before)break;if(s.mode!=="app")fwsay("Waiting in the loader…")}catch(e){}s=null;await pause(1000)}
+  if(!s)throw new Error("No answer yet. If the new firmware cannot reach the network, the gateway goes back to the previous one within 10 minutes.");
+  if(s.running_slot!==slot)throw new Error(img.version+" did not start. The gateway went back to "+s.version+".");
+  fwsay("Checking "+img.version+"…");
+  try{await post("/confirm","")}catch(e){throw new Error(s.version+" is running but could not be kept from here: "+e.message+" It goes back to the previous firmware within 10 minutes.")}
+  try{sessionStorage.setItem("n540note","Now running "+s.version+".")}catch(e){}
+  location.reload()}
+ catch(e){fwsay(sent||!/did not answer/.test(e.message)?e.message:"The upload was interrupted. Nothing was installed unless the gateway restarts.","bad")}
+ finally{updating=false;authUI();hwAt=0;tick()}};
+$("fwkeep").onclick=async()=>{const b=$("fwkeep");b.disabled=true;try{await post("/confirm","");hwAt=0}catch(e){$("fwtrial").querySelector("p").textContent=e.message}finally{b.disabled=!key;tick()}};
+try{const n=sessionStorage.getItem("n540note");if(n){sessionStorage.removeItem("n540note");fwsay(n,"ok")}}catch(e){}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
 show();tick();

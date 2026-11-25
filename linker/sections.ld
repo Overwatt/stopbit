@@ -93,6 +93,7 @@ SECTIONS
     _eitcm = .;
   } >ITCMRAM AT> CODE
   _siitcm = LOADADDR(.itcm);
+  _image_end = LOADADDR(.itcm) + SIZEOF(.itcm);
 
   /* Ethernet descriptors + buffers (not zeroed at startup). */
   .dma_d2 (NOLOAD) :
