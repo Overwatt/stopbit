@@ -12,6 +12,9 @@ void bridge_init(void);
 /* (Re)starts only the ports whose settings changed. Applied on the next poll. */
 void bridge_configure(const cfg_t *c);
 void bridge_poll(void);
+/* Only moves data that has already arrived, between ports and open connections. For
+ * use while something else holds up the main loop, even inside a network callback. */
+void bridge_pump(void);
 typedef struct {
     const char *state;
     int clients;

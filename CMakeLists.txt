@@ -99,7 +99,9 @@ set_source_files_properties("${BN}/ecp.c" PROPERTIES
     COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS mbedtls_mpi_mul_mpi=tls_mpi_mul_mpi)
 set_source_files_properties("${BN}/bignum_core.c" PROPERTIES
     COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS memcpy=tls_core_memcpy)
-set_source_files_properties("${BN}/bignum.c" "${BN}/ecp_curves.c" "${BN}/aes.c" "${BN}/gcm.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
+set_source_files_properties("${BN}/psa_crypto_hash.c" "${PSA_DIR}/extras/md.c" PROPERTIES
+    COMPILE_DEFINITIONS mbedtls_sha256_update=tls_sha256_update)
+set_source_files_properties("${BN}/bignum.c" "${BN}/ecp_curves.c" "${BN}/aes.c" "${BN}/gcm.c" "${BN}/sha256.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
 
 # ---------------------------------------------------------------------------
 # Update key: generated once into secrets/ (gitignored), compiled into images.

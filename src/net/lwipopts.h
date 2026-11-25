@@ -14,6 +14,10 @@
 #else
 #define MEM_SIZE                    (24 * 1024)
 #endif
+#ifdef APP_IMAGE                    /* 73 KB that need not be in the fastest memory */
+#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
+    __attribute__((section(".d2_bss"), aligned(4))) u8_t variable_name[LWIP_MEM_ALIGN_BUFFER(size)]
+#endif
 #define MEMP_NUM_PBUF               16
 #ifdef APP_IMAGE                    /* 4 ports x 4 clients + web */
 #define MEMP_NUM_TCP_PCB            32

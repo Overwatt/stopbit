@@ -32,6 +32,8 @@ static struct {
     volatile uint32_t last_rx;          /* CYCCNT */
     volatile bool tx_active;
     bool open, echo_cancel, mute;
+    volatile bool joining;              /* opened on a busy line, part way through a byte */
+    uint32_t opened, gap;               /* CYCCNT; two characters */
     uint8_t mask;
 } S[PORTS];
 volatile uart_stats_t g_uart[PORTS];
@@ -41,6 +43,15 @@ static void isr(int p)
     USART_TypeDef *u = H[p].u;
     uint32_t f = u->ISR;
     volatile uart_stats_t *st = &g_uart[p];
+
+    /* Until the first pause the receiver cannot know where a byte starts, so what it
+     * finds wrong is not the line's fault. A second is long enough to find one. */
+    if (S[p].joining) {
+        uint32_t now = DWT->CYCCNT;
+        if (now - S[p].last_rx > S[p].gap || now - S[p].opened > SystemCoreClock) S[p].joining = false;
+        else u->ICR = USART_ICR_PECF | USART_ICR_FECF | USART_ICR_NECF;
+        f = u->ISR;
+    }
 
     if (f & (USART_ISR_PE | USART_ISR_FE | USART_ISR_NE | USART_ISR_ORE)) {
         if (f & USART_ISR_PE) st->parity++;
@@ -151,7 +162,9 @@ void uart485_open(int p, const port_cfg_t *c)
     u->ICR = 0xFFFFFFFFu;
     S[p].mask = c->data_bits == 7 ? 0x7F : 0xFF;
     S[p].echo_cancel = c->echo_cancel && !c->loopback;
-    S[p].last_rx = DWT->CYCCNT;
+    S[p].last_rx = S[p].opened = DWT->CYCCNT;
+    S[p].gap = SystemCoreClock / c->baud * 20u;
+    S[p].joining = true;
 
     u->CR1 |= USART_CR1_UE;
     u->CR1 |= USART_CR1_RE;

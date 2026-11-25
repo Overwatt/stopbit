@@ -87,10 +87,10 @@ static void eth_gpio_init(void)
 
 static void mpu_dma_region(void)
 {
-    /* 64 KB @ 0x30000000: normal, non-cacheable, shareable, no execute. */
+    /* 32 KB @ 0x30000000: normal, non-cacheable, shareable, no execute. */
     ARM_MPU_Disable();
     ARM_MPU_SetRegionEx(0, 0x30000000u,
-        ARM_MPU_RASR(1, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0, ARM_MPU_REGION_SIZE_64KB));
+        ARM_MPU_RASR(1, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0, ARM_MPU_REGION_SIZE_32KB));
     ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk);
 }
 
@@ -167,7 +167,7 @@ eth_status_t eth_init(const uint8_t mac[6])
     memset(&g_eth, 0, sizeof g_eth);
     g_eth.phy_addr = 0xFF;
 
-    RCC->AHB2ENR |= RCC_AHB2ENR_D2SRAM1EN | RCC_AHB2ENR_D2SRAM2EN;
+    RCC->AHB2ENR |= RCC_AHB2ENR_D2SRAM1EN | RCC_AHB2ENR_D2SRAM2EN | RCC_AHB2ENR_D2SRAM3EN;
     (void)RCC->AHB2ENR;
     mpu_dma_region();
     eth_gpio_init();

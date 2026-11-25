@@ -54,6 +54,13 @@ static void led_poll(void)
     BOARD_LED_PORT->BSRR = (BOARD_LED_PORT->ODR & BOARD_LED_PIN) ? (uint32_t)BOARD_LED_PIN << 16 : BOARD_LED_PIN;
 }
 
+/* While a save waits for flash: the ports carry on, the rest can wait. */
+static void meanwhile(void)
+{
+    hwinfo_loop();
+    bridge_pump();
+}
+
 int main(void)
 {
     SCB->VTOR = (uint32_t)g_pfnVectors;
@@ -77,6 +84,7 @@ int main(void)
     SCB_EnableDCache();          /* nothing else here uses DMA */
     bridge_init();
     api_init();
+    extflash_meanwhile(meanwhile);
     http_init();
     tls_init();
     for (;;) {

@@ -441,7 +441,7 @@ static void serial_to_net(int i)
     if (sent) p->net_tx += n;
 }
 
-static void net_to_serial(int i)
+static void net_to_serial(int i, bool may_close)
 {
     port_t *p = &s_p[i];
     for (int k = 0; k < MAX_CLIENTS; k++) {
@@ -459,7 +459,7 @@ static void net_to_serial(int i)
             tcp_recved(c->pcb, (u16_t)n);
         }
         /* After a half-close, leave time for the device to answer. */
-        if (c->fin && !c->count && uart485_tx_idle(i) && HAL_GetTick() - c->drained_at > 1000) {
+        if (may_close && c->fin && !c->count && uart485_tx_idle(i) && HAL_GetTick() - c->drained_at > 1000) {
             client_close(c);
             if (p->cfg.mode == MODE_CLIENT) schedule_retry(p);
         }
@@ -481,6 +481,15 @@ static void watch(port_t *p, uint32_t now, uint16_t limit)
      * client at a new address. Known at once, whatever the limit. */
     bool alone = p->cfg.mode == MODE_UDP ? !p->udp_have_peer : !client;
     if (alone && p->alert != QUIET_SILENT && knock_persistent(&p->knocks, now)) p->alert = QUIET_TURNED_AWAY;
+}
+
+void bridge_pump(void)
+{
+    for (int i = 0; i < PORTS; i++) {
+        if (s_p[i].state == LS_OFF) continue;
+        serial_to_net(i);
+        net_to_serial(i, false);
+    }
 }
 
 void bridge_poll(void)
@@ -509,7 +518,7 @@ void bridge_poll(void)
         port_t *p = &s_p[i];
         if (p->state == LS_OFF) continue;
         serial_to_net(i);
-        net_to_serial(i);
+        net_to_serial(i, true);
         watch(p, HAL_GetTick(), s_quiet[i]);
         if ((p->state == LS_WAITING || p->state == LS_ERROR) &&
             (int32_t)(HAL_GetTick() - p->retry_at) >= 0) {

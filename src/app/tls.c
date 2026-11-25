@@ -144,6 +144,14 @@ int tls_mpi_mul_mpi(struct mbedtls_mpi *X, const struct mbedtls_mpi *A, const st
     worker_breathe();
     return mbedtls_mpi_mul_mpi(X, A, B);
 }
+struct mbedtls_sha256_context;
+int mbedtls_sha256_update(struct mbedtls_sha256_context *c, const unsigned char *d, size_t n);
+int tls_sha256_update(struct mbedtls_sha256_context *c, const unsigned char *d, size_t n);
+int tls_sha256_update(struct mbedtls_sha256_context *c, const unsigned char *d, size_t n)
+{
+    worker_breathe();
+    return mbedtls_sha256_update(c, d, n);
+}
 void *tls_core_memcpy(void *d, const void *s, size_t n);
 void *tls_core_memcpy(void *d, const void *s, size_t n)
 {

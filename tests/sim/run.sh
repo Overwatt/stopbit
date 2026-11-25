@@ -15,6 +15,7 @@ if [ ! -f "$O/done" ] || [ src/app/mbedtls_cfg.h -nt "$O/done" ] || [ src/app/cr
     n=$(basename "$f" .c); d=
     [ "$n" = ecp ] && d=-Dmbedtls_mpi_mul_mpi=tls_mpi_mul_mpi
     [ "$n" = bignum_core ] && d=-Dmemcpy=tls_core_memcpy
+    { [ "$n" = psa_crypto_hash ] || [ "$n" = md ]; } && d=-Dmbedtls_sha256_update=tls_sha256_update
     # the worker's own stack confuses the address checker, so not in what runs on it
     cc -g -O1 -w -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 $PUB $PRIV "$(echo $CFG | cut -d' ' -f1)" "$(echo $CFG | cut -d' ' -f2)" $d -c "$f" -o "$O/$n.o" || exit 1
   done

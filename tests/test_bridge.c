@@ -258,6 +258,25 @@ int main(void)
     assert(!info(3).alert[0]);
     assert(bridge_json(j, sizeof j) && strstr(j, "\"denied_ip\":\"10.0.0.50\""));
 
+    /* ---- carrying on while a save waits for flash ---- */
+    cfg_defaults(&C);
+    bridge_init();
+    memset(Ln, 0, sizeof Ln);
+    set("port1.enabled=1\nport1.access=10.0.0.5 write, 10.0.0.6 read");
+    a = from(4001, "10.0.0.5"); b = from(4001, "10.0.0.6");
+    a->out_n = b->out_n = 0;
+    strcpy((char *)R[0], "bus"); Rn[0] = 3; bridge_pump();
+    assert(a->out_n == 3 && b->out_n == 3);                             /* line to network */
+    { struct pbuf *q = pbuf_alloc(0, 2, 0); memcpy(q->payload, "go", 2); a->unacked += 2; a->rx(a->arg, a, q, ERR_OK); }
+    { struct pbuf *q = pbuf_alloc(0, 2, 0); memcpy(q->payload, "no", 2); b->unacked += 2; b->rx(b->arg, b, q, ERR_OK); }
+    bridge_pump();
+    assert(line(0, "go") && !a->unacked && !b->unacked);                /* network to line, the list still holding */
+    a->rx(a->arg, a, NULL, ERR_OK); t_now += 5000;
+    bridge_pump(); assert(!a->closed);                                  /* closing is left to bridge_poll */
+    strcpy((char *)R[0], "x"); Rn[0] = 1; C.port[0].enabled = 0; bridge_configure(&C);
+    bridge_pump(); assert(!strcmp(info(0).state, "listening"));         /* as are changed settings */
+    bridge_poll(); assert(!strcmp(info(0).state, "off"));
+
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");
     for (int p = 0; p < PORTS; p++) { memset((void *)&g_uart[p], 0xFF, sizeof g_uart[p]); char t[64]; snprintf(t, sizeof t, "port%d.enabled=1", p + 1); set(t); for (int k = 0; k < 5; k++) from((u16_t)(4001 + p), "255.255.255.255"); }

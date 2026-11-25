@@ -140,11 +140,19 @@ void extflash_write_start(int dev, uint32_t addr, const void *src, uint32_t len)
     hi(b->cs);
 }
 
+static void (*s_meanwhile)(void);
+void extflash_meanwhile(void (*fn)(void)) { s_meanwhile = fn; }
+
 bool extflash_erase(int dev, uint32_t addr, uint32_t len)
 {
     for (uint32_t end = addr + len; addr < end; addr += 4096) {
+        uint32_t t0 = HAL_GetTick();
         extflash_erase_start(dev, addr);
-        if (!wait_idle(&BUS[dev], 1000)) return false;
+        while (extflash_busy(dev)) {
+            wdt_feed();
+            if (s_meanwhile) s_meanwhile();
+            if (HAL_GetTick() - t0 > 1000) return false;
+        }
     }
     return true;
 }

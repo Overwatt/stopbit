@@ -210,6 +210,9 @@ subnets, UDP and client mode are host-tested only.
 
 ## Storage
 
+Saving erases flash, some 50 ms a sector. Data already on its way between ports and open
+connections keeps moving meanwhile; new connections and replies wait.
+
 Access lists have their own two copies at `0x0F2000` / `0x0F3000`, so older firmware still
 reads the rest.
 

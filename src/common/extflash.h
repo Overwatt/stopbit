@@ -22,4 +22,7 @@ void     extflash_read(int dev, uint32_t addr, void *dst, uint32_t len);
 void     extflash_erase_start(int dev, uint32_t addr);
 void     extflash_write_start(int dev, uint32_t addr, const void *src, uint32_t len);
 bool     extflash_busy(int dev);
+/* Called over and over while extflash_erase() waits, which is 50 ms or so a sector.
+ * Must not use the flash. */
+void     extflash_meanwhile(void (*fn)(void));
 #endif

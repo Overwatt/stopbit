@@ -90,7 +90,8 @@ Checked 2026-11-25:
   and Route 53 requests. The certificate's expiry should go to the Hardware page and Home
   Assistant.
 - **RAM:** the image is 227 of at most 384 KB, the loader's limit. Buffers have more room:
-  main RAM is 512 KB, and D2, D3 and ITCM have about 190 KB free between them.
+  main RAM is 512 KB with about 34 KB free, DTCM has 73 KB, D2 34 KB, and D3 and ITCM
+  (128 KB) are unused.
 - Certificates are publicly logged, so the host name becomes public. The name needs a DNS
   record for the gateway's LAN address; some routers block public names that resolve to
   private addresses.
