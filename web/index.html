@@ -47,9 +47,8 @@ td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top}
 tbody tr:first-child td{border-top:0}
 th:first-child,td:first-child{padding-left:20px}th:last-child,td:last-child{padding-right:20px}
 td.n,th.n{text-align:right}
-td .sub.warn{color:var(--warn)}
-td .sub:not(.warn){color:var(--soft)}
-td .sub{display:block;font-size:.875rem;overflow-wrap:anywhere}
+.sub{display:block;font-size:.875rem;overflow-wrap:anywhere;color:var(--soft)}
+.sub.warn{color:var(--warn)}
 .name{font-weight:600;overflow-wrap:anywhere}
 .st{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .st svg{width:9px;height:9px;flex:none}
@@ -94,6 +93,8 @@ footer{height:48px}
  td.n{text-align:left}td:last-child button{width:100%}
  tr.edit{display:block}tr.edit>td{display:block;padding:16px}
  label.wide{grid-column:1/-1}
+ #board td:first-child,#wiring td:first-child{grid-column:1/-1}
+ #wiring tr.row{grid-template-columns:1fr 1fr}
  button{min-height:44px}
  nav{padding:0 4px}nav a{padding:11px 12px}
 }
@@ -128,9 +129,9 @@ footer{height:48px}
  </div>
 
  <div id="p-network" hidden><div class="two">
- <section><h2>Network</h2><div class="panel pad"><dl id="netinfo" style="margin-bottom:20px"></dl><form id="net">
+ <section><h2>Address</h2><div class="panel pad"><dl id="netinfo" style="margin-bottom:20px"></dl><form id="net">
   <div class="grid" style="margin-bottom:16px">
-   <label class="wide">Address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
+   <label class="wide">How it gets its address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
   </div>
   <div class="grid" data-static style="margin-bottom:16px">
    <label>IP address<input name="ip" inputmode="decimal" autocomplete="off"></label>
@@ -358,7 +359,7 @@ async function tick(){clearTimeout(timer);
   failing=0;$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
-  fillDl($("netinfo"),[["Address",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
+  fillDl($("netinfo"),[["Now",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
   paint();if(page==="hardware")hardware()}
  catch(e){failing++;if(failing>1){$("offline").hidden=false}}
@@ -380,6 +381,7 @@ function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.quer
  rows.forEach((r,i)=>r.forEach((c,k)=>put(tb.children[i].children[k],...(Array.isArray(c)?c:[c]))))}
 const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
+const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?x+" × "+n:x).join(", ");
 async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)return;hwAt=now;
  let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
@@ -393,8 +395,9 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)ret
   [nm("RS485 drivers"),["4 × TI SN65HVD75",sub("From the chip markings")],"One per port; they have no ID to read"],
   [nm("Watchdog"),["Separate chip on pin PC10",sub("Model not known")],"Resets the gateway if it stalls for about 1.6 s"]]);
  fillRows($("wiring"),["Port","Serial unit","Transmit pin","Receive pin","Direction pin"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
+ const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?", on trial":"")};
- fillDl($("fwinfo"),[["Running",st?st.version:""],["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Up for",st?dur(st.uptime_s):""],["Starts",num(h.boots)],["Failed starts",el("span",{class:h.crashes?"bad":""},h.crashes?num(h.crashes):"None")],["Recent starts",h.resets.map(RST).join(", ")||"None recorded",sub("Newest first")]]);
+ fillDl($("fwinfo"),[["Running",st?st.version:""],["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Up for",st?dur(st.uptime_s):""],["Starts",num(h.boots)],["Failed starts",el("span",{class:fails?"bad":""},fails?num(fails):"None")],["Recent starts",runs(h.resets.map(RST))||"None recorded",new Set(h.resets).size>1?sub("Newest first"):null]]);
  const M={AXI:"Program (AXI)",DTCM:"Data (DTCM)",D2:"Buffers (D2)"};
  fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
  fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}

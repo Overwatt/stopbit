@@ -61,7 +61,9 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Modern web UI + **REST/JSON API** (vs. their 2010 iframe UI).
 - [x] **MQTT** with Home Assistant auto-discovery.
 - [ ] Prometheus metrics / live per-port traffic + latency stats.
-- [ ] TLS, real auth (no telnet data-port backdoor).
+- [x] Hardware page: chips, pins, temperature, memory, firmware slots.
+- [ ] Real auth on the data ports.
+- [ ] Stretch: HTTPS hosted on the device with Let's Encrypt. Design in [HTTPS.md](HTTPS.md).
 - [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.
 

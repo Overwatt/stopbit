@@ -38,6 +38,17 @@ the gateway and is reached through signed requests, so there is no telnet port.
 
 `watch` polls twice a second and can miss packets on a busy line.
 
+## Web pages
+
+| Page | |
+|---|---|
+| Ports | status, traffic and settings of the four serial ports |
+| Network | address, and Home Assistant (MQTT) |
+| Hardware | chips found, processor temperature and supply, pin map, memory, firmware slots, starts; device name, restart, password |
+
+The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no password. The
+temperature is the processor's own sensor, so it reads above room temperature.
+
 ## Ports
 
 All four ship disabled. Each one is a TCP server (default 4001-4004, up to 4

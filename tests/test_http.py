@@ -7,7 +7,7 @@ def get(p):
 def up(): return json.loads(get("/status")[1])
 s0 = up()
 def one(i):
-    try: return get(("/api/state", "/api/config", "/", "/status")[i % 4])[0]
+    try: return get(("/api/state", "/api/config", "/", "/status", "/api/hardware")[i % 5])[0]
     except OSError: return "err"
 with cf.ThreadPoolExecutor(4) as ex: r = list(ex.map(one, range(400)))
 print("400 requests, 4 at a time:", {k: r.count(k) for k in set(r)})
