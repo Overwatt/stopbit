@@ -75,7 +75,7 @@ Turn off **Announce to Home Assistant** (`mqtt.announce=0`) to publish only the 
 discovery entries are withdrawn once; everything else stays the same, retained:
 `HOST/port1` to `HOST/port4` and `HOST/device` (JSON), and `HOST/status` (`online`, or
 `offline` from the last will). With changes allowed, `HOST/port1/set/KEY` takes any port
-setting except `listen_only`. Firmware older than this ignores the setting and announces.
+setting except `listen_only` and `access`. Firmware older than this ignores the setting and announces.
 
 ### Being told when a bus goes quiet
 
