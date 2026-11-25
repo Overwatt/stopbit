@@ -4,6 +4,29 @@ Milestone ladder from "boots" to "better than stock." Each rung is a working,
 testable state. Scope is kept deliberately narrow — we build the open/hackable
 gateway we want, not a clone of USR's whole feature matrix.
 
+## Direction (current): our firmware + network update, not stock restore
+
+We run our own firmware on the board and prioritize a **network firmware-update
+path** so SWD flashing stops mattering. Reach: Ethernet up → a TCP/HTTP endpoint
+that writes a received image to flash → split into a tiny **bootloader**
+(SWD-flashed once) + **app** (updated over the network) with a golden-image
+fallback. This mirrors USR's own "web_boot" design. After that, SWD is only for
+first-flash/emergencies; everyday updates are `curl` over the LAN.
+
+## ⚠️ Flashing over SWD — hard-won lessons (read before flashing)
+
+- **The board MUST have its own external power connected.** On the ST-Link's
+  3.3 V alone, reads/erases work but **flash *programming* silently fails** (the
+  program charge pumps need real current) — you read back blank and think the
+  write failed. This caused a multi-hour brick scare. Always power the board.
+- ST-Link into a **direct USB port** (not a hub); **3.3V/VTref wire connected**
+  (header pin 1). SWD header: `1=3V3, 2=GND, 3/4=SWDIO/NRST, 5=SWCLK`.
+- This ST-Link **clone can't connect-under-reset**, so a corrupt flash → CPU
+  lockup → debug-domain gating → intermittent examine failures. Workaround =
+  "escape" trick (run a loop in SRAM to get a clean CPU state), then flash. A
+  **genuine ST-Link/J-Link removes all of this.** Recovery scripts live on
+  `swd-host:~/n540_dumps/*.cfg`.
+
 ## M0 — Back up the stock firmware (bench, prerequisite)
 - [ ] SWD: connect ST-Link, read Option Bytes → **RDP level** (go/no-go for the
       whole project — RDP2 means SWD is dead and we stop).
