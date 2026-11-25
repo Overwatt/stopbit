@@ -10,6 +10,8 @@
 #include "eth_mac.h"
 #include "tls.h"
 #include "worker.h"
+#include "acme.h"
+#include "clock.h"
 #include "sha256.h"
 #include "system.h"
 #include "stm32h7xx_hal.h"
@@ -29,6 +31,7 @@ struct tcp_pcb {
     int fd; bool used, listening, closing;
     void *arg; tcp_accept_fn acc; tcp_recv_fn rx; tcp_sent_fn sent; tcp_err_fn err; tcp_poll_fn poll;
     int wnd; uint8_t out[TCP_SND_BUF]; int out_n; bool eof; uint32_t polled;
+    err_t (*connected)(void *, struct tcp_pcb *, err_t);
 };
 static struct tcp_pcb P[40];
 t_dwt_t t_dwt;
@@ -108,8 +111,41 @@ err_t tcp_close(struct tcp_pcb *p)
     p->closing = true;
     return ERR_OK;
 }
+#include <netdb.h>
+#include <poll.h>
+err_t tcp_connect(struct tcp_pcb *p, const ip_addr_t *ip, u16_t port, err_t (*cb)(void *, struct tcp_pcb *, err_t))
+{
+    struct sockaddr_in s = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr.s_addr = ip->addr };
+    p->fd = socket(AF_INET, SOCK_STREAM, 0);
+    fcntl(p->fd, F_SETFL, O_NONBLOCK);
+    if (connect(p->fd, (void *)&s, sizeof s) && errno != EINPROGRESS) return ERR_VAL;
+    p->connected = cb;
+    p->polled = t_now;
+    return ERR_OK;
+}
+err_t dns_gethostbyname(const char *name, ip_addr_t *ip, void (*cb)(const char *, const ip_addr_t *, void *), void *arg)
+{
+    struct addrinfo h = { .ai_family = AF_INET, .ai_socktype = SOCK_STREAM }, *r;
+    (void)cb; (void)arg;
+    if (getaddrinfo(name, NULL, &h, &r)) return ERR_VAL;
+    ip->addr = ((struct sockaddr_in *)r->ai_addr)->sin_addr.s_addr;
+    freeaddrinfo(r);
+    return ERR_OK;
+}
+
 static void serve(struct tcp_pcb *p)
 {
+    if (p->connected) {                 /* an outgoing one, until it is up */
+        struct pollfd f = { p->fd, POLLOUT, 0 };
+        if (poll(&f, 1, 0) <= 0) return;
+        int e = 0; socklen_t l = sizeof e;
+        getsockopt(p->fd, SOL_SOCKET, SO_ERROR, &e, &l);
+        err_t (*cb)(void *, struct tcp_pcb *, err_t) = p->connected;
+        p->connected = NULL;
+        if (e) { tcp_err_fn er = p->err; void *a = p->arg; drop(p); if (er) er(a, ERR_RST); return; }
+        cb(p->arg, p, ERR_OK);
+        return;
+    }
     if (p->listening) {
         int fd = accept(p->fd, NULL, NULL);
         if (fd < 0) return;
@@ -177,11 +213,30 @@ bool rng_fill(void *d, uint32_t n) { arc4random_buf(d, n); return true; }
 const uint8_t *api_page(uint32_t *n) { *n = sizeof WEB_PAGE; return WEB_PAGE; }
 const uint8_t *api_web_key(void) { static uint8_t k[32]; memset(k, 0x77, 32); return k; }
 const char *api_fw_need(void) { return s_need ? "listen_only" : NULL; }
-bool api_is_post(const char *p) { return !strcmp(p, "/api/need") || !strcmp(p, "/api/check") || !strcmp(p, "/api/gap") || !strcmp(p, "/api/tls"); }
+bool api_is_post(const char *p) { return !strcmp(p, "/api/need") || !strcmp(p, "/api/check") || !strcmp(p, "/api/gap") || !strcmp(p, "/api/tls") || !strcmp(p, "/api/acme"); }
 const char *api_post(const char *p, api_req_t *r, char *o, size_t n)
 {
     if (!strcmp(p, "/api/need")) s_need = r->body[0] == '1';
     if (!strcmp(p, "/api/gap")) { snprintf(o, n, "{\"gap\":%d}", s_max_gap); s_max_gap = 0; return "200 OK"; }
+    if (!strcmp(p, "/api/acme")) {      /* as api.c, the secret in plain: "secret=..." */
+        char *s = strstr(r->body, "secret="), sec[64] = { 0 };
+        char *x = strstr(r->body, "secret_enc=");
+        if (x) {                         /* as api.c does it */
+            uint8_t v[64], pad[64];
+            for (int i = 0; i < 64; i++) { unsigned b; sscanf(x + 11 + 2 * i, "%2x", &b); v[i] = (uint8_t)b; }
+            hmac_sha256(r->key, "acmesec0\n", 9, r->nonce, strlen(r->nonce), pad);
+            hmac_sha256(r->key, "acmesec1\n", 9, r->nonce, strlen(r->nonce), pad + 32);
+            for (int i = 0; i < 64; i++) sec[i] = (char)(v[i] ^ pad[i]);
+            if (x > r->body) x[-1] = 0; else *x = 0;
+            const char *why = acme_command(r->body, (const uint8_t *)sec, sizeof sec);
+            snprintf(o, n, "%s", why ? why : "{}");
+            return why ? "400 Bad Request" : "200 OK";
+        }
+        if (s) { char *e = strchr(s, '\n'); size_t k = e ? (size_t)(e - s - 7) : strlen(s + 7); if (k < 64) memcpy(sec, s + 7, k); if (e) memmove(s, e + 1, strlen(e + 1) + 1); else { *s = 0; if (s > r->body) s[-1] = 0; } }
+        const char *why = acme_command(r->body, s ? (const uint8_t *)sec : NULL, sizeof sec);
+        snprintf(o, n, "%s", why ? why : "{}");
+        return why ? "400 Bad Request" : "200 OK";
+    }
     if (!strcmp(p, "/api/tls")) {
         const char *why = tls_command((const uint8_t *)r->body, r->len);
         snprintf(o, n, "%s", why ? why : "{}");
@@ -192,6 +247,7 @@ const char *api_post(const char *p, api_req_t *r, char *o, size_t n)
 }
 int api_get(const char *p, char *o, size_t n)
 { if (!strcmp(p, "/api/tls")) return (int)tls_json(o, n);
+  if (!strcmp(p, "/api/acme")) return (int)acme_json(o, n);
   if (!strcmp(p, "/api/tls/csr")) return (int)tls_csr(o, n);
   if (!strcmp(p, "/api/pbufs")) return snprintf(o, n, "%d", s_pbufs);
   return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
@@ -219,7 +275,7 @@ static void boot(void)
     bkp_set(BKP_BOOTS, bkp_get(BKP_BOOTS) + 1);
     f_nno = 0;
     f_no[f_nno++] = (range_t){ 1, 0x0C8000, 0x0F4000 };
-    f_no[f_nno++] = (range_t){ 1, 0x0F8000, 0x100000 };
+    f_no[f_nno++] = (range_t){ 1, 0x0FA000, 0x100000 };
     f_no[f_nno++] = (range_t){ 0, 0x1F4000, 0x200000 };
     f_no[f_nno++] = (range_t){ 1, slots_addr(run) + SLOT_HDR, slots_addr(run) + 0x80000 };
     slots_get(run, &in[run]);
@@ -256,12 +312,15 @@ int main(int argc, char **argv)
     boot();
     http_init();
     tls_init();
+    acme_init();
+    clock_set((uint32_t)time(NULL));
     for (uint32_t last = ms();;) {
         t_now = ms();
         if ((int)(t_now - last) > s_max_gap) s_max_gap = (int)(t_now - last);
         last = t_now;
         http_poll();
         tls_poll();
+        acme_poll();
         for (int i = 0; i < 40; i++) if (P[i].used) serve(&P[i]);
         usleep(50);
     }

@@ -25,6 +25,16 @@ const char *tls_name(void);
 /* Blanks the private keys in a flash dump. */
 void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n);
 
+/* TLS memory: in use now, and at most so far (bytes). */
+void tls_heap(size_t *now, size_t *peak);
+
+/* ---- for acme.c ---- */
+/* The issued certificate's name and validity (unix seconds), or NULL if there is none. */
+const char *tls_issued(uint32_t *from, uint32_t *to);
+const char *tls_requested(void);         /* name of the pending signing request, or NULL */
+bool tls_busy(void);                     /* a command would be refused for now */
+size_t tls_csr_der(uint8_t *out, size_t max);
+
 /* ---- implemented by http.c ---- */
 void *http_tls_open(tls_t *t);           /* NULL: no room for another */
 uint32_t http_tls_want(void *c);

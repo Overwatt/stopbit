@@ -12,6 +12,7 @@
 #define PSA_WANT_ALG_TLS12_PRF                   1
 #define PSA_WANT_ALG_RSA_PKCS1V15_SIGN           1  /* authorities that sign with RSA */
 #define PSA_WANT_ECC_SECP_R1_256                 1
+#define PSA_WANT_ECC_SECP_R1_384                 1  /* Let's Encrypt's authorities */
 #define PSA_WANT_KEY_TYPE_AES                    1
 #define PSA_WANT_KEY_TYPE_HMAC                   1
 #define PSA_WANT_KEY_TYPE_DERIVE                 1
@@ -22,6 +23,7 @@
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT    1
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE  1
 #define PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY         1
+#define PSA_WANT_KEY_TYPE_RSA_KEY_PAIR_BASIC     1  /* the RSA key exchange insists; only public keys are used */
 
 #define MBEDTLS_PSA_CRYPTO_C
 #define MBEDTLS_PSA_DRIVER_GET_ENTROPY              /* the chip's generator, see tls.c */
@@ -36,6 +38,9 @@
 #define MBEDTLS_ASN1_WRITE_C
 
 #define MBEDTLS_HAVE_ASM
+#define MBEDTLS_HAVE_TIME                           /* certificates' dates, from SNTP (clock.c) */
+#define MBEDTLS_HAVE_TIME_DATE
+#define MBEDTLS_PLATFORM_MS_TIME_ALT
 #define MBEDTLS_PLATFORM_C
 #define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_MEMORY_BUFFER_ALLOC_C

@@ -3,20 +3,25 @@
 #include <string.h>
 
 #ifndef AXI_BSS
-#define AXI_BSS __attribute__((section(".axi_bss")))
+#define AXI_BSS __attribute__((section(".d3_bss")))     /* D3: AXI is for the TLS heap */
 #endif
 #ifndef WORKER_STACK
 #define WORKER_STACK 12288u             /* interrupts use it too while it runs */
 #endif
 #define FILL 0x5AFE57ACu
 
-static AXI_BSS union { uint64_t align; uint32_t w[WORKER_STACK / 4]; uint8_t b[WORKER_STACK]; } s_stack;
-static void *s_main_sp, *s_sp;
-static void (*s_fn)(void *);
-static void *s_arg;
-static bool s_busy, s_inside;
-static uint32_t s_from, s_slices, s_longest;
-
+typedef struct {
+    union { uint64_t align; uint32_t w[WORKER_STACK / 4]; uint8_t b[WORKER_STACK]; } stack;
+    void *sp;
+    void (*fn)(void *);
+    void *arg;
+    bool busy;
+    uint32_t slices, longest;
+} job_t;
+static AXI_BSS job_t s_w[WORKERS];
+static void *s_main_sp;
+static job_t *s_cur;                    /* the one running, or NULL in the main loop */
+static uint32_t s_from;
 /* Saves what a call must preserve, keeps this stack in *save, and carries on from
  * whatever was saved at `load`. */
 void worker_swap(void **save, void *load);
@@ -54,59 +59,68 @@ typedef uint64_t reg_t;
 
 static void entry(void)
 {
-    s_fn(s_arg);
-    s_busy = false;
-    worker_swap(&s_sp, s_main_sp);
+    job_t *j = s_cur;
+    j->fn(j->arg);
+    j->busy = false;
+    worker_swap(&j->sp, s_main_sp);
     for (;;) { }                        /* never resumed */
 }
 
-bool worker_start(void (*fn)(void *), void *arg)
+bool worker_start(int w, void (*fn)(void *), void *arg)
 {
-    if (s_busy) return false;
-    for (uint32_t i = 0; i < WORKER_STACK / 4; i++) s_stack.w[i] = FILL;
-    reg_t *sp = (reg_t *)(void *)(s_stack.b + WORKER_STACK) - 2 - FRAME;   /* 8-byte aligned on entry */
+    job_t *j = &s_w[w];
+    if (j->busy) return false;
+    for (uint32_t i = 0; i < WORKER_STACK / 4; i++) j->stack.w[i] = FILL;
+    reg_t *sp = (reg_t *)(void *)(j->stack.b + WORKER_STACK) - 2 - FRAME;   /* 8-byte aligned on entry */
 #if defined(__aarch64__)
     sp = (reg_t *)((uintptr_t)sp & ~(uintptr_t)15);
 #endif
     memset(sp, 0, FRAME * sizeof *sp);
     sp[FRAME_LR] = (reg_t)(uintptr_t)entry;
-    s_sp = sp;
-    s_fn = fn;
-    s_arg = arg;
-    s_busy = true;
+    j->sp = sp;
+    j->fn = fn;
+    j->arg = arg;
+    j->busy = true;
     return true;
 }
 
-bool worker_busy(void) { return s_busy; }
+bool worker_busy(int w) { return s_w[w].busy; }
+bool worker_inside(int w) { return s_cur == &s_w[w]; }
 
 static uint32_t us_since(uint32_t t) { return (DWT->CYCCNT - t) / (SystemCoreClock / 1000000u); }
 
-void worker_poll(void)
+void worker_poll(int w)
 {
-    if (!s_busy) return;
+    job_t *j = &s_w[w];
+    if (!j->busy || s_cur) return;
     s_from = DWT->CYCCNT;
-    s_inside = true;
-    worker_swap(&s_main_sp, s_sp);
-    s_inside = false;
+    s_cur = j;
+    worker_swap(&s_main_sp, j->sp);
+    s_cur = NULL;
     uint32_t us = us_since(s_from);
-    if (us > s_longest) s_longest = us;
-    s_slices++;
+    if (us > j->longest) j->longest = us;
+    j->slices++;
     /* Ran off the end of its stack: what lies below it is no longer to be trusted. */
-    if (s_stack.w[0] != FILL) NVIC_SystemReset();
+    if (j->stack.w[0] != FILL) NVIC_SystemReset();
+}
+
+void worker_yield(void)
+{
+    if (s_cur) worker_swap(&s_cur->sp, s_main_sp);
 }
 
 void worker_breathe(void)
 {
-    if (!s_inside || us_since(s_from) < WORKER_SLICE_US) return;
-    worker_swap(&s_sp, s_main_sp);
+    if (s_cur && us_since(s_from) >= WORKER_SLICE_US) worker_yield();
 }
 
-void worker_stats(worker_stats_t *o)
+void worker_stats(int w, worker_stats_t *o)
 {
+    const job_t *j = &s_w[w];
     uint32_t n = 0;
-    while (n < WORKER_STACK / 4 && s_stack.w[n] == FILL) n++;
-    o->slices = s_slices;
-    o->longest_us = s_longest;
-    o->stack_used = s_slices ? WORKER_STACK - 4 * n : 0;
+    while (n < WORKER_STACK / 4 && j->stack.w[n] == FILL) n++;
+    o->slices = j->slices;
+    o->longest_us = j->longest;
+    o->stack_used = j->slices ? WORKER_STACK - 4 * n : 0;
     o->stack_size = WORKER_STACK;
 }

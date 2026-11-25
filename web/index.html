@@ -152,7 +152,16 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <p class="hint">The key is made here and stays here. Public certificates list the name publicly.</p></form>
   <form id="tlscert" style="margin-top:22px" hidden><label>Signing request<textarea id="tlscsr" rows="8" readonly spellcheck="false"></textarea></label>
   <label style="margin:16px 0">Certificate chain (PEM)<input type="file" name="file" accept=".pem,.crt,.cer" required></label>
-  <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div></div>
+  <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div>
+ <div class="two"><section><h3>Renewal</h3><dl class="list" id="acmeinfo"></dl>
+  <div class="acts" style="margin-top:18px"><button id="acmetest" type="button">Test on staging</button><button id="acmenow" type="button">Renew now</button><p class="msg" id="acmemsg" role="status"></p></div>
+  <p class="hint">Let's Encrypt, proving the name with a DNS record in Route 53. The key should be allowed that one record and nothing else.</p></section>
+ <section><h3>Route 53</h3><form id="acme"><div class="grid-f" style="margin-bottom:14px">
+  <label>Hosted zone ID<input name="zone" autocomplete="off" spellcheck="false" maxlength="31" placeholder="Z0123456789ABC"></label>
+  <label>Access key ID<input name="key_id" autocomplete="off" spellcheck="false" maxlength="31"></label>
+  <label class="wide">Secret access key<input name="secret" type="password" autocomplete="off" maxlength="63"></label></div>
+  <div class="checks" style="margin-bottom:16px"><label class="check"><input type="checkbox" name="auto"><span>Renew automatically<span>When a third of the certificate's life is left.</span></span></label></div>
+  <div class="acts"><button class="primary">Save renewal</button><p class="msg" role="status"></p></div></form></section></div></div>
  <div id="p-mqtt" hidden><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>Publishes the ports' state and traffic.</span></span></label></div>
   <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
@@ -246,11 +255,11 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,#tlson,#tlsforget,#tlsreq button,#tlscert button"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,#tlson,#tlsforget,#tlsreq button,#tlscert button,#acme button"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
- for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+ for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg,#acme .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
 
 /* ---- port settings ---- */
@@ -563,7 +572,25 @@ async function https(force){const now=performance.now();if(page!=="network"||(!f
  $("tlson").textContent=t.on?"Turn off":"Turn on";$("tlsforget").hidden=t.kind==="none"&&!t.request;
  $("tlscert").hidden=!t.csr;
  if(t.csr&&$("tlscsr").dataset.n!==t.request){try{$("tlscsr").value=pem((await getj("/api/tls/csr")).csr,"CERTIFICATE REQUEST");$("tlscsr").dataset.n=t.request}catch(e){}}
- if(!$("tlsreq").elements.name.value&&t.request)$("tlsreq").elements.name.value=t.request}
+ if(!$("tlsreq").elements.name.value&&t.request)$("tlsreq").elements.name.value=t.request;renewal()}
+let acme=null,acmeWatch=0;
+async function renewal(){try{acme=await getj("/api/acme")}catch(e){return}const a=acme,e=$("acme").elements,ago=s=>s<0?"":" "+dur(s)+" ago";
+ const due=a.name?(a.due_in_s<=0?"Due now":"In "+dur(a.due_in_s)):"No issued certificate";
+ fillDl($("acmeinfo"),[["Clock",a.clock?a.clock.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC"):el("span",{class:"warn"},"Not set yet"),a.clock?sub("synced"+ago(a.clock_s)):null],
+  ["Automatic",a.auto?"On":"Off"],["Next renewal",a.auto?due:"Off",a.auto&&a.name?sub(a.name):null],
+  ["Now",a.running?(a.staging?"Testing: ":"")+a.step+"…":"Idle"],["Last result",a.result?el("span",{class:/^(Renewed|Test passed)/.test(a.result)?"ok":"bad"},a.result):"None yet",a.result_s>=0?sub(dur(a.result_s)+" ago"):null]]);
+ for(const k of ["zone","key_id"])if(document.activeElement!==e[k]&&!e[k].dataset.edited)e[k].value=a[k];
+ if(!e.auto.dataset.edited)e.auto.checked=a.auto;e.secret.placeholder=a.secret_set?"Saved; type to replace":"";
+ $("acmenow").disabled=$("acmetest").disabled=!key||a.running;
+ clearTimeout(acmeWatch);if(a.running)acmeWatch=setTimeout(renewal,1500)}
+for(const n of ["zone","key_id","auto"])$("acme").elements[n].addEventListener("input",ev=>ev.target.dataset.edited=1);
+$("acme").onsubmit=async ev=>{ev.preventDefault();const e=$("acme").elements,m=$("acme").querySelector(".msg"),sec=utf(e.secret.value),k=key;
+ if(sec.length>63)return say(m,"That secret is too long.","bad");
+ const L="zone="+e.zone.value.trim()+"\nkey_id="+e.key_id.value.trim()+"\nauto="+(e.auto.checked?1:0);
+ say(m,"Saving…");try{await post("/api/acme",L,sec.length?nonce=>{const pad=cat(hmac(k,utf("acmesec0\n"+nonce)),hmac(k,utf("acmesec1\n"+nonce))),v=new Uint8Array(64);v.set(sec);
+   return L+"\nsecret_enc="+hex(v.map((x,i)=>x^pad[i]))}:null);e.secret.value="";for(const n of ["zone","key_id","auto"])delete e[n].dataset.edited;say(m,"Saved.","ok");renewal()}catch(x){say(m,x.message,"bad")}};
+for(const [id,cmd,txt] of [["acmetest","test","Testing against Let's Encrypt's staging service…"],["acmenow","renew","Renewing…"]])
+ $(id).onclick=async()=>{const m=$("acmemsg");say(m,txt);try{await post("/api/acme",cmd);say(m,"");renewal()}catch(x){say(m,x.message,"bad")}};
 async function tlsDo(body,m,done){say(m,"Working…");
  try{await post("/api/tls",body);for(let k=0;k<60;k++){await pause(400);try{await https(true)}catch(e){}if(tls&&!tls.busy)break}
   if(tls.error)throw new Error(tls.error);say(m,done,"ok")}catch(e){say(m,e.message,"bad")}}

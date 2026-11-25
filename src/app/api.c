@@ -7,6 +7,7 @@
 #include "history.h"
 #include "fwlib.h"
 #include "tls.h"
+#include "acme.h"
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
@@ -170,6 +171,7 @@ int api_get(const char *path, char *out, size_t max)
     if (!strncmp(path, "/api/access/", 12) && path[12] >= '1' && path[12] <= '0' + PORTS && !path[13])
         return (int)bridge_access_json(path[12] - '1', out, max);
     if (!strcmp(path, "/api/tls")) return (int)tls_json(out, max);
+    if (!strcmp(path, "/api/acme")) return (int)acme_json(out, max);
     if (!strcmp(path, "/api/tls/csr")) return (int)tls_csr(out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
@@ -431,7 +433,7 @@ bool api_is_post(const char *path)
 {
     return !strcmp(path, "/api/config") || !strcmp(path, "/api/password") ||
            !strcmp(path, "/api/keep") || !strcmp(path, "/api/check") || !strcmp(path, "/api/cli") ||
-           !strcmp(path, "/api/tls");
+           !strcmp(path, "/api/tls") || !strcmp(path, "/api/acme");
 }
 
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
@@ -442,6 +444,29 @@ const char *api_post(const char *path, api_req_t *rq, char *out, size_t max)
         return "200 OK";
     }
     if (!strcmp(path, "/api/password")) return post_password(rq, out, max);
+    if (!strcmp(path, "/api/acme")) {
+        /* "secret_enc=<128 hex>": 64 zero-padded bytes XORed with HMAC(key, "acmesec0\n" nonce)
+         * and HMAC(key, "acmesec1\n" nonce), as for the MQTT password. */
+        static const char K[] = "secret_enc=";
+        uint8_t v[64], pad[64];
+        char *p = strstr(rq->body, K);
+        bool have = p != NULL;
+        if (have) {
+            if ((p != rq->body && p[-1] != '\n') || !unhex(p + sizeof K - 1, v, 64)) { snprintf(out, max, "That secret cannot be used"); return "400 Bad Request"; }
+            hmac_sha256(rq->key, "acmesec0\n", 9, rq->nonce, strlen(rq->nonce), pad);
+            hmac_sha256(rq->key, "acmesec1\n", 9, rq->nonce, strlen(rq->nonce), pad + 32);
+            for (int i = 0; i < 64; i++) v[i] ^= pad[i];
+            char *e = strchr(p, '\n');
+            if (e) memmove(p, e + 1, strlen(e + 1) + 1);
+            else *p = 0;
+            size_t l = strlen(rq->body);
+            if (l && rq->body[l - 1] == '\n') rq->body[l - 1] = 0;
+        }
+        const char *why = acme_command(rq->body, have ? v : NULL, sizeof v);
+        memset(v, 0, sizeof v);
+        snprintf(out, max, "%s", why ? why : "{}");
+        return why ? "400 Bad Request" : "200 OK";
+    }
     if (!strcmp(path, "/api/tls")) {
         const char *why = tls_command((const uint8_t *)rq->body, rq->len);
         snprintf(out, max, "%s", why ? why : "{}");

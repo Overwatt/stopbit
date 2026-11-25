@@ -23,13 +23,13 @@
 #define MEMP_NUM_TCP_PCB            32
 #define MEMP_NUM_TCP_PCB_LISTEN     8
 #define MEMP_NUM_TCP_SEG            96
-#define MEMP_NUM_UDP_PCB            9
+#define MEMP_NUM_UDP_PCB            10
 #else
 #define MEMP_NUM_TCP_PCB            12
 #define MEMP_NUM_TCP_PCB_LISTEN     6
 #define MEMP_NUM_TCP_SEG            32
 #endif
-#define MEMP_NUM_SYS_TIMEOUT        20
+#define MEMP_NUM_SYS_TIMEOUT        22
 #define SO_REUSE                    1
 #define PBUF_POOL_SIZE              20
 #define PBUF_POOL_BUFSIZE           1536
@@ -51,6 +51,14 @@
 #define LWIP_DNS                    0
 #endif
 #define LWIP_NETIF_HOSTNAME         1
+#ifdef APP_IMAGE                    /* the time, for checking certificates and signing to AWS */
+#define LWIP_DHCP_GET_NTP_SRV       1
+#define LWIP_DHCP_MAX_NTP_SERVERS   2
+#define SNTP_SERVER_DNS             1
+#define SNTP_SET_SYSTEM_TIME(sec)   clock_set((uint32_t)(sec))
+#include <stdint.h>
+void clock_set(uint32_t unix_s);
+#endif
 #define LWIP_DNS_SUPPORT_MDNS_QUERIES 1      /* so homeassistant.local works */
 
 #define MQTT_OUTPUT_RINGBUF_SIZE    4096

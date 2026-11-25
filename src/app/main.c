@@ -14,6 +14,8 @@
 #include "board_init.h"
 #include "hwinfo.h"
 #include "tls.h"
+#include "acme.h"
+#include "clock.h"
 #include "bridge.h"
 #include "api.h"
 
@@ -87,12 +89,15 @@ int main(void)
     extflash_meanwhile(meanwhile);
     http_init();
     tls_init();
+    acme_init();
+    clock_init();
     for (;;) {
         hwinfo_loop();
         wdt_feed();
         net_poll();
         http_poll();
         tls_poll();
+        acme_poll();
         bridge_poll();
         api_poll();
         supervise();

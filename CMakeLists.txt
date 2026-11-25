@@ -80,7 +80,7 @@ file(GLOB LWIP_SRC
     "${lwip_SOURCE_DIR}/src/core/ipv4/*.c"
     "${lwip_SOURCE_DIR}/src/apps/mdns/*.c")
 list(APPEND LWIP_SRC "${lwip_SOURCE_DIR}/src/netif/ethernet.c")
-set(LWIP_MQTT_SRC "${lwip_SOURCE_DIR}/src/apps/mqtt/mqtt.c")
+set(LWIP_MQTT_SRC "${lwip_SOURCE_DIR}/src/apps/mqtt/mqtt.c" "${lwip_SOURCE_DIR}/src/apps/sntp/sntp.c")
 
 # ---------------------------------------------------------------------------
 # mbedTLS (app only). The calls a handshake spends its time in are renamed where they
@@ -143,7 +143,7 @@ function(n540_image name ldscript)
     set_target_properties(${name}.elf PROPERTIES LINK_DEPENDS
         "${CMAKE_SOURCE_DIR}/linker/${ldscript};${CMAKE_SOURCE_DIR}/linker/sections.ld")
     add_custom_command(TARGET ${name}.elf POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} -O binary -R .dma_d2 -R .d2_bss -R .axi_bss -R .axi_hi $<TARGET_FILE:${name}.elf> ${name}.bin
+        COMMAND ${CMAKE_OBJCOPY} -O binary -R .dma_d2 -R .d2_bss -R .axi_bss -R .d3_bss $<TARGET_FILE:${name}.elf> ${name}.bin
         COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${name}.elf>)
 endfunction()
 

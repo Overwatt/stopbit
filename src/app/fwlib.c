@@ -26,7 +26,7 @@ _Static_assert(SECTOR + STAGE_SIZE <= SPACE, "library space too small");
 _Static_assert(sizeof(slot_hdr_t) <= OFF_TRIED, "header overlaps the marks");
 
 #ifndef AXI_BSS
-#define AXI_BSS __attribute__((section(".axi_bss")))
+#define AXI_BSS __attribute__((section(".d3_bss")))
 #endif
 static AXI_BSS uint8_t s_ring[FWLIB_RING];
 static uint32_t s_head, s_count;

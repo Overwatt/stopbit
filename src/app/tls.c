@@ -1,6 +1,7 @@
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS     /* x509_crt.own_buffer, for the certificates we only pass on */
 #include "tls.h"
 #include "worker.h"
+#include "clock.h"
 #include "extflash.h"
 #include "sha256.h"
 #include "net.h"
@@ -19,13 +20,8 @@
 
 #ifndef AXI_BSS
 #define AXI_BSS __attribute__((section(".axi_bss")))
-#define AXI_HI  __attribute__((section(".axi_hi")))
-#endif
-#ifndef AXI_HI
-#define AXI_HI
 #endif
 #define TLS_MAX      4
-#define TLS_HEAP     (124u * 1024u)      /* 4 connections, one of them in a handshake */
 #define SHAKE_MS     20000u
 #define REQUEST_MS   20000u
 #define IDLE_MS      60000u
@@ -41,7 +37,7 @@
 #define SECTORS 2u                       /* per copy */
 static const uint32_t ADDR[2] = { 0x0F4000u, 0x0F6000u };
 #define KEYS_FROM 0x0F4000u
-#define KEYS_TO   0x0F8000u
+#define KEYS_TO   0x0F8000u              /* acme.c masks its own */
 
 enum { CERT_NONE, CERT_SELF, CERT_ISSUED };
 typedef struct {
@@ -118,7 +114,16 @@ void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n)
 }
 
 /* ---- mbedTLS --------------------------------------------------------------- */
-static AXI_HI uint64_t s_heap[TLS_HEAP / 8];
+/* The heap is whatever AXI SRAM the image and its buffers leave (linker/app_ram.ld). */
+#ifdef TLS_HEAP
+static uint64_t s_heap[TLS_HEAP / 8];
+#define HEAP_AT   ((unsigned char *)s_heap)
+#define HEAP_SIZE sizeof s_heap
+#else
+extern uint8_t _eaxi;
+#define HEAP_AT   ((unsigned char *)(((uintptr_t)&_eaxi + 31u) & ~(uintptr_t)31u))
+#define HEAP_SIZE (0x24080000u - (uint32_t)(uintptr_t)HEAP_AT)
+#endif
 static mbedtls_ssl_config       s_conf;
 static mbedtls_ssl_ticket_context s_tick;
 static mbedtls_x509_crt         s_crt;
@@ -478,14 +483,14 @@ static void start_shake(void)
             if (mbedtls_ssl_setup(&t->ssl, &s_conf)) { s_failed++; finish(t); continue; }     /* out of memory */
             mbedtls_ssl_set_bio(&t->ssl, t, bio_send, bio_recv, NULL);
             worker_stats_t w;
-            worker_stats(&w);
+            worker_stats(WORKER_TLS, &w);
             t->slices0 = w.slices;
         }
         turn = (turn + k + 1) % TLS_MAX;
         t->state = T_SHAKE;
         s_shaking = t;
         s_job = JOB_SHAKE;
-        worker_start(shake, t);
+        worker_start(WORKER_TLS, shake, t);
         return;
     }
 }
@@ -497,7 +502,7 @@ static void shaken(struct tls *t)
     if (t->pcb) tcp_output(t->pcb);
     if (t->ret == MBEDTLS_ERR_SSL_WANT_READ || t->ret == MBEDTLS_ERR_SSL_WANT_WRITE) return;
     if (t->ret) { s_failed++; finish(t); return; }
-    worker_stats(&w);
+    worker_stats(WORKER_TLS, &w);
     s_shakes++;
     s_last_ms = HAL_GetTick() - t->since;
     s_last_slices = w.slices - t->slices0;
@@ -571,13 +576,13 @@ static void service(struct tls *t)
 }
 
 /* ---- on and off ------------------------------------------------------------------ */
-static const int SUITES[] = { MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 };
+static const int SUITES[] = { MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0 };   /* as a server */
 static const uint16_t GROUPS[] = { MBEDTLS_SSL_IANA_TLS_GROUP_SECP256R1, MBEDTLS_SSL_IANA_TLS_GROUP_NONE };
 
 static bool setup(void)
 {
     if (s_ready) return true;
-    mbedtls_memory_buffer_alloc_init((unsigned char *)s_heap, sizeof s_heap);
+    mbedtls_memory_buffer_alloc_init(HEAP_AT, HEAP_SIZE);
     mbedtls_x509_crt_init(&s_crt);
     mbedtls_pk_init(&s_key);
     mbedtls_ssl_config_init(&s_conf);
@@ -647,8 +652,8 @@ void tls_init(void)
 void tls_poll(void)
 {
     if (!s_ready) return;
-    worker_poll();
-    if (s_job != JOB_NONE && !worker_busy()) {
+    worker_poll(WORKER_TLS);
+    if (s_job != JOB_NONE && !worker_busy(WORKER_TLS)) {
         uint8_t j = s_job;
         s_job = JOB_NONE;
         if (j == JOB_SHAKE) shaken(s_shaking);
@@ -667,7 +672,7 @@ void tls_poll(void)
         if (s_next != JOB_NONE) {
             s_job = s_next;
             s_next = JOB_NONE;
-            worker_start(run_job, NULL);
+            worker_start(WORKER_TLS, run_job, NULL);
         } else if (s_live) {
             if (HAL_GetTick() - s_tick_at > TICKET_MS) {        /* no clock, so on a timer */
                 uint8_t r[20];
@@ -738,7 +743,7 @@ const char *tls_command(const uint8_t *body, size_t len)
     size_t n = 0;
     if (s_job != JOB_NONE && s_job != JOB_SHAKE) return "Still preparing; try again in a moment";
     if (s_next != JOB_NONE || s_soon) return "Still preparing; try again in a moment";
-    if (worker_busy()) return "Busy; try again";        /* certificates are shared with a handshake */
+    if (worker_busy(WORKER_TLS)) return "Busy; try again";        /* certificates are shared with a handshake */
     if (len > 5 && !memcmp(body, "cert\n", 5)) return setup() ? take_cert(body + 5, len - 5) : s_err;
     while (n < len && n + 1 < sizeof cmd && body[n] >= 0x20 && body[n] < 0x7f) { cmd[n] = (char)body[n]; n++; }
     cmd[n] = 0;
@@ -766,6 +771,42 @@ const char *tls_command(const uint8_t *body, size_t len)
     if (!save()) return "Could not write to flash";
     activate_soon();
     return NULL;
+}
+
+static uint32_t unix_of(const mbedtls_x509_time *t)
+{
+    return (uint32_t)clock_days(t->year, t->mon, t->day) * 86400u + (uint32_t)(t->hour * 3600 + t->min * 60 + t->sec);
+}
+
+const char *tls_issued(uint32_t *from, uint32_t *to)
+{
+    if (!s_live || s_rec.b.kind != CERT_ISSUED) return NULL;
+    *from = unix_of(&s_crt.valid_from);
+    *to = unix_of(&s_crt.valid_to);
+    return s_rec.b.name;
+}
+
+void tls_heap(size_t *now, size_t *peak)
+{
+    size_t blocks;
+    *now = *peak = 0;
+    if (!s_ready) return;
+    mbedtls_memory_buffer_alloc_cur_get(now, &blocks);
+    mbedtls_memory_buffer_alloc_max_get(peak, &blocks);
+}
+
+const char *tls_requested(void) { return s_rec.b.req ? s_rec.b.req_name : NULL; }
+
+bool tls_busy(void)
+{
+    return (s_job != JOB_NONE && s_job != JOB_SHAKE) || s_next != JOB_NONE || s_soon || worker_busy(WORKER_TLS);
+}
+
+size_t tls_csr_der(uint8_t *out, size_t max)
+{
+    if (!s_csr_len || s_csr_len > max) return 0;
+    memcpy(out, s_csr, s_csr_len);
+    return s_csr_len;
 }
 
 const char *tls_name(void) { return s_live && s_rec.b.kind == CERT_ISSUED ? s_rec.b.name : NULL; }
@@ -812,7 +853,7 @@ size_t tls_json(char *out, size_t max)
         snprintf(until, sizeof until, "%04u-%02u-%02u", (unsigned)s_crt.valid_to.year % 10000u, (unsigned)s_crt.valid_to.mon % 100u, (unsigned)s_crt.valid_to.day % 100u);
     }
     for (int i = 0; i < TLS_MAX; i++) open += s_t[i].state != T_FREE;
-    worker_stats(&w);
+    worker_stats(WORKER_TLS, &w);
     bool busy = (s_job != JOB_NONE && s_job != JOB_SHAKE) || s_next != JOB_NONE || s_soon;
     OUT("{\"on\":%s,\"live\":%s,\"busy\":%s,\"kind\":\"%s\",\"name\":\"%s\",\"until\":\"%s\",\"sha256\":\"%s\",\"error\":\"%s\",",
         b->enabled ? "true" : "false", s_live ? "true" : "false", busy ? "true" : "false", KIND[b->kind % 3], b->name, until, fp, s_err);
@@ -820,7 +861,7 @@ size_t tls_json(char *out, size_t max)
         "\"last_ms\":%lu,\"last_slices\":%lu,\"slice_us\":%lu,\"stack\":[%lu,%lu],\"heap\":[%lu,%lu,%lu]}\n",
         b->req ? b->req_name : "", s_csr_len ? "true" : "false", open, (unsigned long)s_shakes, (unsigned long)s_failed,
         (unsigned long)s_refused, (unsigned long)s_last_ms, (unsigned long)s_last_slices, (unsigned long)w.longest_us,
-        (unsigned long)w.stack_used, (unsigned long)w.stack_size, (unsigned long)used, (unsigned long)peak, (unsigned long)TLS_HEAP);
+        (unsigned long)w.stack_used, (unsigned long)w.stack_size, (unsigned long)used, (unsigned long)peak, (unsigned long)HEAP_SIZE);
     return n;
 #undef OUT
 }

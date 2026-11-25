@@ -48,6 +48,7 @@
 #include "cli.h"
 #include "fwlib.h"
 #include "tls.h"
+#include "acme.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
 #define BODY_MAX   4608            /* a certificate chain */
@@ -82,7 +83,7 @@ typedef struct {
 #ifdef APP_IMAGE
     char     path[32], nonce[33];
     const uint8_t *key;
-    char     body[BODY_MAX];
+    char    *body;               /* from s_bodies, while a request has one */
     uint32_t held;               /* upload bytes not yet acknowledged to the sender */
     const char *why;             /* upload refused; the rest is read and dropped */
     tls_t   *tls;                /* on port 443: pcb is NULL */
@@ -91,6 +92,25 @@ typedef struct {
 } conn_t;
 
 static CONN_MEM conn_t s_conn[MAX_CONN];
+#ifdef APP_IMAGE
+/* Only signed requests have a body worth keeping, and they come one at a time. */
+#define BODIES 2
+static CONN_MEM char s_bodies[BODIES][BODY_MAX];
+static conn_t *s_body_of[BODIES];
+
+static char *body_get(conn_t *c)
+{
+    for (int i = 0; i < BODIES; i++)
+        if (!s_body_of[i]) { s_body_of[i] = c; return s_bodies[i]; }
+    return NULL;
+}
+
+static void body_put(conn_t *c)
+{
+    for (int i = 0; i < BODIES; i++) if (s_body_of[i] == c) s_body_of[i] = NULL;
+    c->body = NULL;
+}
+#endif
 static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
 #ifdef APP_IMAGE
@@ -245,6 +265,7 @@ static void conn_free(conn_t *c)
 {
     if (s_stage_owner == c) s_stage_owner = NULL;
 #ifdef APP_IMAGE
+    body_put(c);
     if (s_fw == c) {                         /* cut off mid-upload; a complete one carries on */
         s_fw = NULL;
         if (c->state == ST_BODY) fwlib_cancel();
@@ -271,6 +292,7 @@ static err_t conn_close(conn_t *c)
             c->resp_len = c->resp_off = c->fl_left = c->mem_left = 0;
             c->why = NULL;
             c->keep = false;
+            body_put(c);
             return ERR_OK;
         }
         conn_free(c);
@@ -305,6 +327,7 @@ static err_t pump(conn_t *c)
         extflash_read(c->fl_dev, c->fl_off, buf, n);
 #ifdef APP_IMAGE
         tls_mask(c->fl_dev, c->fl_off, buf, n);
+        acme_mask(c->fl_dev, c->fl_off, buf, n);
 #endif
         if (!out_put(c, buf, n, TCP_WRITE_FLAG_COPY)) goto out;
         c->fl_off += n;
@@ -615,6 +638,10 @@ static err_t on_request(conn_t *c)
     if (max && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
     if (s_action != ACT_NONE) return fail(c, "409 Conflict", "busy");
     if (!authorised(c, line, path)) return fail(c, "401 Unauthorized", "bad auth");
+#ifdef APP_IMAGE
+    if ((act == ACT_API || act == ACT_ROLLBACK) && !(c->body = body_get(c)))
+        return fail(c, "503 Service Unavailable", "busy; try again");
+#endif
 
     c->action = act;
     c->body_got = 0;
