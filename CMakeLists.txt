@@ -133,4 +133,6 @@ endforeach()
 
 n540_image(app app_ram.ld
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC})
-target_compile_definitions(app.elf PRIVATE APP_IMAGE)
+# -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.
+set(APP_TEST "" CACHE STRING "broken-app variant for rollback tests")
+target_compile_definitions(app.elf PRIVATE APP_IMAGE ${APP_TEST})

@@ -54,6 +54,11 @@ int main(void)
     wdt_feed();
     bkp_init();
     extflash_init();
+#if defined(TEST_HANG)                     /* rollback test: watchdog reset */
+    for (;;) { }
+#elif defined(TEST_NONET)                  /* rollback test: alive, unreachable */
+    for (;;) { wdt_feed(); if (HAL_GetTick() > 15000u) NVIC_SystemReset(); }
+#endif
     net_init();
     http_init();
     for (;;) {
