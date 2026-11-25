@@ -5,5 +5,6 @@
 #include <stdbool.h>
 
 void   hwinfo_init(void);
+void   hwinfo_poll(void);                    /* watches the reload button */
 size_t hwinfo_json(char *out, size_t max);   /* length, or 0 if it does not fit */
 #endif

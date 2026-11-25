@@ -39,6 +39,10 @@
 #define BOARD_LED_PORT          GPIOA        /* stock blinks PA3 */
 #define BOARD_LED_PIN           GPIO_PIN_3
 
+/* Reload button: to ground, pull-up in the chip (stock reload.c). */
+#define BOARD_BUTTON_PORT       GPIOA
+#define BOARD_BUTTON_PIN        GPIO_PIN_8
+
 /* ---- RS485 ports ---------------------------------------------------------
  * Four half-duplex RS485 ports. Each is a USART/UART plus a GPIO "driver
  * enable" (DE) line: drive DE high to transmit, low to receive.

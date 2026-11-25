@@ -33,8 +33,32 @@ static bool wait_set(volatile uint32_t *r, uint32_t bit, bool want)
     return true;
 }
 
+/* ---- reload button: reported, does nothing yet ---------------------------- */
+#define DEBOUNCE_MS 30u
+static bool     s_down, s_raw;
+static uint32_t s_raw_at, s_down_at, s_presses, s_held_ms;
+
+static void button_init(void)
+{
+    GPIO_InitTypeDef g = { .Pin = BOARD_BUTTON_PIN, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLUP };
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    HAL_GPIO_Init(BOARD_BUTTON_PORT, &g);
+}
+
+void hwinfo_poll(void)
+{
+    uint32_t now = HAL_GetTick();
+    bool raw = !(BOARD_BUTTON_PORT->IDR & BOARD_BUTTON_PIN);
+    if (raw != s_raw) { s_raw = raw; s_raw_at = now; }
+    if (raw == s_down || now - s_raw_at < DEBOUNCE_MS) return;
+    s_down = raw;
+    if (raw) { s_presses++; s_down_at = s_raw_at; }
+    else s_held_ms = s_raw_at - s_down_at;
+}
+
 void hwinfo_init(void)
 {
+    button_init();
     if (!(RCC->CR & RCC_CR_HSIRDY)) return;                 /* per_ck, below */
     RCC->AHB4ENR |= RCC_AHB4ENR_ADC3EN;
     (void)RCC->AHB4ENR;
@@ -97,7 +121,8 @@ size_t hwinfo_json(char *out, size_t max)
     if (measure())
         OUT(",\"temp_c\":%s%ld.%ld,\"mv\":%ld", s_decic < 0 ? "-" : "",
             labs(s_decic) / 10, labs(s_decic) % 10, (long)s_mv);
-    OUT("},\"flash\":[");
+    OUT("},\"button\":{\"pressed\":%s,\"presses\":%lu,\"held_ms\":%lu},\"flash\":[",
+        s_down ? "true" : "false", U(s_presses), U(s_held_ms));
     for (int i = 0; i < EXTFLASH_COUNT; i++) OUT("%s\"0x%06lx\"", i ? "," : "", U(extflash_id(i)));
     OUT("],\"eth\":{\"phy_id\":\"0x%08lx\",\"phy_addr\":%lu,\"link\":%s,\"speed\":%d,\"full_duplex\":%s,"
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu}",
