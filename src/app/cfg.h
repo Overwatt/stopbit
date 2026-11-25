@@ -39,6 +39,7 @@ typedef struct {
     char     host[48], user[64], password[64];
     uint8_t  enabled;
     uint8_t  control;              /* accept changes over MQTT */
+    uint8_t  no_announce;          /* no HA discovery. Was padding, always 0 */
 } mqtt_cfg_t;
 
 typedef struct {

@@ -65,6 +65,7 @@ static uint32_t s_retry_at, s_backoff, s_gen;
 static const char *s_err = "";
 static int      s_disc;                 /* next entity to announce; NENT = done */
 static bool     s_online, s_sub, s_lost, s_leaving;
+static bool     s_withdrawn;            /* not announcing, and HA has been told once */
 static mqtt_connection_status_t s_lost_why;
 static uint32_t s_port_hash[PORTS], s_port_cnt[PORTS], s_port_at[PORTS], s_dev_hash;
 static char     s_reject[96];           /* last refused command */
@@ -155,7 +156,7 @@ static void cb_conn(mqtt_client_t *c, void *arg, mqtt_connection_status_t st)
         s_state = M_UP;
         s_err = "";
         s_backoff = 0;
-        s_disc = 0;
+        s_disc = s_run.no_announce && s_withdrawn ? NENT : 0;
         s_online = s_sub = false;
         s_dev_hash = 0;
         memset(s_port_hash, 0, sizeof s_port_hash);
@@ -234,8 +235,9 @@ void mqtt_ha_configure(const cfg_t *c)
     bool same_conn = m->port == s_run.port && !strcmp(m->host, s_run.host) &&
                      !strcmp(m->user, s_run.user) && !strcmp(m->password, s_run.password);
 
-    if (strcmp(s_name, c->device_name) || m->control != s_run.control) {
-        s_disc = 0;                             /* announce again */
+    if (strcmp(s_name, c->device_name) || m->control != s_run.control || m->no_announce != s_run.no_announce) {
+        if (m->no_announce != s_run.no_announce) s_withdrawn = false;
+        s_disc = m->no_announce && s_withdrawn ? NENT : 0;      /* announce again */
         s_sub = false;
         memcpy(s_name, c->device_name, sizeof s_name);
     }
@@ -272,7 +274,7 @@ static bool announce(int n, bool remove)
     if (dev) snprintf(obj, sizeof obj, "%s", e->key);
     else snprintf(obj, sizeof obj, "port%d_%s", port, e->key);
     snprintf(topic, sizeof topic, "homeassistant/%s/%s/%s/config", e->comp, g_hostname, obj);
-    if (remove || ((e->flags & CTRL) && !s_run.control)) return pub(topic, "", true);
+    if (remove || s_run.no_announce || ((e->flags & CTRL) && !s_run.control)) return pub(topic, "", true);
 
     char st[16], label[40];
     if (dev) { strcpy(st, "device"); snprintf(label, sizeof label, "%s", e->name); }
@@ -394,7 +396,7 @@ void mqtt_ha_poll(const cfg_t *c)
     if (s_state != M_UP || !mqtt_client_is_connected(&s_c)) return;
 
     if (s_disc < NENT) {                        /* a few per pass: keep the bridge live */
-        if (announce(s_disc, false)) s_disc++;
+        if (announce(s_disc, false) && ++s_disc == NENT) s_withdrawn = s_run.no_announce;
         return;
     }
     for (int i = 0; i < PORTS; i++)

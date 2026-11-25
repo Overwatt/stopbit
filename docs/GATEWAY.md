@@ -43,7 +43,8 @@ the gateway and is reached through signed requests, so there is no telnet port.
 | Page | |
 |---|---|
 | Status | a verdict, then every part with its state; a port opens beside it as a sentence, ten minutes of traffic and its readings, with its settings one press away |
-| Network | address, and Home Assistant (MQTT) |
+| Network | address |
+| MQTT | Home Assistant and the broker |
 | Hardware | chips found, processor temperature and supply, pin map, memory; device name, restart, password |
 | Firmware | upload an `app.bin`, slots, starts |
 
@@ -64,6 +65,14 @@ checked before flash is touched, and never replaces the running slot.
 **So the web password can install firmware, which is full control of the gateway.** Loader
 updates and flash dumps still need the update key. `POST /install` and `POST /confirm` are
 the endpoints; `tests/test_install.py HOST` checks the refusals.
+
+### Without Home Assistant
+
+Turn off **Announce to Home Assistant** (`mqtt.announce=0`) to publish only the data. The
+discovery entries are withdrawn once; everything else stays the same, retained:
+`HOST/port1` to `HOST/port4` and `HOST/device` (JSON), and `HOST/status` (`online`, or
+`offline` from the last will). With changes allowed, `HOST/port1/set/KEY` takes any port
+setting except `listen_only`. Firmware older than this ignores the setting and announces.
 
 ### Being told when a bus goes quiet
 

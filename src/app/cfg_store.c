@@ -9,6 +9,7 @@
 #define SIZE1  472u                     /* schema 1: cfg_t without mqtt */
 _Static_assert(offsetof(cfg_t, mqtt) == SIZE1, "schema 1 layout must not move");
 _Static_assert(sizeof(port_cfg_t) == 92 && offsetof(port_cfg_t, listen_only) == 91, "listen_only fills the padding");
+_Static_assert(sizeof(mqtt_cfg_t) == 184 && offsetof(mqtt_cfg_t, no_announce) == 182, "no_announce fills the padding");
 _Static_assert(offsetof(cfg_t, quiet) == 470, "quiet fills the padding after web_key");
 static const uint32_t ADDR[2] = { 0x0F0000u, 0x0F1000u };
 

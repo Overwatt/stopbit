@@ -327,4 +327,16 @@ finally:
     B.cleanup()
 s = json.loads(d.get("/status"))
 print(f"{sum(results)}/{len(results)} passed; crashes {s['crashes']} rx_err {s['rx_err']} tx_drop {s['tx_drop']}")
-sys.exit(0 if all(results) else 1)
+sys.exit(0 if all(results) else 1)@test
+def announce_off_keeps_the_data():
+    setcfg("mqtt.announce=0")
+    until(lambda: not any(disc().values() if isinstance(disc(), dict) else disc()), 15, "still announced")
+    msgs.pop(f"{ID}/port1", None)
+    setcfg("port1.name=plain"); until(lambda: f"{ID}/port1" in msgs, 8, "no data")
+    assert msgs.get(f"{ID}/status") == b"online"
+    setcfg("port1.name=Port 1", "mqtt.announce=1")
+    until(lambda: len(disc()) == 84, 15, f"{len(disc())} entities back")
+    return "withdrawn, data still published, announced again"
+
+
+

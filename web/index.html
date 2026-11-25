@@ -27,7 +27,7 @@ nav{display:flex;gap:6px;align-self:stretch}nav a{color:var(--shell-soft);font-w
 nav a:hover{color:#fff;border-color:var(--shell-soft)}nav a[aria-current]{color:#fff;border-color:#fff}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
 .meta{color:var(--shell-soft);margin:0}.grow{flex:1}
-header button,header button.primary{background:#fff;color:#0d4a68}header button:hover,header button.primary:hover{background:var(--shell-soft)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
+header button,header button.primary{background:#fff;color:#0d4a68}header button:hover,header button.primary:hover,header button:active,header button.primary:active{background:var(--shell-soft)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
 header input{background:#fff;color:#0b2230;border-color:#5b7f91}header input::placeholder{color:#2d5468}
 h1,h2,h3{font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}
 h1{font-size:2.125rem}h2{font-size:2.5rem}h3{font-size:1.25rem;letter-spacing:-.01em;margin:40px 0 14px}
@@ -44,7 +44,8 @@ button:disabled,button.primary:disabled{background:transparent;color:var(--soft)
 .note b,.note code{color:var(--ink)}.note button:not(:disabled){background:var(--sheet)}.note button:disabled{color:inherit;box-shadow:inset 0 0 0 1px currentColor}.note .msg{flex:0 1 auto;color:inherit}
 .app{flex:1;display:grid;grid-template-columns:400px minmax(0,1fr)}
 aside{padding:30px 20px 30px 32px}
-.vd{min-height:152px}aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.vd{min-height:152px}#verdict,#vsub{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 #vsub{margin:8px 0 20px;font-size:1.0625rem;color:var(--soft)}
 .it{display:grid;grid-template-columns:18px minmax(4.5rem,1fr) fit-content(72%);gap:12px;align-items:center;min-height:50px;padding:8px 16px;margin-bottom:4px;border-radius:8px;color:var(--ink);text-decoration:none;transition:background .15s}
 .it b{font-size:1.0625rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it em{font-style:normal;color:var(--soft);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -63,8 +64,7 @@ main>div{max-width:1000px}
 .chart svg{display:block;width:100%;height:200px;overflow:visible;touch-action:pan-y}
 .chart .grid{stroke:var(--rule)}.chart text{fill:var(--soft);font-size:13px}.chart .ln{fill:none;stroke:var(--sea);stroke-width:2;stroke-linejoin:round}.chart .ar{fill:var(--sea);opacity:.14}.chart .er{fill:var(--warn)}.chart .xh{stroke:var(--soft)}.chart .pt{fill:var(--sea);stroke:var(--well);stroke-width:2}
 .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--sheet);border-radius:6px;padding:5px 10px;font-size:.875rem;white-space:nowrap;transform:translateX(-50%)}
-details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600}
-body[data-route=mqtt] #mqttsec{order:-1}body[data-route=mqtt] #mqttsec .hint{display:none}
+details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:600}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
 dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
@@ -82,7 +82,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 [hidden]{display:none!important}
 @media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:860px){
- header .in{padding:10px 16px 0;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}nav{order:9;flex-basis:100%;gap:0;margin:0 -8px}nav a{padding:11px 10px 9px}
+ header .in{padding:10px 16px 0;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}nav{order:9;flex-basis:100%;gap:0;margin:0 -5px;justify-content:space-between}nav a{padding:11px 5px 9px;font-size:.9375rem}
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
  aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
@@ -103,7 +103,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <body data-view="list">
 <header><div class="in">
  <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111A33"/><path d="M26 56V27a13 13 0 0 1 26 0v29Z" fill="#1D2A63"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 26c8 0 8 18 17 18" stroke="#C6D0E2" stroke-width="6"/><path d="M26 56V27a13 13 0 0 1 26 0v29" stroke="#C6D0E2" stroke-width="6"/><path d="M8 46c8 0 8-18 17-18 10 0 9 10 18 10h13" stroke="#F4B23C" stroke-width="7"/></g></svg><b id="dname">N540 gateway</b>
- <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
+ <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#mqtt">MQTT</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
  <span class="grow"></span>
  <p class="meta" id="dmeta">Connecting…</p>
  <form id="login" class="acts" hidden>
@@ -127,8 +127,9 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <div id="report"><p class="say" id="psay"></p><div id="charts"></div><dl class="facts" id="pfacts"></dl>
   <details id="ptable"><summary>Traffic as a table</summary><table><thead><tr><th>Minutes ago</th><th>Heard</th><th>Sent</th><th>Errors</th></tr></thead><tbody id="ptrows"></tbody></table></details></div>
   <div id="edit" hidden></div></div>
- <div id="p-network" hidden><h2 id="nhead">Network</h2><p class="say" id="nsay"></p><div class="two">
-  <section><h3>Address</h3><dl class="list" id="netinfo" style="margin-bottom:26px"></dl><form id="net">
+ <div id="p-network" hidden><h2>Network</h2><p class="say" id="nsay"></p><div class="two">
+  <section><h3>Now</h3><dl class="list" id="netinfo"></dl></section>
+  <section><h3>Address</h3><form id="net">
   <div class="grid-f" style="margin-bottom:16px">
    <label class="wide">How it gets its address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
   </div>
@@ -140,20 +141,20 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
- </form></section>
-  <section id="mqttsec"><h3>Home Assistant (MQTT)</h3><form id="mqtt">
-  <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>The gateway then appears in Home Assistant by itself.</span></span></label></div>
+ </form></section></div></div>
+ <div id="p-mqtt" hidden><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
+  <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>Publishes the ports' state and traffic.</span></span></label></div>
   <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
    <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
    <label>Port<input name="port" type="number" min="1" max="65535" required></label>
    <label>User name<input name="user" maxlength="63" autocomplete="off"></label>
-   <label>Password<input name="password" type="password" maxlength="63" autocomplete="new-password"></label></div>
+   <label class="wide">Password<input name="password" type="password" maxlength="63" autocomplete="new-password"></label></div>
   <div class="checks" style="margin-bottom:16px">
-   <label class="check"><input type="checkbox" name="control"><span>Let Home Assistant change settings<span>Adds port controls and a restart button. Anyone who can publish to your broker can then use them, without this page's password.</span></span></label>
+   <label class="check"><input type="checkbox" name="announce"><span>Announce to Home Assistant<span>The gateway then appears there by itself. Off, it is removed there and the data still goes to the broker.</span></span></label>
+   <label class="check"><input type="checkbox" name="control"><span>Allow changes over MQTT<span>Anyone who can publish to your broker can then change settings and restart the gateway, without this page's password.</span></span></label>
    <label class="check" id="mqclear" hidden><input type="checkbox" name="clear"><span>Remove the saved password</span></label></div></div>
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
-  <p class="hint">Status: <span id="mqst">off</span></p>
- </form></section></div></div>
+ </form></section><section><h3>Topics</h3><dl class="list" id="topics"></dl></section></div></div>
  <div id="p-hardware" hidden><h2>Hardware</h2><p class="say" id="hsay"></p>
   <h3>Board</h3><table class="stack" id="board-t"><thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead><tbody id="board"><tr><td colspan="3">Reading the hardware…</td></tr></tbody></table>
   <h3>Serial port pins</h3><table class="stack"><thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead><tbody id="wiring"><tr><td colspan="5">Reading the hardware…</td></tr></tbody></table>
@@ -207,9 +208,6 @@ function el(tag,props,...kids){const e=document.createElement(tag);
   if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);
   else if(k in e&&k!=="list")e[k]=v;else e.setAttribute(k,v)}
  e.append(...kids.filter(x=>x!=null));return e}
-function dot(){const s="http://www.w3.org/2000/svg",g=document.createElementNS(s,"svg"),c=document.createElementNS(s,"circle");
- g.setAttribute("viewBox","0 0 10 10");g.setAttribute("aria-hidden","true");
- for(const [k,v] of [["cx",5],["cy",5],["r",5],["fill","currentColor"]])c.setAttribute(k,v);g.append(c);return g}
 const nb=t=>t.replace(/ /g,"\u00a0"),bytes=n=>nb(n<1e4?n.toLocaleString()+" B":n<1e6?(n/1e3).toFixed(1)+" kB":n<1e9?(n/1e6).toFixed(2)+" MB":(n/1e9).toFixed(2)+" GB");
 const dur=s=>nb(s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/3600)+" h "+Math.floor(s%3600/60)+" min":Math.floor(s/86400)+" d "+Math.floor(s%86400/3600)+" h");
 function say(m,text,cls){m.textContent=text;m.className="msg "+(cls||"")}
@@ -289,12 +287,12 @@ $("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("
   if(n.mode.value==="static"&&n.ip.value.trim()!==location.hostname&&!location.hostname.endsWith(".local"))
    say(m,"Moving to a new address. Within two minutes open http://"+n.ip.value.trim()+"/ and choose Keep settings.","warn");
   else say(m,"On trial. Choose Keep settings above.","warn")}catch(e){say(m,e.message,"bad")}};
-function fillMqtt(){const e=$("mqtt").elements,m=cfg.mqtt;for(const k of ["host","port","user"])e[k].value=m[k];e.enabled.checked=m.enabled;e.control.checked=m.control;e.clear.checked=false;
+function fillMqtt(){const e=$("mqtt").elements,m=cfg.mqtt;for(const k of ["host","port","user"])e[k].value=m[k];e.enabled.checked=m.enabled;e.control.checked=m.control;e.announce.checked=m.announce!==false;e.clear.checked=false;
  e.password.value="";e.password.placeholder=m.password_set?"Saved; type to replace":"";$("mqclear").hidden=!m.password_set;showMqtt()}
 function showMqtt(){document.querySelector("[data-mqtt]").hidden=!$("mqtt").elements.enabled.checked}
 $("mqtt").elements.enabled.onchange=showMqtt;
 $("mqtt").onsubmit=async ev=>{ev.preventDefault();const e=$("mqtt").elements,m=$("mqtt").querySelector(".msg"),
-  L=["mqtt.enabled="+(e.enabled.checked?1:0),"mqtt.host="+e.host.value.trim(),"mqtt.port="+(e.port.value||1883),"mqtt.user="+e.user.value.trim(),"mqtt.control="+(e.control.checked?1:0)].join("\n");
+  L=["mqtt.enabled="+(e.enabled.checked?1:0),"mqtt.host="+e.host.value.trim(),"mqtt.port="+(e.port.value||1883),"mqtt.user="+e.user.value.trim(),"mqtt.control="+(e.control.checked?1:0),"mqtt.announce="+(e.announce.checked?1:0)].join("\n");
  const pw=utf(e.password.value),send=pw.length>0||e.clear.checked,k=key;if(pw.length>63)return say(m,"That password is too long.","bad");
  say(m,"Saving…");try{await post("/api/config",L,send?nonce=>{const pad=cat(hmac(k,utf("mqttpw0\n"+nonce)),hmac(k,utf("mqttpw1\n"+nonce))),v=new Uint8Array(64);if(!e.clear.checked)v.set(pw);
    return "mqtt.password_enc="+hex(v.map((x,i)=>x^pad[i]))+"\n"+L}:null);cfg=await getj("/api/config");fillMqtt();say(m,"Saved.","ok");tick()}catch(x){say(m,x.message,"bad")}};
@@ -323,7 +321,7 @@ $("login").onsubmit=async ev=>{ev.preventDefault();const m=$("loginmsg"),b=$("lo
 let okAt=0; /* when it last answered: old readings must not pass for live ones */
 function stale(){const a="Last answered "+dur(Math.max(1,Math.round((performance.now()-okAt)/1000)))+" ago.";document.body.classList.add("stale");put($("verdict"),"Not answering");put($("vsub"),a);
  items.forEach((_,k)=>{const x=items[k][1];x.className="it";if(x.dataset.m!=="idle"){x.dataset.m="idle";x.children[0].replaceChildren(mark("idle"))}});
- for(const id of ["psay","nsay","hsay","fsay"])put($(id),"Not answering. The readings below are from before.")}
+ for(const id of ["psay","nsay","msay","hsay","fsay"])put($(id),"Not answering. The readings below are from before.")}
 const RST=r=>{const v=parseInt(r,16);return v&0x800000?"Power on":v&0x1000000?"Restart":v&0x400000?"Watchdog or reset pin":"Other ("+r+")"};
 let failing=0,timer=0;
 async function tick(){clearTimeout(timer);
@@ -336,8 +334,7 @@ async function tick(){clearTimeout(timer);
   failing=0;okAt=now;document.body.classList.remove("stale");$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
-  fillDl($("netinfo"),[["Now",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
-  const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
+  fillDl($("netinfo"),[["Address",s.ip],["Name",s.host+".local"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   paint();hardware()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not answering")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
@@ -374,7 +371,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
 
 /* ---- stations ---- */
 let sel=0,editing=false,hist=null,histFor=-1,histAt=0,samples=[];
-const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"network",hardware:"hardware",firmware:"firmware"};
+const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"mqtt",hardware:"hardware",firmware:"firmware"};
 let route="status",page="port";
 const pn=i=>cfg&&cfg.ports[i].name||"Port "+(i+1),ago=ms=>ms<0?"Never":ms<2000?"Now":dur(Math.round(ms/1000))+" ago",
  rt=x=>nb(x<1e3?Math.round(x)+" B/s":x<1e6?(x/1e3).toFixed(1)+" kB/s":(x/1e6).toFixed(2)+" MB/s"),plural=(n,w)=>n.toLocaleString()+" "+w+(n===1?"":"s");
@@ -400,9 +397,9 @@ function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
  if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
  if(st.net_pending)L.push(["warn","Network settings are on trial","#network"]);
  if(st.crashes-(st.uptime_s<30?1:0)>0)L.push(["warn","The gateway failed to start cleanly","#firmware"]);
- for(const t of hwFaults())L.push(["warn",t,"#hardware"]);
+ for(const [c,t] of hwFaults())L.push([c,t,"#hardware"]);
  return L.sort((a,b)=>(a[0]==="bad"?0:1)-(b[0]==="bad"?0:1))}
-const hwFaults=()=>{if(!hw)return [];const L=[];hw.flash.forEach((id,i)=>{if(FLASH(id)!=="GigaDevice GD25Q16, 2 MB")L.push("Flash chip "+i+(FLASH(id)==="Unknown"?" is not recognised":" is not answering"))});if(!hw.cpu.crystal)L.push("The crystal is not running");if(hw.cpu.id!=="0x450")L.push("The processor is not recognised");if(hw.eth.phy_id!=="0x02430c54")L.push("The Ethernet chip is not recognised");if(hw.cpu.temp_c>85)L.push("The processor is hot, "+nb(Math.round(hw.cpu.temp_c)+" °C"));return L};
+const hwFaults=()=>{if(!hw)return [];const L=[];hw.flash.forEach((id,i)=>{if(FLASH(id)!=="GigaDevice GD25Q16, 2 MB")L.push([FLASH(id)==="Unknown"?"warn":"bad","Flash chip "+i+(FLASH(id)==="Unknown"?" is not recognised":" is not answering")])});if(!hw.cpu.crystal)L.push(["warn","The crystal is not running"]);if(hw.cpu.id!=="0x450")L.push(["warn","The processor is not recognised"]);if(hw.eth.phy_id!=="0x02430c54")L.push(["warn","The Ethernet chip is not recognised"]);if(hw.cpu.temp_c>85)L.push(["warn","The processor is hot, "+nb(Math.round(hw.cpu.temp_c)+" °C")]);return L};
 const MQ={"Broker refused the protocol version":"Refused","Broker refused the client name":"Refused","Broker is unavailable":"Broker unavailable","Wrong user name or password":"Wrong login","Broker did not authorise this user":"Not authorised","Broker did not answer":"No answer","Could not connect, or the connection was lost":"Cannot connect","Could not start the connection":"Cannot connect","Broker name not found":"Name not found"};
 const items=[];
 function buildList(){$("list").replaceChildren();items.length=0;
@@ -415,15 +412,16 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  st.ports.forEach((_,i)=>{const [c,t]=portState(i);setItem(1+i,c,(i+1)+" "+pn(i),t)});
  setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
  const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
- const hf=hwFaults();setItem(7,!hw?"idle":hf.length?"warn":"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
- const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All good");
+ const hf=hwFaults();setItem(7,!hw?"idle":hf.length?(hf.some(x=>x[0]==="bad")?"bad":"warn"):"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
+ const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All good");v.title=first?first[1]:"";
  const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"Every port is off":"No port is connected";
  const hush=st.ports.map((s,i)=>[s,i]).filter(([s])=>!s.alert&&(s.peers.length||s.state==="connected")&&quiet(s)).map(([s,i])=>pn(i)+": "+quiet(s).toLowerCase());
  put($("vsub"),!first?(hush.length?hush.join("; "):sum)+"."+(m.enabled?" MQTT connected.":""):L.length===1?"Everything else is good.":"Also: "+L.slice(1,3).map(x=>x[1]).join("; ")+(L.length>3?"; and "+(L.length-3)+" more":"")+".");
  const m2=cfg.mqtt,q2=st.mqtt,fl=hwFaults();
- put($("nsay"),route==="mqtt"?(!m2.enabled?"Off.":q2.state==="connected"?"Connected to "+m2.host+(m2.user?" as "+m2.user:"")+". Home Assistant "+(m2.control?"can":"cannot")+" change settings.":(q2.error?"Not connected to "+m2.host+". "+q2.error+". Trying again.":"Connecting to "+m2.host+"."))
-  :st.ip+(cfg.net.mode==="dhcp"?" by DHCP":", fixed")+". "+nb(st.speed+" Mb/s")+(st.full_duplex?" full":" half")+" duplex."+(st.net_pending?" New settings on trial, reverting in "+span(st.net_pending_s)+".":""));
- put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.join(". ")+".":"Every chip answers. "+(hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":""));
+ put($("msay"),(!m2.enabled?"Off.":q2.state==="connected"?"Connected to "+m2.host+(m2.user?" as "+m2.user:"")+". "+(m2.announce===false?"Not announced to Home Assistant.":"Announced to Home Assistant.")+(m2.control?" Changes allowed.":" Read only."):(q2.error?"Not connected to "+m2.host+". "+q2.error+". Trying again.":"Connecting to "+m2.host+".")));
+ const tp=t=>el("code",{},st.host+"/"+t);fillDl($("topics"),[["Ports",tp("port1"),sub("to port4, JSON")],["Device",tp("device"),sub("JSON")],["Status",tp("status"),sub("online or offline")],["Commands",m2.control?tp("port1/set/baud"):"Off",m2.control?sub("any port setting; device/set/restart takes PRESS"):null]]);
+ put($("nsay"),st.ip+(cfg.net.mode==="dhcp"?" by DHCP":", fixed")+". "+nb(st.speed+" Mb/s")+(st.full_duplex?" full":" half")+" duplex."+(st.net_pending?" New settings on trial, reverting in "+span(st.net_pending_s)+".":""));
+ put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.map(x=>x[1]).join(". ")+".":"Every chip answers. "+(hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":""));
  const fails=st.crashes-(st.uptime_s<30?1:0);
  put($("fsay"),"Running "+st.version+(st.slot>=0&&st.slot<2?" from slot "+"AB"[st.slot]:"")+(st.fw_trial?", on trial":", kept")+". Up "+dur(st.uptime_s)+". "+(fails>0?plural(fails,"failed start")+".":"No failed starts."));
  if(page==="port")report()}
@@ -493,8 +491,8 @@ function nav(){for(const a of document.querySelectorAll("nav a"))a.getAttribute(
 let picked=false;
 function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];
  if(/^port/.test(route)){sel=+route.slice(4)-1;picked=true}else if(!picked&&cfg){sel=Math.max(0,cfg.ports.findIndex(p=>p.enabled))}
- editing=false;document.body.dataset.view=route==="status"?"list":"sheet";document.body.dataset.route=route;$("nhead").textContent=route==="mqtt"?"MQTT":"Network";
- for(const p of ["port","network","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
+ editing=false;document.body.dataset.view=route==="status"?"list":"sheet";
+ for(const p of ["port","network","mqtt","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
  nav();showSheet();scrollTo(0,0);
  hwAt=0;hardware()}
 addEventListener("hashchange",show);

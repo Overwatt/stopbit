@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { T_BOOL, T_U8, T_U16, T_U32, T_STR, T_HOST, T_ENUM };
+enum { T_BOOL, T_NBOOL, T_U8, T_U16, T_U32, T_STR, T_HOST, T_ENUM };
 
 typedef struct {
     const char *key;
@@ -44,6 +44,7 @@ static const field_t MQTT_F[] = {
     M(port,    T_U32,  1, 65535),
     M(user,    T_STR,  0, 0),
     M(control, T_BOOL, 0, 1),
+    { "announce", T_NBOOL, offsetof(mqtt_cfg_t, no_announce), 1, 0, 1, NULL },   /* stored inverted: 0 = announce */
 };
 #define NMQTT_F (sizeof MQTT_F / sizeof MQTT_F[0])
 
@@ -151,6 +152,7 @@ static bool set_field(void *base, const field_t *f, const char *v)
     switch (f->type) {
     case T_U32: memcpy(p, &n, 4); break;
     case T_U16: { uint16_t h = (uint16_t)n; memcpy(p, &h, 2); break; }
+    case T_NBOOL: *p = !n; break;
     default:    *p = (uint8_t)n;
     }
     return true;
@@ -320,6 +322,7 @@ static size_t fields_json(const void *base, const field_t *fs, size_t nf, char *
         case T_STR: case T_HOST: STR((const char *)p); break;
         case T_ENUM: ADD("\"%s\"", f->names[*p]); break;
         case T_BOOL: ADD("%s", *p ? "true" : "false"); break;
+        case T_NBOOL: ADD("%s", *p ? "false" : "true"); break;
         case T_U32: memcpy(&u32, p, 4); ADD("%lu", (unsigned long)u32); break;
         case T_U16: memcpy(&u16, p, 2); ADD("%u", u16); break;
         default: ADD("%u", *p);
@@ -373,6 +376,7 @@ static size_t fields_lines(const char *pre, const void *base, const field_t *fs,
         ADD("%s.%s=", pre, f->key);
         if (f->type == T_U32) memcpy(&v, p, 4);
         if (f->type == T_U16) { memcpy(&h, p, 2); v = h; }
+        if (f->type == T_NBOOL) v = !v;
         if (f->type == T_STR || f->type == T_HOST) ADD("%s\n", (const char *)p);
         else if (f->type == T_ENUM) ADD("%s\n", f->names[*p]);
         else ADD("%lu\n", (unsigned long)v);

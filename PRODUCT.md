@@ -48,8 +48,8 @@ so watching a live bus cannot disturb it.
 
 ## Capabilities and Constraints
 
-- Pages: Status (a verdict, every part's state, and one part's report), Network (address and
-  MQTT), Hardware, Firmware.
+- Pages: Status (a verdict, every part's state, and one part's report), Network
+  (address), MQTT, Hardware, Firmware.
 - Reading needs no password; saving, restarting and installing firmware do. With no
   password set, nothing can be saved from the page.
 - The web password can install firmware, which is full control of the device. Replacing
