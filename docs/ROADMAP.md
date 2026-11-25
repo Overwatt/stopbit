@@ -58,7 +58,7 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 
 ## M5 — "Better than stock" (pick what's fun)
 - [x] Modern web UI + **REST/JSON API** (vs. their 2010 iframe UI).
-- [ ] **MQTT** with Home Assistant auto-discovery.
+- [x] **MQTT** with Home Assistant auto-discovery.
 - [ ] Prometheus metrics / live per-port traffic + latency stats.
 - [ ] TLS, real auth (no telnet data-port backdoor).
 - [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
