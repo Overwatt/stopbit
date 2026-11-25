@@ -49,7 +49,7 @@ typedef struct {
     uint32_t hdr_len, body_len, body_got;
     uint8_t  body_sha[32];
     sha256_t sha;
-    char     resp[1300];
+    char     resp[1460];
     uint32_t resp_len, resp_off;
     int      fl_dev;
     uint32_t fl_off, fl_left;
@@ -210,7 +210,7 @@ static err_t fail(conn_t *c, const char *status, const char *why)
 /* ---- endpoints ----------------------------------------------------------- */
 static err_t do_status(conn_t *c)
 {
-    char ip[16], b[1000];
+    char ip[16], b[1300];
     slot_info_t sl[SLOT_COUNT];
     for (int i = 0; i < SLOT_COUNT; i++) slots_get(i, &sl[i]);
     net_ip_str(ip);
@@ -220,7 +220,8 @@ static err_t do_status(conn_t *c)
         "\"clock\":\"%s\",\"sysclk\":%lu,\"reset_cause\":\"0x%08lx\",\"phy_addr\":%lu,"
         "\"phy_id\":\"0x%08lx\",\"speed\":%d,\"full_duplex\":%s,"
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu,"
-        "\"flash0\":\"0x%06lx\",\"flash1\":\"0x%06lx\",\"crashes\":%lu,\"running_slot\":%d,"
+        "\"flash0\":\"0x%06lx\",\"flash1\":\"0x%06lx\",\"crashes\":%lu,\"boots\":%lu,"
+        "\"reset_log\":[\"%lx\",\"%lx\",\"%lx\",\"%lx\",\"%lx\",\"%lx\"],\"running_slot\":%d,"
         "\"slots\":[{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d},"
         "{\"valid\":%s,\"seq\":%lu,\"version\":\"%s\",\"confirmed\":%s,\"tries\":%d}]}\n",
         g_fw_id.version, g_fw_id.link_addr, g_hostname,
@@ -232,7 +233,11 @@ static err_t do_status(conn_t *c)
         (unsigned long)g_eth.rx_frames, (unsigned long)g_eth.tx_frames,
         (unsigned long)g_eth.rx_errors, (unsigned long)g_eth.tx_drops,
         (unsigned long)extflash_id(0), (unsigned long)extflash_id(1),
-        (unsigned long)bkp_get(BKP_CRASHES), RUNNING_SLOT,
+        (unsigned long)bkp_get(BKP_CRASHES), (unsigned long)bkp_get(BKP_BOOTS),
+        (unsigned long)bkp_get(BKP_RSTLOG), (unsigned long)bkp_get(BKP_RSTLOG + 1),
+        (unsigned long)bkp_get(BKP_RSTLOG + 2), (unsigned long)bkp_get(BKP_RSTLOG + 3),
+        (unsigned long)bkp_get(BKP_RSTLOG + 4), (unsigned long)bkp_get(BKP_RSTLOG + 5),
+        RUNNING_SLOT,
 #define SLOT_ARGS(s) (s).valid ? "true" : "false", (s).valid ? (unsigned long)(s).hdr.seq : 0ul, \
         (s).valid ? (s).hdr.version : "", (s).confirmed ? "true" : "false", (s).tries_left
         SLOT_ARGS(sl[0]), SLOT_ARGS(sl[1]));

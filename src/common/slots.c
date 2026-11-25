@@ -125,3 +125,10 @@ void bkp_init(void)
 }
 uint32_t bkp_get(int i) { return (&RTC->BKP0R)[i]; }
 void     bkp_set(int i, uint32_t v) { (&RTC->BKP0R)[i] = v; __DSB(); }
+
+void bkp_log_reset(uint32_t rsr)
+{
+    for (int i = RSTLOG_N - 1; i > 0; i--) bkp_set(BKP_RSTLOG + i, bkp_get(BKP_RSTLOG + i - 1));
+    bkp_set(BKP_RSTLOG, rsr);
+    bkp_set(BKP_BOOTS, bkp_get(BKP_BOOTS) + 1);
+}

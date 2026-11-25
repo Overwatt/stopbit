@@ -40,7 +40,11 @@ bool slots_confirm(int slot);
 void     bkp_init(void);
 uint32_t bkp_get(int i);
 void     bkp_set(int i, uint32_t v);
-enum { BKP_STAY = 0, BKP_SLOT = 1, BKP_CRASHES = 2 };
+enum { BKP_STAY = 0, BKP_SLOT = 1, BKP_CRASHES = 2, BKP_BOOTS = 3,
+       BKP_RSTLOG = 4 /* .. 4+RSTLOG_N-1, newest first */ };
+#define RSTLOG_N 6
+/* Log this boot's RCC_RSR. Called once per reset, by the loader. */
+void     bkp_log_reset(uint32_t rsr);
 #define BKP_STAY_MAGIC 0x53544159u   /* stay in the loader on next boot */
 #define CRASH_LIMIT    5u            /* boots without 30 s of app uptime */
 #endif

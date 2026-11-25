@@ -48,11 +48,11 @@ int main(void)
     wdt_init();
     wdt_feed();
     HAL_Init();
-    g_reset_cause = RCC->RSR;
     g_clock_hse = SystemClock_Config();
     board_outputs_init();
     wdt_feed();
     bkp_init();
+    g_reset_cause = bkp_get(BKP_RSTLOG);   /* the loader cleared RCC_RSR */
     extflash_init();
 #if defined(TEST_HANG)                     /* rollback test: watchdog reset */
     for (;;) { }

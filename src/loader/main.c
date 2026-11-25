@@ -54,6 +54,7 @@ int main(void)
     board_outputs_init();
     wdt_feed();
     bkp_init();
+    bkp_log_reset(g_reset_cause);
     extflash_init();
     try_boot_app();
 
