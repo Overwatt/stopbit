@@ -96,6 +96,20 @@ actions:
       message: "Port 1: {{ 'problem' if trigger.to_state.state == 'on' else 'gateway unreachable' }}"
 ```
 
+With announcing off there are no such sensors, and the automation above would silently stop
+working. Define one by hand in `configuration.yaml` and use its name in the automation. (A
+plain MQTT trigger would fire on every update.)
+
+```yaml
+mqtt:
+  binary_sensor:
+    - name: Port 1 alert
+      state_topic: HOST/port1
+      value_template: "{{ 'ON' if value_json.alert else 'OFF' }}"
+      availability_topic: HOST/status
+      device_class: problem
+```
+
 If Home Assistant or the broker loses power in the same outage, nothing can be sent until
 it is back.
 
