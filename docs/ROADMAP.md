@@ -65,7 +65,7 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Hardware page: chips, pins, temperature, memory, firmware slots.
 - [x] Access lists on the data ports, by address: read, or read and write.
 - [ ] Real auth on the data ports (WireGuard would make the addresses trustworthy).
-- [x] HTTPS, with a key made on the device ([HTTPS.md](HTTPS.md)). Not yet run on a gateway.
+- [x] HTTPS, with a key made on the device ([HTTPS.md](HTTPS.md)).
 - [ ] Let's Encrypt renewal on the device.
 - [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.

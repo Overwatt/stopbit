@@ -55,9 +55,15 @@ between requests for a minute; idle ones give way to new ones.
 | Image | 223 KB, from 139 KB |
 | Memory, 4 connections and a handshake | 96 KB of 124 KB |
 | Emulated Cortex-M7: longest slice | 1.01 ms |
-| On the gateway: longest slice, arithmetic stack | 1.01 ms, 1.8 KB of 12 KB |
-| On the gateway: handshakes | **not yet**: see `https` and Longest pause on the Hardware page |
+| On the gateway: full handshake, resumed, four at once | 77 ms in 56 slices, 2.2 ms, 305 ms |
+| On the gateway: page (25 KB), status, on an open connection | 9 ms, 1.4 ms |
+| On the gateway: longest pause of the main loop meanwhile | 2.9 ms; 57 ms while a certificate is saved (flash erase) |
+| On the gateway: longest slice, arithmetic stack | 1.8 ms, 1.8 KB of 12 KB |
 | Let's Encrypt's chain, November 2026 | 4 certificates, 3.4 KB; up to 4 KB can be stored and sent |
+
+**On the gateway (2026-11-25):** a Let's Encrypt certificate, curl, Python and Chromium, and
+a live bus that lost nothing meanwhile. Not tested there: uploads over HTTPS, expiry, a
+certificate replaced while in use, and connections left open for days.
 
 ## Tests
 
