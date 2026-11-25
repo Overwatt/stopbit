@@ -146,6 +146,23 @@ def one():
     res.append(None)
 th = [threading.Thread(target=one) for _ in range(12)]; [x.start() for x in th]; [x.join() for x in th]
 assert None not in res, res; quiet("12 at once"); t = tls(); ok(f"12 at once through 4 places (heap peak {t['heap'][1]} of {t['heap'][2]}, {t['refused']} turned away and retried)")
+# data on two connections while others are in the middle of their handshakes
+stop = time.time() + 12; done = [0, 0]; bad = []
+def talk(k):
+    s = None
+    while time.time() < stop:
+        try:
+            s = s or conn()
+            if get(s, "/")[2] != page or json.loads(get(s, "/api/library")[2])["spaces"] != 7: bad.append("wrong data")
+            done[k] += 1
+        except (OSError, EOFError): s = None
+def shakes():
+    while time.time() < stop:
+        try: s = conn(); get(s, "/status"); s.close()
+        except (OSError, EOFError): time.sleep(.05)
+n0 = tls()["handshakes"]; th = [threading.Thread(target=talk, args=(k,)) for k in (0, 1)] + [threading.Thread(target=shakes) for _ in range(2)]
+[x.start() for x in th]; [x.join() for x in th]; assert not bad and min(done) > 20, (bad[:3], done)
+quiet("mixed"); ok(f"{sum(done)} pages during {tls()['handshakes'] - n0} handshakes, all right")
 # idle kept-alive connections give way to new ones
 idle = [conn() for _ in range(4)]; [get(s, "/status") for s in idle]
 for i in range(4): s = conn(); assert get(s, "/status")[0] == 200; s.close()

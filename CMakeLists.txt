@@ -28,9 +28,12 @@ FetchContent_Declare(lwip
     GIT_REPOSITORY https://github.com/lwip-tcpip/lwip.git
     GIT_TAG        STABLE-2_2_1_RELEASE GIT_SHALLOW TRUE)
 
+# The release archive, not the repository: it has the generated sources. Supported to March 2029.
 FetchContent_Declare(mbedtls
-    GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
-    GIT_TAG        v3.6.8        GIT_SHALLOW TRUE GIT_SUBMODULES "")
+    URL      https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.1.2/mbedtls-4.1.2.tar.bz2
+    URL_HASH SHA256=392215e5e4846df04e2f4c4516079303bd73edde837d8f3e68fb4d4d7ddf0126
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_DIR ${CMAKE_BINARY_DIR}/_deps/mbedtls4-src)
 
 foreach(dep cmsis_core cmsis_device_h7 stm32h7xx_hal_driver lwip mbedtls)
     FetchContent_GetProperties(${dep})
@@ -83,14 +86,20 @@ set(LWIP_MQTT_SRC "${lwip_SOURCE_DIR}/src/apps/mqtt/mqtt.c")
 # mbedTLS (app only). The calls a handshake spends its time in are renamed where they
 # are made, to ones in tls.c that let the main loop in first; see worker.h.
 # ---------------------------------------------------------------------------
-file(GLOB MBEDTLS_SRC "${mbedtls_SOURCE_DIR}/library/*.c")
-set_source_files_properties(${MBEDTLS_SRC} PROPERTIES COMPILE_OPTIONS "-w")
-set_source_files_properties("${mbedtls_SOURCE_DIR}/library/ecp.c" PROPERTIES
+set(PSA_DIR "${mbedtls_SOURCE_DIR}/tf-psa-crypto")
+file(GLOB MBEDTLS_SRC "${mbedtls_SOURCE_DIR}/library/*.c" "${PSA_DIR}/core/*.c" "${PSA_DIR}/drivers/builtin/src/*.c"
+    "${PSA_DIR}/extras/*.c" "${PSA_DIR}/platform/*.c" "${PSA_DIR}/utilities/*.c")
+# Its private headers, which our own sources do not see.
+set(MBEDTLS_PRIVATE "${mbedtls_SOURCE_DIR}/library" "${PSA_DIR}/core" "${PSA_DIR}/dispatch" "${PSA_DIR}/drivers/builtin/src"
+    "${PSA_DIR}/extras" "${PSA_DIR}/platform" "${PSA_DIR}/utilities")
+set(MBEDTLS_PUBLIC "${mbedtls_SOURCE_DIR}/include" "${PSA_DIR}/include" "${PSA_DIR}/drivers/builtin/include")
+set_source_files_properties(${MBEDTLS_SRC} PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${MBEDTLS_PRIVATE}")
+set(BN "${PSA_DIR}/drivers/builtin/src")
+set_source_files_properties("${BN}/ecp.c" PROPERTIES
     COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS mbedtls_mpi_mul_mpi=tls_mpi_mul_mpi)
-set_source_files_properties("${mbedtls_SOURCE_DIR}/library/bignum_core.c" PROPERTIES
+set_source_files_properties("${BN}/bignum_core.c" PROPERTIES
     COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS memcpy=tls_core_memcpy)
-set_source_files_properties("${mbedtls_SOURCE_DIR}/library/bignum.c" "${mbedtls_SOURCE_DIR}/library/ecp_curves.c"
-    "${mbedtls_SOURCE_DIR}/library/aes.c" "${mbedtls_SOURCE_DIR}/library/gcm.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
+set_source_files_properties("${BN}/bignum.c" "${BN}/ecp_curves.c" "${BN}/aes.c" "${BN}/gcm.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
 
 # ---------------------------------------------------------------------------
 # Update key: generated once into secrets/ (gitignored), compiled into images.
@@ -156,8 +165,8 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/web_page.h
 n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
     ${CMAKE_BINARY_DIR}/gen/web_page.h
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
-target_include_directories(app.elf SYSTEM PRIVATE ${mbedtls_SOURCE_DIR}/include)
-target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h")
+target_include_directories(app.elf SYSTEM PRIVATE ${MBEDTLS_PUBLIC})
+target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h" TF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h")
 # -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.
 set(APP_TEST "" CACHE STRING "broken-app variant for rollback tests")
 target_compile_definitions(app.elf PRIVATE APP_IMAGE ${APP_TEST})

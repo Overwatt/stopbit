@@ -1,4 +1,4 @@
-#define MBEDTLS_ALLOW_PRIVATE_ACCESS     /* the public point of a key we stored */
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS     /* x509_crt.own_buffer, for the certificates we only pass on */
 #include "tls.h"
 #include "worker.h"
 #include "extflash.h"
@@ -9,10 +9,8 @@
 #include "mbedtls/platform.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/ssl_ticket.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ecp.h"
 #include "mbedtls/pk.h"
+#include "psa/crypto.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/x509_csr.h"
 #include "mbedtls/memory_buffer_alloc.h"
@@ -121,8 +119,6 @@ void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n)
 
 /* ---- mbedTLS --------------------------------------------------------------- */
 static AXI_HI uint64_t s_heap[TLS_HEAP / 8];
-static mbedtls_entropy_context  s_ent;
-static mbedtls_ctr_drbg_context s_rng;
 static mbedtls_ssl_config       s_conf;
 static mbedtls_ssl_ticket_context s_tick;
 static mbedtls_x509_crt         s_crt;
@@ -131,18 +127,19 @@ static bool s_ready, s_live;             /* library set up; certificate in place
 static uint32_t s_tick_at;
 static const char *s_err = "";
 
-int mbedtls_hardware_poll(void *p, unsigned char *out, size_t len, size_t *got)
+int mbedtls_platform_get_entropy(psa_driver_get_entropy_flags_t flags, size_t *bits, unsigned char *out, size_t len)
 {
-    (void)p;
-    *got = 0;
-    if (!rng_fill(out, (uint32_t)len)) return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
-    *got = len;
+    if (flags != PSA_DRIVER_GET_ENTROPY_FLAGS_NONE) return PSA_ERROR_NOT_SUPPORTED;
+    if (!rng_fill(out, (uint32_t)len)) return PSA_ERROR_INSUFFICIENT_ENTROPY;
+    *bits = 8 * len;
     return 0;
 }
 
 /* Where long calculations come up for air: see CMakeLists.txt. */
-int tls_mpi_mul_mpi(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi *B);
-int tls_mpi_mul_mpi(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi *B)
+struct mbedtls_mpi;
+int mbedtls_mpi_mul_mpi(struct mbedtls_mpi *X, const struct mbedtls_mpi *A, const struct mbedtls_mpi *B);
+int tls_mpi_mul_mpi(struct mbedtls_mpi *X, const struct mbedtls_mpi *A, const struct mbedtls_mpi *B);
+int tls_mpi_mul_mpi(struct mbedtls_mpi *X, const struct mbedtls_mpi *A, const struct mbedtls_mpi *B)
 {
     worker_breathe();
     return mbedtls_mpi_mul_mpi(X, A, B);
@@ -155,24 +152,33 @@ void *tls_core_memcpy(void *d, const void *s, size_t n)
 }
 
 /* ---- certificate and key ---------------------------------------------------- */
-static bool put_key(mbedtls_pk_context *pk, const uint8_t key[32], const uint8_t pub[65])
+/* Works out the public half, so in the worker. */
+static bool put_key(mbedtls_pk_context *pk, const uint8_t key[32])
 {
+    psa_key_attributes_t a = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t id = 0;
     mbedtls_pk_init(pk);
-    if (mbedtls_pk_setup(pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))) return false;
-    mbedtls_ecp_keypair *k = mbedtls_pk_ec(*pk);
-    return !mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256R1, k, key, 32) &&
-           !mbedtls_ecp_point_read_binary(&k->grp, &k->Q, pub, 65);
+    psa_set_key_type(&a, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&a, 256);
+    psa_set_key_usage_flags(&a, PSA_KEY_USAGE_EXPORT);
+    if (psa_import_key(&a, key, 32, &id) != PSA_SUCCESS) return false;
+    bool ok = !mbedtls_pk_copy_from_psa(id, pk);
+    psa_destroy_key(id);
+    return ok;
 }
 
 static bool make_key(uint8_t key[32], uint8_t pub[65])
 {
-    mbedtls_ecp_keypair k;
+    psa_key_attributes_t a = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t id = 0;
     size_t n;
-    mbedtls_ecp_keypair_init(&k);
-    bool ok = !mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &k, mbedtls_ctr_drbg_random, &s_rng) &&
-              !mbedtls_ecp_write_key_ext(&k, &n, key, 32) && n == 32 &&
-              !mbedtls_ecp_write_public_key(&k, MBEDTLS_ECP_PF_UNCOMPRESSED, &n, pub, 65) && n == 65;
-    mbedtls_ecp_keypair_free(&k);
+    psa_set_key_type(&a, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&a, 256);
+    psa_set_key_usage_flags(&a, PSA_KEY_USAGE_EXPORT);
+    if (psa_generate_key(&a, &id) != PSA_SUCCESS) return false;
+    bool ok = psa_export_key(id, key, 32, &n) == PSA_SUCCESS && n == 32 &&
+              psa_export_public_key(id, pub, 65, &n) == PSA_SUCCESS && n == 65;
+    psa_destroy_key(id);
     return ok;
 }
 
@@ -192,7 +198,7 @@ static size_t front(uint8_t *out, size_t max, int n)
     return (size_t)n;
 }
 
-static size_t self_sign(const char *name, const uint8_t key[32], const uint8_t pub[65], uint8_t *out, size_t max)
+static size_t self_sign(const char *name, const uint8_t key[32], uint8_t *out, size_t max)
 {
     mbedtls_x509write_cert w;
     mbedtls_pk_context pk;
@@ -203,7 +209,7 @@ static size_t self_sign(const char *name, const uint8_t key[32], const uint8_t p
     snprintf(dn, sizeof dn, "CN=%s", name);
     san_dns(&san, name);
     mbedtls_x509write_crt_init(&w);
-    if (put_key(&pk, key, pub) && !mbedtls_ctr_drbg_random(&s_rng, serial, sizeof serial)) {
+    if (put_key(&pk, key) && psa_generate_random(serial, sizeof serial) == PSA_SUCCESS) {
         serial[0] = (uint8_t)((serial[0] & 0x7F) | 0x40);
         mbedtls_x509write_crt_set_version(&w, MBEDTLS_X509_CRT_VERSION_3);
         mbedtls_x509write_crt_set_md_alg(&w, MBEDTLS_MD_SHA256);
@@ -214,14 +220,14 @@ static size_t self_sign(const char *name, const uint8_t key[32], const uint8_t p
             !mbedtls_x509write_crt_set_validity(&w, "20250101000000", "20491231235959") &&      /* no clock */
             !mbedtls_x509write_crt_set_basic_constraints(&w, 0, -1) &&
             !mbedtls_x509write_crt_set_subject_alternative_name(&w, &san))
-            n = mbedtls_x509write_crt_der(&w, out, max, mbedtls_ctr_drbg_random, &s_rng);
+            n = mbedtls_x509write_crt_der(&w, out, max);
     }
     mbedtls_x509write_crt_free(&w);
     mbedtls_pk_free(&pk);
     return front(out, max, n);
 }
 
-static size_t sign_request(const char *name, const uint8_t key[32], const uint8_t pub[65], uint8_t *out, size_t max)
+static size_t sign_request(const char *name, const uint8_t key[32], uint8_t *out, size_t max)
 {
     mbedtls_x509write_csr w;
     mbedtls_pk_context pk;
@@ -231,12 +237,12 @@ static size_t sign_request(const char *name, const uint8_t key[32], const uint8_
     snprintf(dn, sizeof dn, "CN=%s", name);
     san_dns(&san, name);
     mbedtls_x509write_csr_init(&w);
-    if (put_key(&pk, key, pub)) {
+    if (put_key(&pk, key)) {
         mbedtls_x509write_csr_set_md_alg(&w, MBEDTLS_MD_SHA256);
         mbedtls_x509write_csr_set_key(&w, &pk);
         if (!mbedtls_x509write_csr_set_subject_name(&w, dn) &&
             !mbedtls_x509write_csr_set_subject_alternative_name(&w, &san))
-            n = mbedtls_x509write_csr_der(&w, out, max, mbedtls_ctr_drbg_random, &s_rng);
+            n = mbedtls_x509write_csr_der(&w, out, max);
     }
     mbedtls_x509write_csr_free(&w);
     mbedtls_pk_free(&pk);
@@ -274,7 +280,7 @@ static bool put_chain(mbedtls_x509_crt *crt, const uint8_t *p, size_t len)
 }
 
 /* ---- jobs -------------------------------------------------------------------- */
-enum { JOB_NONE, JOB_SELF, JOB_REQUEST, JOB_CSR, JOB_SHAKE };
+enum { JOB_NONE, JOB_SELF, JOB_REQUEST, JOB_CSR, JOB_LOAD, JOB_SHAKE };
 static uint8_t s_job, s_next;
 static bool    s_job_ok;
 static uint8_t s_csr[512];
@@ -285,13 +291,17 @@ static void run_job(void *arg)
 {
     body_t *b = &s_tmp.b;
     (void)arg;
+    if (s_job == JOB_LOAD) {
+        s_job_ok = put_chain(&s_crt, s_rec.b.chain, s_rec.b.chain_len) && put_key(&s_key, s_rec.b.key);
+        return;
+    }
     *b = s_rec.b;
     if (s_job == JOB_SELF) {
         memset(b->name, 0, sizeof b->name);
         snprintf(b->name, sizeof b->name, "%s.local", g_hostname);
         memset(b->chain, 0, sizeof b->chain);
         s_job_ok = make_key(b->key, b->pub) &&
-                   (b->chain_len = (uint32_t)self_sign(b->name, b->key, b->pub, b->chain, sizeof b->chain)) > 0;
+                   (b->chain_len = (uint32_t)self_sign(b->name, b->key, b->chain, sizeof b->chain)) > 0;
         memset(b->chain + b->chain_len, 0, sizeof b->chain - b->chain_len);
         b->kind = CERT_SELF;
         b->enabled = 1;
@@ -304,7 +314,7 @@ static void run_job(void *arg)
         b->req = 1;
         s_job_ok = make_key(b->req_key, b->req_pub);
     }
-    s_csr_len = s_job_ok ? sign_request(b->req_name, b->req_key, b->req_pub, s_csr, sizeof s_csr) : 0;
+    s_csr_len = s_job_ok ? sign_request(b->req_name, b->req_key, s_csr, sizeof s_csr) : 0;
     s_job_ok = s_csr_len > 0;
 }
 
@@ -560,13 +570,11 @@ static bool setup(void)
 {
     if (s_ready) return true;
     mbedtls_memory_buffer_alloc_init((unsigned char *)s_heap, sizeof s_heap);
-    mbedtls_entropy_init(&s_ent);
-    mbedtls_ctr_drbg_init(&s_rng);
     mbedtls_x509_crt_init(&s_crt);
     mbedtls_pk_init(&s_key);
     mbedtls_ssl_config_init(&s_conf);
     mbedtls_ssl_ticket_init(&s_tick);
-    s_ready = !mbedtls_ctr_drbg_seed(&s_rng, mbedtls_entropy_func, &s_ent, (const unsigned char *)g_mac, 6);
+    s_ready = psa_crypto_init() == PSA_SUCCESS;
     if (!s_ready) s_err = "The random number generator failed";
     return s_ready;
 }
@@ -585,18 +593,20 @@ static void deactivate(void)
     mbedtls_pk_free(&s_key);
 }
 
-/* Starts listening with what is stored. Not while the worker runs. */
+/* Reads in what is stored, which go_live() then serves. Not while the worker runs. */
 static void activate(void)
 {
-    const body_t *b = &s_rec.b;
     deactivate();
     s_err = "";
-    if (!b->enabled || b->kind == CERT_NONE) return;
-    if (!put_chain(&s_crt, b->chain, b->chain_len) || !put_key(&s_key, b->key, b->pub)) { s_err = "The stored certificate cannot be read"; return; }
+    if (s_rec.b.enabled && s_rec.b.kind != CERT_NONE) s_next = JOB_LOAD;
+}
+
+static void go_live(bool loaded)
+{
+    if (!loaded) { s_err = "The stored certificate cannot be read"; return; }
     if (mbedtls_ssl_config_defaults(&s_conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT) ||
-        mbedtls_ssl_ticket_setup(&s_tick, mbedtls_ctr_drbg_random, &s_rng, MBEDTLS_CIPHER_AES_128_GCM, 86400) ||
+        mbedtls_ssl_ticket_setup(&s_tick, PSA_ALG_GCM, PSA_KEY_TYPE_AES, 128, 86400) ||
         mbedtls_ssl_conf_own_cert(&s_conf, &s_crt, &s_key)) { s_err = "Not enough memory"; return; }
-    mbedtls_ssl_conf_rng(&s_conf, mbedtls_ctr_drbg_random, &s_rng);
     mbedtls_ssl_conf_ciphersuites(&s_conf, SUITES);
     mbedtls_ssl_conf_groups(&s_conf, GROUPS);
     mbedtls_ssl_conf_session_tickets_cb(&s_conf, mbedtls_ssl_ticket_write, mbedtls_ssl_ticket_parse, &s_tick);
@@ -623,7 +633,7 @@ void tls_init(void)
     if (!s_rec.b.enabled && !s_rec.b.req) return;       /* nothing is set up until it is wanted */
     if (!setup()) return;
     activate();
-    if (s_rec.b.req) s_next = JOB_CSR;
+    if (s_rec.b.req && s_next == JOB_NONE) s_next = JOB_CSR;
 }
 
 void tls_poll(void)
@@ -634,7 +644,10 @@ void tls_poll(void)
         uint8_t j = s_job;
         s_job = JOB_NONE;
         if (j == JOB_SHAKE) shaken(s_shaking);
-        else if (!s_job_ok) s_err = "The key or certificate could not be made";
+        else if (j == JOB_LOAD) {
+            go_live(s_job_ok);
+            if (s_rec.b.req && !s_csr_len) s_next = JOB_CSR;
+        } else if (!s_job_ok) s_err = "The key or certificate could not be made";
         else if (j != JOB_CSR && !save()) s_err = "Could not write to flash";
         else if (j == JOB_SELF) activate();
     }
@@ -646,13 +659,12 @@ void tls_poll(void)
         if (s_next != JOB_NONE) {
             s_job = s_next;
             s_next = JOB_NONE;
-            s_err = "";
             worker_start(run_job, NULL);
         } else if (s_live) {
             if (HAL_GetTick() - s_tick_at > TICKET_MS) {        /* no clock, so on a timer */
                 uint8_t r[20];
                 s_tick_at = HAL_GetTick();
-                if (!mbedtls_ctr_drbg_random(&s_rng, r, sizeof r))
+                if (psa_generate_random(r, sizeof r) == PSA_SUCCESS)
                     mbedtls_ssl_ticket_rotate(&s_tick, r, 4, r + 4, 16, 86400);
             }
             start_shake();
@@ -680,15 +692,14 @@ _Static_assert(sizeof s_rec.b.chain + 64 <= MBEDTLS_SSL_OUT_CONTENT_LEN, "a full
 static const char *take_cert(const uint8_t *der, size_t len)
 {
     mbedtls_x509_crt c;
-    mbedtls_pk_context k;
+    uint8_t pub[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
+    size_t n = 0;
     const char *why = NULL;
     if (!s_rec.b.req) return "Make a signing request first";
     if (len > sizeof s_rec.b.chain) return "That certificate is too long";
-    mbedtls_pk_init(&k);
     if (!put_chain(&c, der, len)) why = "That is not a certificate made from the signing request";
-    else if (!put_key(&k, s_rec.b.req_key, s_rec.b.req_pub)) why = "Not enough memory";
-    else if (mbedtls_pk_get_type(&c.pk) != MBEDTLS_PK_ECKEY ||
-             mbedtls_ecp_point_cmp(&mbedtls_pk_ec(c.pk)->Q, &mbedtls_pk_ec(k)->Q)) why = "That certificate is for a different key";
+    else if (mbedtls_pk_write_pubkey_psa(&c.pk, pub, sizeof pub, &n) || n != sizeof s_rec.b.req_pub ||
+             memcmp(pub, s_rec.b.req_pub, n)) why = "That certificate is for a different key";
     else {
         bool named = false;                     /* who signed it is the browser's business */
         size_t l = strlen(s_rec.b.req_name);
@@ -697,7 +708,6 @@ static const char *take_cert(const uint8_t *der, size_t len)
         if (!named) why = "That certificate is for a different name";
     }
     mbedtls_x509_crt_free(&c);
-    mbedtls_pk_free(&k);
     if (why) return why;
     body_t *b = &s_tmp.b;
     *b = s_rec.b;

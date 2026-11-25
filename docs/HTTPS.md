@@ -36,8 +36,8 @@ Asking the gateway for another request makes another key: install the certificat
 
 ## How it works
 
-mbedTLS 3.6.8, TLS 1.2 only, one suite: ECDHE-ECDSA P-256 with AES-128-GCM. Sessions resume
-(tickets, keys changed every 12 hours and at every start). Up to 4 connections, kept open
+mbedTLS 4.1.2 (supported to March 2029), TLS 1.2 only, one suite: ECDHE-ECDSA P-256 with
+AES-128-GCM. Sessions resume (tickets, keys changed every 12 hours and at every start). Up to 4 connections, kept open
 between requests for a minute; idle ones give way to new ones.
 
 - **Handshakes do not hold up the ports.** The arithmetic runs on its own stack in slices of
@@ -52,10 +52,11 @@ between requests for a minute; idle ones give way to new ones.
 
 | | Measured |
 |---|---|
-| Image | 223 KB, from 139 KB |
-| Memory, 4 connections and a handshake | 96 KB of 124 KB |
+| Image | 232 KB, from 139 KB without HTTPS |
+| Memory, 4 connections and a handshake | 101 KB of 124 KB |
 | Emulated Cortex-M7: longest slice | 1.01 ms |
-| On the gateway: full handshake, resumed, four at once | 77 ms in 56 slices, 2.2 ms, 305 ms |
+| Handshake arithmetic, emulated | 28.4 million instructions (26.3 with mbedTLS 3.6) |
+| On the gateway, mbedTLS 3.6: full handshake, resumed, four at once | 77 ms in 56 slices, 2.2 ms, 305 ms |
 | On the gateway: page (25 KB), status, on an open connection | 9 ms, 1.4 ms |
 | On the gateway: longest pause of the main loop meanwhile | 2.9 ms; 57 ms while a certificate is saved (flash erase) |
 | On the gateway: longest slice, arithmetic stack | 1.8 ms, 1.8 KB of 12 KB |
@@ -88,7 +89,7 @@ Checked 2026-11-25:
 - Needed besides: network time (SNTP), a TLS client that checks certificates, and the ACME
   and Route 53 requests. The certificate's expiry should go to the Hardware page and Home
   Assistant.
-- **RAM:** the image is 218 of at most 384 KB, the loader's limit. Buffers have more room:
+- **RAM:** the image is 227 of at most 384 KB, the loader's limit. Buffers have more room:
   main RAM is 512 KB, and D2, D3 and ITCM have about 190 KB free between them.
 - Certificates are publicly logged, so the host name becomes public. The name needs a DNS
   record for the gateway's LAN address; some routers block public names that resolve to
