@@ -41,6 +41,7 @@ static const ent_t PORT_E[] = {
     { "sensor", "serial_rx",   "from serial",      SIZE, 0 },
     { "sensor", "serial_tx",   "to serial",        SIZE, 0 },
     { "sensor", "errors",      "errors",           TOTAL, DIAG },
+    { "binary_sensor", "alert", "alert",           ",\"device_class\":\"problem\"", BOOL },
 };
 static const ent_t DEV_E[] = {
     { "text",   "name",       "Name",       ",\"min\":0,\"max\":31", CTRL },
@@ -309,7 +310,7 @@ static bool publish_port(const cfg_t *c, int i)
     size_t n0 = cfg_port_json(&c->port[i], s_buf, sizeof s_buf), max = sizeof s_buf;
     if (!n0) return true;
     n0--;                                       /* reopen the object */
-    ADD(",\"state\":\"%s\",\"clients\":%d", b.state, b.clients);
+    ADD(",\"state\":\"%s\",\"clients\":%d,\"alert\":\"%s\"", b.state, b.clients, b.alert);
     uint32_t h = hash(s_buf), cnt = b.serial_rx * 31u + b.serial_tx * 17u + b.errors;
     uint32_t now = HAL_GetTick();
     bool first = s_port_hash[i] == 0;

@@ -50,7 +50,7 @@ void api_init(void)
 {
     cfg_load(&s_cfg);
     if (!s_cfg.net.dhcp) run_net(&s_cfg.net);
-    bridge_configure(s_cfg.port);
+    bridge_configure(&s_cfg);
     mqtt_ha_configure(&s_cfg);
     hwinfo_init();
 }
@@ -85,7 +85,7 @@ bool api_set_line(char *line, char *err, size_t errlen)
     s_cfg = c;
     s_unsaved = true;
     s_save_at = HAL_GetTick() + SAVE_MS;
-    bridge_configure(s_cfg.port);
+    bridge_configure(&s_cfg);
     mqtt_ha_configure(&s_cfg);
     return true;
 }
@@ -241,7 +241,7 @@ static const char *change(cfg_t *cp, char *body, char *out, size_t max)
             snprintf(out, max, "Could not write settings to flash; nothing changed");
             return "500 Internal Server Error";
         }
-        bridge_configure(s_cfg.port);
+        bridge_configure(&s_cfg);
         mqtt_ha_configure(&s_cfg);
     }
     if (net_changed) {
@@ -326,6 +326,7 @@ void cli_port(int i, cli_port_t *o)
     memset(o, 0, sizeof *o);
     o->state = b.state;
     o->clients = b.clients;
+    o->alert = b.alert;
     memcpy(o->peers, b.peers, sizeof o->peers);
     o->serial_rx = b.serial_rx;
     o->serial_tx = b.serial_tx;

@@ -47,6 +47,10 @@ static const field_t MQTT_F[] = {
 };
 #define NMQTT_F (sizeof MQTT_F / sizeof MQTT_F[0])
 
+static const uint16_t QUIET_MIN[16] = { 0, 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720, 1440 };
+
+uint16_t cfg_quiet_min(const cfg_t *c, int i) { return QUIET_MIN[c->quiet >> (4 * i) & 15]; }
+
 void cfg_defaults(cfg_t *c)
 {
     memset(c, 0, sizeof *c);
@@ -158,6 +162,14 @@ static bool apply(cfg_t *c, const char *k, const char *v)
         for (size_t i = 0; i < NPORT_F; i++)
             if (!strcmp(PORT_F[i].key, k + 6))
                 return set_field(&c->port[k[4] - '1'], &PORT_F[i], v);
+        uint32_t min;
+        if (strcmp(k + 6, "quiet_min") || !parse_u32(v, &min)) return false;
+        for (unsigned q = 0; q < 16; q++)
+            if (QUIET_MIN[q] == min) {
+                int sh = 4 * (k[4] - '1');
+                c->quiet = (uint16_t)((c->quiet & ~(15u << sh)) | q << sh);
+                return true;
+            }
         return false;
     }
     if (!strncmp(k, "mqtt.", 5)) {
@@ -343,7 +355,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
     for (int i = 0; i < PORTS; i++) {
         if (i) ADD(",");
         if (!(w = cfg_port_json(&c->port[i], out + n, max - n))) return 0;
-        n += w;
+        n += w - 1;
+        ADD(",\"quiet_min\":%u}", cfg_quiet_min(c, i));
     }
     ADD("]}\n");
     return n;
@@ -383,6 +396,7 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         snprintf(pre, sizeof pre, "port%d", i + 1);
         if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;
         n += w;
+        ADD("%s.quiet_min=%u\n", pre, cfg_quiet_min(c, i));
     }
     return n;
 }

@@ -1,3 +1,5 @@
+<img src="docs/images/logo.svg" width="96" alt="">
+
 # lino — open firmware for the USR-N540
 
 Custom, open firmware for the **USR-N540** (4-port RS485 ↔ Ethernet gateway),

@@ -10,7 +10,7 @@
 
 void bridge_init(void);
 /* (Re)starts only the ports whose settings changed. Applied on the next poll. */
-void bridge_configure(const port_cfg_t cfg[PORTS]);
+void bridge_configure(const cfg_t *c);
 void bridge_poll(void);
 typedef struct {
     const char *state;
@@ -18,6 +18,7 @@ typedef struct {
     uint32_t serial_rx, serial_tx, errors;
     uint32_t net_lost, refused;
     char peers[112];
+    const char *alert;          /* "", "silent" or "no_client" */
 } bridge_info_t;
 void bridge_info(int port, bridge_info_t *out);
 /* Sends bytes on a port's serial line as if a client had. */

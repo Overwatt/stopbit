@@ -10,6 +10,7 @@
 #include "uart485.h"
 #include "traffic.h"
 #include "history.h"
+#include "quiet.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -48,11 +49,15 @@ typedef struct {
     uint32_t net_rx, net_tx, net_lost, refused;
     uint32_t heard_at, sent_at;  /* ms; valid once bytes have moved */
     bool heard, sent;
+    uint32_t quiet_from, client_from;   /* last bytes / last client, or when it opened */
+    quiet_t alert;
 } port_t;
 
 static port_t s_p[PORTS];
 static D2 uint8_t s_ring[PORTS][MAX_CLIENTS][RING];
 static port_cfg_t s_want[PORTS];
+static uint16_t s_quiet[PORTS];
+static const char *const ALERT[] = { "", "silent", "no_client" };
 static bool s_dirty;
 
 static size_t to_line(int i, const uint8_t *d, size_t n)
@@ -280,6 +285,7 @@ static void port_start(int i)
 {
     port_t *p = &s_p[i];
     if (!p->cfg.enabled) return;
+    p->quiet_from = p->client_from = HAL_GetTick();
     uart485_open(i, &p->cfg);
     switch (p->cfg.mode) {
     case MODE_SERVER: start_listen(p); break;
@@ -292,6 +298,7 @@ static void port_stop(int i)
 {
     port_t *p = &s_p[i];
     p->state = LS_OFF;
+    p->alert = QUIET_OK;
     p->gen++;
     p->backoff = 0;
     p->udp_have_peer = false;
@@ -309,9 +316,10 @@ void bridge_init(void)
     memset(s_p, 0, sizeof s_p);
 }
 
-void bridge_configure(const port_cfg_t cfg[PORTS])
+void bridge_configure(const cfg_t *c)
 {
-    memcpy(s_want, cfg, sizeof s_want);
+    for (int i = 0; i < PORTS; i++) s_quiet[i] = cfg_quiet_min(c, i);
+    memcpy(s_want, c->port, sizeof s_want);
     s_dirty = true;
 }
 
@@ -342,7 +350,7 @@ static void serial_to_net(int i)
     uint16_t n = (uint16_t)uart485_read(i, buf, a);
     traffic_add(i, false, buf, n, HAL_GetTick());
     p->heard = true;
-    p->heard_at = HAL_GetTick();
+    p->heard_at = p->quiet_from = HAL_GetTick();
 
     if (p->cfg.mode == MODE_UDP) {
         struct pbuf *q = p->udp_have_peer ? pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM) : NULL;
@@ -394,6 +402,18 @@ static void net_to_serial(int i)
     }
 }
 
+static void watch(port_t *p, uint32_t now, uint16_t limit)
+{
+    bool client = p->cfg.mode == MODE_UDP;         /* UDP has no connection to lose */
+    for (int k = 0; k < MAX_CLIENTS; k++) client |= p->cl[k].pcb && p->cl[k].up;
+    if (client) p->client_from = now;
+    p->quiet_from = quiet_clamp(now, p->quiet_from);
+    p->client_from = quiet_clamp(now, p->client_from);
+    p->heard_at = quiet_clamp(now, p->heard_at);
+    p->sent_at = quiet_clamp(now, p->sent_at);
+    p->alert = quiet_eval(now, limit, p->quiet_from, p->client_from);
+}
+
 void bridge_poll(void)
 {
     hist_count_t h[PORTS];
@@ -417,6 +437,7 @@ void bridge_poll(void)
         if (p->state == LS_OFF) continue;
         serial_to_net(i);
         net_to_serial(i);
+        watch(p, HAL_GetTick(), s_quiet[i]);
         if ((p->state == LS_WAITING || p->state == LS_ERROR) &&
             (int32_t)(HAL_GetTick() - p->retry_at) >= 0) {
             if (p->cfg.mode == MODE_SERVER) start_listen(p);
@@ -431,6 +452,7 @@ void bridge_info(int i, bridge_info_t *o)
     port_t *p = &s_p[i];
     volatile uart_stats_t *u = &g_uart[i];
     o->state = LS_NAME[p->state];
+    o->alert = ALERT[p->alert];
     o->clients = 0;
     o->peers[0] = 0;
     size_t w = 0;
@@ -460,14 +482,14 @@ size_t bridge_json(char *out, size_t max)
         volatile uart_stats_t *u = &g_uart[i];
         ADD("%s{\"state\":\"%s\",\"serial_rx\":%lu,\"serial_tx\":%lu,\"net_rx\":%lu,\"net_tx\":%lu,"
             "\"net_lost\":%lu,\"rx_lost\":%lu,\"parity\":%lu,\"framing\":%lu,\"noise\":%lu,"
-            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"peers\":[",
+            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"alert\":\"%s\",\"peers\":[",
             i ? "," : "", LS_NAME[p->state], (unsigned long)u->rx_bytes, (unsigned long)u->tx_bytes,
             (unsigned long)p->net_rx, (unsigned long)p->net_tx, (unsigned long)p->net_lost,
             (unsigned long)u->rx_lost, (unsigned long)u->parity, (unsigned long)u->framing,
             (unsigned long)u->noise, (unsigned long)u->overrun, (unsigned long)u->echo_dropped,
             (unsigned long)p->refused, (unsigned long)history_errors(i),
             p->heard ? (long)((HAL_GetTick() - p->heard_at) & 0x7FFFFFFF) : -1L,
-            p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L);
+            p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L, ALERT[p->alert]);
         bool first = true;
         char ip[16];
         for (int k = 0; k < MAX_CLIENTS; k++) {

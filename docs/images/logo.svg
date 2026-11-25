@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="N540 gateway">
+  <!--
+    "Through the gate": an RS485 bus becoming network traffic.
+
+    Two wires of the bus cross as a twisted pair on the left, pass the gate, and
+    leave on the right as one line. The gate is the gateway.
+
+    Same family as TigoMonitor's mark: dark tile, silicon indigo, busbar silver,
+    and amber #F4B23C meaning one thing, the part that is live.
+
+    Small-size sibling: logo-small.svg (header, favicon). Below about 40px the
+    second wire inside the gate closes up, so it is dropped and strokes thicken.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16213B"/>
+      <stop offset="100%" stop-color="#0B111F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tile -->
+  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
+
+  <!-- Gateway: the inside of the arch -->
+  <path d="M25 54V27a13.500 13.500 0 0 1 27 0v27Z" fill="#1D2A63"/>
+
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Second wire of the pair, behind the gate and the live one -->
+    <path d="M7 27c7 0 8 17 16 17 9 0 9-8 18-8" stroke="#C6D0E2" stroke-width="4.200"/>
+    <!-- Gap that lets the live wire read in front -->
+    <path d="M7 45c7 0 8-18 16-18 9 0 9 9 18 9h17" stroke="#111A33" stroke-width="8" stroke-linecap="butt"/>
+    <!-- Gate -->
+    <path d="M25 55V27a13.500 13.500 0 0 1 27 0v28" stroke="#C6D0E2" stroke-width="4.500"/>
+    <!-- Live wire: in on the bus, out on the network -->
+    <path d="M7 45c7 0 8-18 16-18 9 0 9 9 18 9h17" stroke="#F4B23C" stroke-width="4.800"/>
+  </g>
+</svg>

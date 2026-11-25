@@ -42,10 +42,13 @@ the gateway and is reached through signed requests, so there is no telnet port.
 
 | Page | |
 |---|---|
-| Ports | status, traffic and settings of the four serial ports |
+| Status | a verdict, then every part with its state; a port opens beside it as a sentence, ten minutes of traffic and its readings, with its settings one press away |
 | Network | address, and Home Assistant (MQTT) |
-| Hardware | chips found, processor temperature and supply, pin map, memory, device name, restart, password |
+| Hardware | chips found, processor temperature and supply, pin map, memory; device name, restart, password |
 | Firmware | upload an `app.bin`, slots, starts |
+
+`GET /api/history/1` to `/4` is that port's last ten minutes in 5 s steps (bytes heard and
+sent, errors), kept in memory and lost on restart. Noise is not counted as an error.
 
 The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no password. The
 temperature is the processor's own sensor, so it reads above room temperature.
@@ -82,6 +85,7 @@ connections), a TCP client that reconnects, or UDP. **Data ports have no passwor
 | packet_len | 1 to 1400 bytes |
 | echo_cancel | drop bytes received while sending |
 | loopback | transmit to receive inside the chip (still drives the bus) |
+| quiet_min | alert when nothing is heard, or no client is connected (TCP), for this many minutes: 0 (never), 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720 or 1440. Shown on the page, in `port N`, and as a problem sensor in Home Assistant. Firmware older than this ignores it |
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
@@ -98,7 +102,7 @@ tools/n540.py $H set mqtt.enabled=1 mqtt.host=homeassistant.local mqtt.user=n540
 tools/n540.py $H mqtt-passwd
 ```
 
-- With controls: 80 entities, 60 enabled by default. Less common ones (packet timing,
+- With controls: 84 entities, 64 enabled by default. Less common ones (packet timing,
   echo, loopback, port name) are there but disabled.
 - A refused change shows under "Last rejected change" and the control goes back.
   Order matters: 7 data bits needs parity or 2 stop bits first.
@@ -137,6 +141,8 @@ cc -Isrc/app tests/test_cfg.c src/app/cfg.c -o /tmp/t && /tmp/t   # host
 cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,traffic}.c -o /tmp/c && /tmp/c
 python3 tests/test_cli_device.py HOST       # nothing attached to the RS485 ports
 python3 tests/test_device.py HOST           # nothing attached to the RS485 ports
+cc -DD2_BSS= -Isrc/app tests/test_history.c src/app/history.c -o /tmp/h && /tmp/h
+cc -Isrc/app tests/test_quiet.c -o /tmp/q && /tmp/q
 cc -Isrc/app tests/test_button.c src/app/{button,cfg}.c -o /tmp/b && /tmp/b
 python3 tests/test_http.py HOST
 python3 tests/test_net_trial.py HOST GATEWAY

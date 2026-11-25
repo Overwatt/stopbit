@@ -135,6 +135,7 @@ static void c_port(out_t *o, int argc, char **argv)
     put(o, "port %d    %s\nstatus    %s, %d connected%s%s\nline      %s%s%s\nnetwork   %s\n", i + 1, c->name, p.state,
         p.clients, p.peers[0] ? ": " : "", p.peers, l, c->loopback ? ", LOOPBACK TEST ON" : "",
         c->listen_only ? ", listen only" : c->echo_cancel ? ", ignoring own echo" : "", n);
+    if (p.alert && p.alert[0]) put(o, "ALERT     %s\n", strcmp(p.alert, "silent") ? "no client connected" : "nothing heard for too long");
     put(o, "bytes     %lu from line, %lu to line\n", (unsigned long)p.serial_rx, (unsigned long)p.serial_tx);
     put(o, "errors    %lu parity, %lu framing, %lu noise, %lu overrun, %lu buffer full, %lu not delivered, %lu refused\n",
         (unsigned long)p.parity, (unsigned long)p.framing, (unsigned long)p.noise, (unsigned long)p.overrun,

@@ -47,10 +47,13 @@ typedef struct {
     port_cfg_t port[PORTS];
     uint8_t    web_set;            /* a web password exists */
     uint8_t    web_salt[16], web_key[32];
+    uint16_t   quiet;              /* 4 bits per port, see cfg_quiet_min. Was padding, always 0 */
     /* --- end of schema 1 --- */
     mqtt_cfg_t mqtt;
 } cfg_t;
 
+/* Minutes without traffic or a client before a port alerts; 0 = never. */
+uint16_t cfg_quiet_min(const cfg_t *c, int port);
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);

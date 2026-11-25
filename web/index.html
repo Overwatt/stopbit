@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>N540 gateway</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d4a68'/%3E%3Cpath d='M3 6h10M3 10h10M6 4v8M10 4v8' stroke='%23fff' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111A33'/%3E%3Cpath d='M26 57V28a14 14 0 0 1 28 0v29Z' fill='%231D2A63'/%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 25c5 0 7 6 9 11' stroke='%23C6D0E2' stroke-width='6.500'/%3E%3Cpath d='M26 57V28a14 14 0 0 1 28 0v29' stroke='%23C6D0E2' stroke-width='6.500'/%3E%3Cpath d='M5 47c8 0 9-19 18-19 10 0 10 10 19 10h17' stroke='%23F4B23C' stroke-width='7.500'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{color-scheme:light dark;
 --shell:#0d4a68;--shell-soft:#bfe0ee;--ground:#dcebf1;--sheet:#fff;--ink:#0b2230;--soft:#2d5468;--rule:#dbe7ed;
@@ -22,6 +22,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 system-ui
 :focus-visible{outline:2px solid var(--sea);outline-offset:2px}
 header{background:var(--shell);color:#fff}header .in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 30px;min-height:72px;padding:10px 32px}
 header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
+.logo{width:40px;height:40px;flex:none;margin-right:-18px}
 nav{display:flex;gap:6px;align-self:stretch}nav a{color:var(--shell-soft);font-weight:600;text-decoration:none;padding:14px 10px 11px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
 nav a:hover{color:#fff;border-color:var(--shell-soft)}nav a[aria-current]{color:#fff;border-color:#fff}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
@@ -80,7 +81,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 [hidden]{display:none!important}
 @media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:860px){
- header .in{padding:10px 16px 0;gap:4px 16px}nav{order:9;flex-basis:100%;gap:0;margin:0 -8px}nav a{padding:11px 10px 9px}
+ header .in{padding:10px 16px 0;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}nav{order:9;flex-basis:100%;gap:0;margin:0 -8px}nav a{padding:11px 10px 9px}
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
  aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
@@ -98,7 +99,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 </head>
 <body data-view="list">
 <header><div class="in">
- <b id="dname">N540 gateway</b>
+ <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111A33"/><path d="M26 57V28a14 14 0 0 1 28 0v29Z" fill="#1D2A63"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 25c5 0 7 6 9 11" stroke="#C6D0E2" stroke-width="6.500"/><path d="M26 57V28a14 14 0 0 1 28 0v29" stroke="#C6D0E2" stroke-width="6.500"/><path d="M5 47c8 0 9-19 18-19 10 0 10 10 19 10h17" stroke="#F4B23C" stroke-width="7.500"/></g></svg><b id="dname">N540 gateway</b>
  <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
  <span class="grow"></span>
  <p class="meta" id="dmeta">Connecting…</p>
@@ -258,6 +259,7 @@ function editor(p,i){
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
   el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
   el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
+  el("fieldset",{},el("legend",{},"Alert"),el("div",{class:"grid-f"},sel("quiet_min","Alert if quiet",[[0,"Never"],...[1,2,3,5,10,15,20,30,60,120,180,240,360,720,1440].map(m=>[m,"After "+span(m*60)])])),el("p",{class:"hint"},"When nothing is heard, or no client is connected, for this long. Also sent to Home Assistant.")),
   el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
   el("div",{class:"acts"},save,el("button",{type:"button",onclick(){editing=false;showSheet()}},"Cancel"),msg));
  const m=f.elements.mode;m.onchange=()=>{const v=m.value;
@@ -374,6 +376,7 @@ const quiet=s=>s.heard_ms<0?"Nothing heard":s.heard_ms>30000?"Quiet "+dur(Math.r
 function portState(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],n=s.peers.length,up=n>0||s.state==="connected";
  if(s.state==="off")return ["idle","Off"];
  if(s.state==="error")return ["bad","Cannot open"];
+ if(s.alert)return ["bad",s.alert==="silent"?"Silent "+(s.heard_ms<0?"":dur(Math.round(s.heard_ms/1000))):"No client"];
  if(s.err_10m)return ["warn",plural(s.err_10m,"error")];
  if(s.state==="retrying"||s.state==="connecting")return ["warn",s.state==="retrying"?"Retrying":"Connecting"];
  if(!up)return ["idle",p.mode==="udp"?"Ready":"No client"];
@@ -383,6 +386,7 @@ function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
  if(m.enabled&&q.state!=="connected")L.push([q.error?"bad":"warn",q.error?"MQTT is not connected":"MQTT is connecting","#mqtt"]);
  st.ports.forEach((s,i)=>{const h="#port"+(i+1);
   if(s.state==="error")L.push(["bad",pn(i)+" cannot open its network port",h]);
+  else if(s.alert)L.push(["bad",pn(i)+(s.alert==="silent"?" is silent":" has no client"),h]);
   else if(s.err_10m)L.push(["warn",pn(i)+" had "+plural(s.err_10m,"error"),h]);
   else if(s.state==="retrying")L.push(["warn",pn(i)+" cannot reach "+cfg.ports[i].remote_host,h])});
  if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
@@ -403,7 +407,7 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  setItem(7,"ok","Hardware",hw&&hw.cpu.temp_c!=null?Math.round(hw.cpu.temp_c)+" °C":"Up "+dur(st.uptime_s));
  const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All good");
  const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"Every port is off":"No port is connected";
- const hush=st.ports.map((s,i)=>[s,i]).filter(([s])=>(s.peers.length||s.state==="connected")&&quiet(s)).map(([s,i])=>pn(i)+": "+quiet(s).toLowerCase());
+ const hush=st.ports.map((s,i)=>[s,i]).filter(([s])=>!s.alert&&(s.peers.length||s.state==="connected")&&quiet(s)).map(([s,i])=>pn(i)+": "+quiet(s).toLowerCase());
  put($("vsub"),!first?(hush.length?hush.join("; "):sum)+"."+(m.enabled?" MQTT connected.":""):L.length===1?"Everything else is good.":"Also: "+L.slice(1,3).map(x=>x[1]).join("; ")+(L.length>3?"; and "+(L.length-3)+" more":"")+".");
  if(page==="port")report()}
 function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>(x.textContent??x)+(x.className||"")).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
@@ -417,8 +421,9 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  else if(p.mode==="client")L.push(s.state==="connected"?"Connected to "+p.remote_host+".":"Trying to reach "+p.remote_host+".");
  else if(n)L.push((p.mode==="udp"?"Exchanging with ":"Connected to ")+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
  else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
- L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+".");
- if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");else if(s.heard_ms>=0)L.push("Clean.");
+ const lim=p.quiet_min;
+ L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+(s.alert==="silent"?", longer than the "+span(lim*60)+" allowed":"")+".");
+ if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");else if(s.heard_ms>=0&&!s.alert)L.push("Clean.");
  if(p.loopback)L.push("Loopback test is on.");
  L.push(p.listen_only?"Listen only.":r[1]>=1?"Sending "+rt(r[1])+".":"");
  return L.filter(Boolean).join(" ")}
@@ -427,7 +432,7 @@ function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i))
  put($("psay"),sentence(i));
  const e=[["parity",s.parity],["framing",s.framing],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]),
   nz=s.serial_rx?100*s.noise/s.serial_rx:0;
- facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.join(", ")||null],["Last heard",ago(s.heard_ms)],
+ facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
   ["Heard in all",bytes(s.serial_rx)],["Sent in all",bytes(s.serial_tx),p.listen_only?"Listen only":s.sent_ms>=0?ago(s.sent_ms):null],["Noise",s.noise?nz<.01?"Under 0.01%":nz.toFixed(2)+"%":"None",s.noise?s.noise.toLocaleString()+" flagged":null],["Errors, 10 min",s.err_10m?s.err_10m.toLocaleString():"None",e.length?"Since start: "+e.map(x=>x[1].toLocaleString()+" "+x[0]).join(", "):null]]);
  const now=performance.now();if(histFor!==i||now-histAt>5000){histAt=now;const was=histFor;histFor=i;if(was!==i){hist=null;drawCharts()}
   getj("/api/history/"+(i+1)).then(h=>{if(sel===i){hist=h;drawCharts()}}).catch(()=>{})}}
@@ -436,7 +441,7 @@ function facts(F){const d=$("pfacts");if(d.childElementCount!==F.length)d.replac
 
 /* ---- charts: ten minutes, one series each ---- */
 const N=120,nice=m=>{if(m<=0)return 10;const p=10**Math.floor(Math.log10(m));for(const k of [1,1.5,2,2.5,3,4,5,6,8,10])if(k*p>=m)return k*p};
-const span=s=>s<60?s+" s":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":"");
+const span=s=>s<60?s+" s":s>=3600&&!(s%3600)?s/3600+" h":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":"");
 function svg(t,a,txt){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e}
 const boxes={};
 function drawCharts(){const c=$("charts"),sent=hist&&hist.tx.some(x=>x);c.hidden=$("ptable").hidden=!!st&&st.ports[sel].state==="off"&&!(hist&&hist.rx.some(x=>x)||sent);
