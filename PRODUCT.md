@@ -54,7 +54,8 @@ so watching a live bus cannot disturb it.
   password set, nothing can be saved from the page.
 - The web password can install firmware, which is full control of the device. Replacing
   the loader and reading flash need a separate key file.
-- Ports' data sockets have no login.
+- Ports' data sockets have no login. Each port can be limited to listed IP addresses, to
+  read or to read and write; nothing is encrypted.
 - HTTP only, so browser features that require a secure context are unavailable. HTTPS is
   a documented stretch goal, not a capability (`docs/HTTPS.md`).
 - **Must work with no internet:** no outside fonts, scripts, images or services. Size may

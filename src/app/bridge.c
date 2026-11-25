@@ -5,6 +5,8 @@
  * Serial -> network: bytes are collected until the line goes quiet (gap) or the
  * packet is full, then sent to every connection. A peer that cannot keep up
  * loses that packet; the others are unaffected.
+ * The access list covers whoever is at the other end, in every mode. Data from one
+ * that may only read is taken, so it is not held up, and dropped.
  */
 #include "bridge.h"
 #include "uart485.h"
@@ -19,7 +21,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef D2
 #define D2 __attribute__((section(".d2_bss")))
+#endif
 #define RING TCP_WND
 
 typedef struct {
@@ -29,6 +33,7 @@ typedef struct {
     uint32_t drained_at;
     bool     up;                /* connected (client mode: SYN completed) */
     uint8_t  port;
+    bool     may_write;
 } client_t;
 
 enum { LS_OFF, LS_LISTENING, LS_CONNECTING, LS_CONNECTED, LS_WAITING, LS_BOUND, LS_ERROR };
@@ -46,7 +51,9 @@ typedef struct {
     client_t cl[MAX_CLIENTS];
     uint32_t retry_at, backoff;
     uint32_t gen;               /* invalidates in-flight DNS answers */
-    uint32_t net_rx, net_tx, net_lost, refused;
+    uint32_t net_rx, net_tx, net_lost, refused, denied, ignored;
+    ip_addr_t denied_ip;         /* last one the access list turned away */
+    uint32_t denied_at;
     uint32_t heard_at, sent_at;  /* ms; valid once bytes have moved */
     bool heard, sent;
     uint32_t quiet_from, client_from;   /* last bytes / last client, or when it opened */
@@ -57,6 +64,7 @@ static port_t s_p[PORTS];
 static D2 uint8_t s_ring[PORTS][MAX_CLIENTS][RING];
 static port_cfg_t s_want[PORTS];
 static uint16_t s_quiet[PORTS];
+static acl_t s_acl[PORTS];
 static const char *const ALERT[] = { "", "silent", "no_client" };
 static bool s_dirty;
 
@@ -72,6 +80,19 @@ static size_t to_line(int i, const uint8_t *d, size_t n)
 bool bridge_send(int i, const uint8_t *d, size_t n)
 {
     return s_p[i].state != LS_OFF && !s_p[i].cfg.listen_only && uart485_tx_room(i) >= n && to_line(i, d, n) == n;
+}
+
+/* ---- access list --------------------------------------------------------- */
+static acl_role_t role(const port_t *p, const ip_addr_t *ip)
+{
+    return acl_role(&s_acl[p - s_p], ip4_addr_get_u32(ip_2_ip4(ip)));
+}
+
+static void deny(port_t *p, const ip_addr_t *ip)
+{
+    p->denied++;
+    p->denied_ip = *ip;
+    p->denied_at = HAL_GetTick();
 }
 
 /* ---- TCP connections ----------------------------------------------------- */
@@ -159,9 +180,16 @@ static err_t cb_accept(void *arg, struct tcp_pcb *pcb, err_t err)
 {
     port_t *p = arg;
     if (err != ERR_OK || !pcb) return ERR_VAL;
+    acl_role_t r = role(p, &pcb->remote_ip);
+    if (r == ACL_DENY) {
+        deny(p, &pcb->remote_ip);
+        tcp_abort(pcb);
+        return ERR_ABRT;
+    }
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (p->cl[i].pcb) continue;
         client_attach(p, &p->cl[i], pcb);
+        p->cl[i].may_write = r == ACL_WRITE;
         p->cl[i].up = true;
         return ERR_OK;
     }
@@ -204,9 +232,12 @@ static err_t cb_connected(void *arg, struct tcp_pcb *pcb, err_t err)
 
 static void connect_to(port_t *p, const ip_addr_t *ip)
 {
+    acl_role_t r = role(p, ip);
+    if (r == ACL_DENY) { deny(p, ip); schedule_retry(p); return; }
     struct tcp_pcb *pcb = tcp_new();
     if (!pcb) { schedule_retry(p); return; }
     client_attach(p, &p->cl[0], pcb);
+    p->cl[0].may_write = r == ACL_WRITE;
     if (tcp_connect(pcb, ip, p->cfg.remote_port, cb_connected) != ERR_OK) {
         client_close(&p->cl[0]);
         schedule_retry(p);
@@ -218,6 +249,7 @@ static void resolved(port_t *p, const ip_addr_t *ip)
 {
     if (!ip) { schedule_retry(p); return; }
     if (p->cfg.mode == MODE_CLIENT) { connect_to(p, ip); return; }
+    if (role(p, ip) == ACL_DENY) { deny(p, ip); schedule_retry(p); return; }
     p->udp_peer = *ip;
     p->udp_peer_port = p->cfg.remote_port;
     p->udp_have_peer = true;
@@ -249,6 +281,12 @@ static void cb_udp(void *arg, struct udp_pcb *u, struct pbuf *q, const ip_addr_t
     port_t *p = arg;
     int i = (int)(p - s_p);
     (void)u;
+    acl_role_t r = role(p, from);
+    if (r == ACL_DENY) {
+        deny(p, from);
+        pbuf_free(q);
+        return;
+    }
     if (!p->cfg.remote_host[0]) {           /* reply to whoever spoke last */
         p->udp_peer = *from;
         p->udp_peer_port = port;
@@ -257,7 +295,9 @@ static void cb_udp(void *arg, struct udp_pcb *u, struct pbuf *q, const ip_addr_t
         pbuf_free(q);                       /* not the configured peer */
         return;
     }
-    if (uart485_tx_room(i) >= q->tot_len) {
+    if (r != ACL_WRITE) {
+        p->ignored += q->tot_len;
+    } else if (uart485_tx_room(i) >= q->tot_len) {
         p->net_rx += q->tot_len;
         for (struct pbuf *b = q; b; b = b->next) to_line(i, b->payload, b->len);
     } else {
@@ -319,8 +359,30 @@ void bridge_init(void)
 void bridge_configure(const cfg_t *c)
 {
     for (int i = 0; i < PORTS; i++) s_quiet[i] = cfg_quiet_min(c, i);
+    memcpy(s_acl, c->access, sizeof s_acl);     /* for new arrivals at once, the rest in bridge_poll */
     memcpy(s_want, c->port, sizeof s_want);
     s_dirty = true;
+}
+
+/* A changed list: drop whoever is no longer on it and nobody else. */
+static void apply_access(port_t *p)
+{
+    for (int k = 0; k < MAX_CLIENTS; k++) {
+        client_t *c = &p->cl[k];
+        if (!c->pcb) continue;
+        const ip_addr_t ip = c->pcb->remote_ip;
+        acl_role_t r = role(p, &ip);
+        c->may_write = r == ACL_WRITE;
+        if (r != ACL_DENY) continue;
+        deny(p, &ip);
+        client_close(c);
+        if (p->cfg.mode == MODE_CLIENT) schedule_retry(p);
+    }
+    if (p->udp_have_peer && role(p, &p->udp_peer) == ACL_DENY) {
+        deny(p, &p->udp_peer);
+        p->udp_have_peer = false;
+        if (p->cfg.remote_host[0]) schedule_retry(p);
+    }
 }
 
 static bool same_wiring(const port_cfg_t *a, const port_cfg_t *b)
@@ -387,7 +449,8 @@ static void net_to_serial(int i)
         while (c->count) {
             uint32_t n = RING - c->head;
             if (n > c->count) n = c->count;
-            n = (uint32_t)to_line(i, &s_ring[i][k][c->head], n);
+            if (c->may_write) n = (uint32_t)to_line(i, &s_ring[i][k][c->head], n);
+            else p->ignored += n;
             if (!n) break;
             c->head = (c->head + n) % RING;
             c->count -= n;
@@ -409,6 +472,7 @@ static void watch(port_t *p, uint32_t now, uint16_t limit)
     if (client) p->client_from = now;
     p->quiet_from = quiet_clamp(now, p->quiet_from);
     p->client_from = quiet_clamp(now, p->client_from);
+    p->denied_at = quiet_clamp(now, p->denied_at);
     p->heard_at = quiet_clamp(now, p->heard_at);
     p->sent_at = quiet_clamp(now, p->sent_at);
     p->alert = quiet_eval(now, limit, p->quiet_from, p->client_from);
@@ -426,7 +490,11 @@ void bridge_poll(void)
     if (s_dirty) {
         s_dirty = false;
         for (int i = 0; i < PORTS; i++) {
-            if (same_wiring(&s_p[i].cfg, &s_want[i])) { s_p[i].cfg = s_want[i]; continue; }
+            if (same_wiring(&s_p[i].cfg, &s_want[i])) {
+                s_p[i].cfg = s_want[i];
+                apply_access(&s_p[i]);
+                continue;
+            }
             port_stop(i);
             s_p[i].cfg = s_want[i];
             port_start(i);
@@ -466,6 +534,10 @@ void bridge_info(int i, bridge_info_t *o)
     }
     o->net_lost = p->net_lost;
     o->refused = p->refused;
+    o->denied = p->denied;
+    o->ignored = p->ignored;
+    o->denied_ip[0] = 0;
+    if (p->denied) ipaddr_ntoa_r(&p->denied_ip, o->denied_ip, sizeof o->denied_ip);
     o->serial_rx = u->rx_bytes;
     o->serial_tx = u->tx_bytes;
     o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
@@ -480,29 +552,37 @@ size_t bridge_json(char *out, size_t max)
     for (int i = 0; i < PORTS; i++) {
         port_t *p = &s_p[i];
         volatile uart_stats_t *u = &g_uart[i];
+        char ip[16];
+        ipaddr_ntoa_r(&p->denied_ip, ip, sizeof ip);
         ADD("%s{\"state\":\"%s\",\"serial_rx\":%lu,\"serial_tx\":%lu,\"net_rx\":%lu,\"net_tx\":%lu,"
             "\"net_lost\":%lu,\"rx_lost\":%lu,\"parity\":%lu,\"framing\":%lu,\"noise\":%lu,"
-            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"alert\":\"%s\",\"peers\":[",
+            "\"overrun\":%lu,\"echo\":%lu,\"refused\":%lu,\"err_10m\":%lu,\"heard_ms\":%ld,\"sent_ms\":%ld,\"alert\":\"%s\","
+            "\"denied\":%lu,\"denied_ip\":\"%s\",\"denied_ms\":%ld,\"ignored\":%lu,\"peers\":[",
             i ? "," : "", LS_NAME[p->state], (unsigned long)u->rx_bytes, (unsigned long)u->tx_bytes,
             (unsigned long)p->net_rx, (unsigned long)p->net_tx, (unsigned long)p->net_lost,
             (unsigned long)u->rx_lost, (unsigned long)u->parity, (unsigned long)u->framing,
             (unsigned long)u->noise, (unsigned long)u->overrun, (unsigned long)u->echo_dropped,
             (unsigned long)p->refused, (unsigned long)history_errors(i),
             p->heard ? (long)((HAL_GetTick() - p->heard_at) & 0x7FFFFFFF) : -1L,
-            p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L, ALERT[p->alert]);
+            p->sent ? (long)((HAL_GetTick() - p->sent_at) & 0x7FFFFFFF) : -1L, ALERT[p->alert],
+            (unsigned long)p->denied, p->denied ? ip : "",
+            p->denied ? (long)((HAL_GetTick() - p->denied_at) & 0x7FFFFFFF) : -1L, (unsigned long)p->ignored);
         bool first = true;
-        char ip[16];
         for (int k = 0; k < MAX_CLIENTS; k++) {
             if (!p->cl[k].pcb || !p->cl[k].up) continue;
             ipaddr_ntoa_r(&p->cl[k].pcb->remote_ip, ip, sizeof ip);
             ADD("%s\"%s:%u\"", first ? "" : ",", ip, p->cl[k].pcb->remote_port);
             first = false;
         }
+        uint8_t ro = 0;                         /* which of these may only read */
+        for (int k = 0, b = 0; k < MAX_CLIENTS; k++)
+            if (p->cl[k].pcb && p->cl[k].up) ro |= (uint8_t)(!p->cl[k].may_write << b++);
         if (p->udp && p->udp_have_peer) {
             ipaddr_ntoa_r(&p->udp_peer, ip, sizeof ip);
             ADD("\"%s:%u\"", ip, p->udp_peer_port);
+            ro = role(p, &p->udp_peer) != ACL_WRITE;
         }
-        ADD("]}");
+        ADD("],\"read_only\":%u}", ro);
     }
     ADD("]");
     return n;

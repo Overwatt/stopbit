@@ -69,7 +69,7 @@ int main(int argc, char **argv)
     strcpy(C.mqtt.password, "hunter2"); strcpy(C.mqtt.user, "u");
     assert(!strstr(run("get"), "hunter2") && !strstr(run("get"), "web_"));
     /* `get` output must load back to the same settings. */
-    { static char b[2600]; char e[96]; cfg_t t; cfg_defaults(&t); assert(cfg_lines(&C, b, sizeof b)); assert(cfg_parse(&t, b, e, sizeof e));
+    { static char b[3600]; char e[96]; cfg_t t; cfg_defaults(&t); assert(cfg_lines(&C, b, sizeof b)); assert(cfg_parse(&t, b, e, sizeof e));
       memcpy(t.mqtt.password, C.mqtt.password, 64); assert(!memcmp(&t, &C, sizeof t)); }
     for (size_t k = 0; k < 2000; k++) { char *b = malloc(k + 1); size_t r = cfg_lines(&C, b, k); assert(r < k + 1); free(b); if (r) break; }
 

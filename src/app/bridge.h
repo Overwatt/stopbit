@@ -19,6 +19,8 @@ typedef struct {
     uint32_t net_lost, refused;
     char peers[112];
     const char *alert;          /* "", "silent" or "no_client" */
+    uint32_t denied, ignored;   /* by the access list: connections or datagrams; bytes */
+    char denied_ip[16];
 } bridge_info_t;
 void bridge_info(int port, bridge_info_t *out);
 /* Sends bytes on a port's serial line as if a client had. */

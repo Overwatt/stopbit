@@ -1,4 +1,4 @@
-/* cc -Isrc/app tests/test_button.c src/app/{button,cfg}.c -o /tmp/b && /tmp/b */
+/* cc -Isrc/app tests/test_button.c src/app/{button,cfg,acl}.c -o /tmp/b && /tmp/b */
 #include "button.h"
 #include "cfg.h"
 #include <assert.h>

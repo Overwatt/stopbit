@@ -135,6 +135,11 @@ static void c_port(out_t *o, int argc, char **argv)
     put(o, "port %d    %s\nstatus    %s, %d connected%s%s\nline      %s%s%s\nnetwork   %s\n", i + 1, c->name, p.state,
         p.clients, p.peers[0] ? ": " : "", p.peers, l, c->loopback ? ", LOOPBACK TEST ON" : "",
         c->listen_only ? ", listen only" : c->echo_cancel ? ", ignoring own echo" : "", n);
+    char acl[ACL_TEXT];
+    acl_text(&cli_cfg()->access[i], acl);
+    put(o, "access    %s\n", acl[0] ? acl : "anyone");
+    if (p.denied) put(o, "denied    %lu, last %s\n", (unsigned long)p.denied, p.denied_ip);
+    if (p.ignored) put(o, "ignored   %lu bytes from clients that may only read\n", (unsigned long)p.ignored);
     if (p.alert && p.alert[0]) put(o, "ALERT     %s\n", strcmp(p.alert, "silent") ? "no client connected" : "nothing heard for too long");
     put(o, "bytes     %lu from line, %lu to line\n", (unsigned long)p.serial_rx, (unsigned long)p.serial_tx);
     put(o, "errors    %lu parity, %lu framing, %lu noise, %lu overrun, %lu buffer full, %lu not delivered, %lu refused\n",
@@ -144,7 +149,7 @@ static void c_port(out_t *o, int argc, char **argv)
 
 static void c_get(out_t *o, int argc, char **argv)
 {
-    static char b[2600];
+    static char b[3600];
     size_t n = cfg_lines(cli_cfg(), b, sizeof b), shown = 0;
     if (!n) { put(o, "error: settings too long to show\n"); return; }
     const char *want = argc > 1 ? argv[1] : "";

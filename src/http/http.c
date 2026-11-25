@@ -47,7 +47,7 @@
 #include "fwlib.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
-#define BODY_MAX   2048
+#define BODY_MAX   3072
 #ifndef CONN_MEM
 #define CONN_MEM   __attribute__((section(".d2_bss")))
 #endif
@@ -505,7 +505,7 @@ static err_t on_request(conn_t *c)
         { "/loader",     ACT_LOADER,     0 },
         { "/confirm",    ACT_CONFIRM,    0 },
         { "/install",    ACT_INSTALL,    STAGE_SIZE },
-        { "/rollback",   ACT_ROLLBACK,   BODY_MAX - 1 },
+        { "/rollback",   ACT_ROLLBACK,   80 },
 #else
         { "/run",        ACT_RUN,        STAGE_SIZE },
         { "/install",    ACT_INSTALL,    STAGE_SIZE },

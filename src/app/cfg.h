@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "acl.h"
 
 #define PORTS 4
 
@@ -51,6 +52,8 @@ typedef struct {
     uint16_t   quiet;              /* 4 bits per port, see cfg_quiet_min. Was padding, always 0 */
     /* --- end of schema 1 --- */
     mqtt_cfg_t mqtt;
+    /* --- end of schema 2; what follows is stored apart, see cfg_store.c --- */
+    acl_t      access[PORTS];
 } cfg_t;
 
 /* Minutes without traffic or a client before a port alerts; 0 = never. */

@@ -342,6 +342,9 @@ void cli_port(int i, cli_port_t *o)
     o->serial_tx = b.serial_tx;
     o->net_lost = b.net_lost;
     o->refused = b.refused;
+    o->denied = b.denied;
+    o->ignored = b.ignored;
+    memcpy(o->denied_ip, b.denied_ip, sizeof o->denied_ip);
     o->rx_lost = u->rx_lost;
     o->parity = u->parity;
     o->framing = u->framing;

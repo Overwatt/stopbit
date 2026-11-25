@@ -103,7 +103,7 @@ static void cb_topic(void *arg, const char *topic, u32_t tot)
     int olen = (int)(set - obj);
     bool port = olen == 5 && !strncmp(obj, "port", 4), dev = olen == 6 && !strncmp(obj, "device", 6);
     if (!port && !(dev && (!strcmp(field, "name") || !strcmp(field, "restart")))) return;
-    if (!strcmp(field, "listen_only")) return;      /* a safety setting: not over MQTT */
+    if (!strcmp(field, "listen_only") || !strcmp(field, "access")) return;   /* not over MQTT */
     for (const char *p = field; *p; p++)
         if (!((*p >= 'a' && *p <= 'z') || *p == '_')) return;
     if (snprintf(s_in_key, sizeof s_in_key, "%.*s.%s", olen, obj, field) >= (int)sizeof s_in_key) return;

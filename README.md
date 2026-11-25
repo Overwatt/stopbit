@@ -44,7 +44,8 @@ have the details.
 ## Security, plainly
 
 - Use it on a network you trust. Pages are HTTP, and **the ports' data sockets have no
-  login**.
+  login**. A port can be limited to listed addresses, to read or to read and write; that
+  goes by IP address, so it is not proof against someone who takes one over.
 - Anyone on the network can view the pages. Changes need the web password, which is unset
   at first, or the update key. Neither crosses the network in clear.
 - **The web password can install firmware**, which is full control. Replacing the loader and

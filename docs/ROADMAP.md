@@ -63,7 +63,8 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] **MQTT** with Home Assistant auto-discovery.
 - [ ] Prometheus metrics / live per-port traffic + latency stats.
 - [x] Hardware page: chips, pins, temperature, memory, firmware slots.
-- [ ] Real auth on the data ports.
+- [x] Access lists on the data ports, by address: read, or read and write.
+- [ ] Real auth on the data ports (WireGuard would make the addresses trustworthy).
 - [ ] Stretch: HTTPS hosted on the device with Let's Encrypt. Design in [HTTPS.md](HTTPS.md).
 - [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.

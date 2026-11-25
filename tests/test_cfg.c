@@ -22,7 +22,7 @@ static bool set(cfg_t *c, const char *text)
 int main(void)
 {
     cfg_t c;
-    char j[4096];
+    char j[4344];
     cfg_defaults(&c);
     assert(cfg_validate(&c, err, sizeof err));
     for (int i = 0; i < PORTS; i++) assert(!c.port[i].enabled);
@@ -34,6 +34,11 @@ int main(void)
     BAD("port1.quiet_min=4"); BAD("port1.quiet_min=-1"); BAD("port1.quiet_min="); BAD("port5.quiet_min=1");
     OK("port3.quiet_min=0"); assert(cfg_quiet_min(&c, 2) == 0 && cfg_quiet_min(&c, 0) == 1440); OK("port1.quiet_min=0"); assert(c.quiet == 0);
     OK("port2.listen_only=1"); assert(c.port[1].listen_only == 1 && !c.port[0].listen_only && !c.port[2].listen_only);
+    OK("port2.access=10.0.0.5 read, 10.0.0.0/24 write"); assert(c.access[1].n == 2 && !c.access[0].n && !c.access[2].n);
+    BAD("port2.access=10.0.0.5"); assert(strstr(err, "Access:")); BAD("port2.access=10.0.0.5 read, 10.0.0.5 write"); BAD("port5.access=10.0.0.5 read"); BAD("mqtt.access="); BAD("device.access=");
+    { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"access\":\"10.0.0.5 read, 10.0.0.0/24 write\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "port2.access=10.0.0.5 read, 10.0.0.0/24 write\n") && strstr(jj, "port1.access=\n"));
+      static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !memcmp(t.access, c.access, sizeof t.access)); }
+    OK("port2.access="); assert(!c.access[1].n);
     BAD("port2.loopback=1"); BAD("port3.listen_only=1\nport3.loopback=1"); BAD("port1.listen_only=2");
     OK("port2.listen_only=0\nport2.loopback=1"); OK("port2.loopback=0");
     OK("port1.baud=115200\r\nport1.enabled=1\n\nport1.parity=even\n");
@@ -94,10 +99,12 @@ int main(void)
     for (int i = 0; i < PORTS; i++) {
         memset(c.port[i].name, '"', 23); memset(c.port[i].remote_host, 'a', 47);
         c.port[i].baud = 2000000;
+        assert(acl_parse(&c.access[i], "255.255.255.240/31 write, 255.255.255.242/31 write, 255.255.255.244/31 write, 255.255.255.246/31 write, 255.255.255.248/31 write, 255.255.255.250/31 write, 255.255.255.252/31 write, 255.255.255.254/31 write"));
     }
     memset(c.device_name, '\\', 31);
     l = cfg_json(&c, j, sizeof j);
     printf("ok: %d change sets, worst-case JSON %zu bytes\n", n, l);
-    assert(l && l < 3800);
+    assert(l && l < 4344);                      /* http.c: RESP_MAX - 256 */
+    { static char ll[3600]; size_t k = cfg_lines(&c, ll, sizeof ll); printf("longest settings text %zu bytes\n", k); assert(k); }
     return 0;
 }

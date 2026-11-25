@@ -137,6 +137,7 @@ connections), a TCP client that reconnects, or UDP. **Data ports have no passwor
 | echo_cancel | drop bytes received while sending |
 | loopback | transmit to receive inside the chip (still drives the bus) |
 | quiet_min | alert when nothing is heard, or no client is connected (TCP), for this many minutes: 0 (never), 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720 or 1440. Shown on the page, in `port N`, and as a problem sensor in Home Assistant. Firmware older than this ignores it |
+| access | who may use the network side, up to 8: `10.0.0.5 read, 10.0.0.0/24 write`. Empty: anyone |
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
@@ -179,7 +180,31 @@ never crosses the wire, but pages and data are not encrypted, so a listener coul
 attempt to guess a weak password offline. The web password can change settings, restart and
 install firmware; it cannot read flash, replace the loader, or enter it.
 
+## Access lists
+
+A port's list names addresses or subnets and what each may do: `read`, or `write` (which
+includes reading). The most specific entry decides; anyone else is turned away and counted.
+An empty list allows anyone.
+
+- A reader hears the bus; what it sends is accepted and dropped. Listen only still overrides
+  everything.
+- The list covers whoever is at the other end, in every mode: clients of a TCP server, the
+  far end of a TCP client, senders and receivers of UDP.
+- Changing a list drops only those no longer on it. The port is not restarted.
+- It cannot be changed over MQTT, or bypassed by pointing a port elsewhere over MQTT.
+- **It goes by IP address.** It stops mistakes and casual access, not someone on the network
+  who takes over an address, and nothing is encrypted. Give listed clients fixed addresses.
+- The console's `send` and the web page are governed by the web password, not by lists.
+- The reload button does not clear lists. Firmware from before lists ignores them.
+- If both stored copies are damaged, nobody is let in until a list is saved again.
+
+Tested on the host: `tests/test_{acl,bridge,store}.c`. Not yet run on a gateway.
+
 ## Storage
+
+Access lists have their own two copies at `0x0F2000` / `0x0F3000`, so older firmware still
+reads the rest.
+
 
 Settings: two alternating checksummed copies at `0x0F0000` / `0x0F1000` of external
 flash 1 (blank on the stock unit). Schema 2 (MQTT) reads schema 1. Firmware from before
@@ -188,16 +213,19 @@ MQTT cannot read schema 2 and would start with defaults.
 ## Tests
 
 ```sh
-cc -Isrc/app tests/test_cfg.c src/app/cfg.c -o /tmp/t && /tmp/t   # host
+cc -Isrc/app tests/test_cfg.c src/app/{cfg,acl}.c -o /tmp/t && /tmp/t   # host
+cc -Isrc/app tests/test_acl.c src/app/{acl,cfg}.c -o /tmp/a && /tmp/a
+cc -w -DD2= -DD2_BSS= -Itests/stub_net -Itests/stub -Isrc/app tests/test_bridge.c src/app/{bridge,cfg,acl,traffic,history}.c -o /tmp/br && /tmp/br
+cc -w -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_store.c src/app/{cfg_store,cfg,acl}.c src/common/sha256.c -o /tmp/s && /tmp/s
 cc -w -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= tests/test_fwlib.c src/app/fwlib.c src/common/{slots,image,sha256}.c -o /tmp/fl && /tmp/fl
 tests/sim/run.sh                            # then, beside it:
 python3 tests/test_install.py 127.0.0.1:8541
-cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,traffic}.c -o /tmp/c && /tmp/c
+cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,acl,traffic}.c -o /tmp/c && /tmp/c
 python3 tests/test_cli_device.py HOST       # nothing attached to the RS485 ports
 python3 tests/test_device.py HOST           # nothing attached to the RS485 ports
 cc -DD2_BSS= -Isrc/app tests/test_history.c src/app/history.c -o /tmp/h && /tmp/h
 cc -Isrc/app tests/test_quiet.c -o /tmp/q && /tmp/q
-cc -Isrc/app tests/test_button.c src/app/{button,cfg}.c -o /tmp/b && /tmp/b
+cc -Isrc/app tests/test_button.c src/app/{button,cfg,acl}.c -o /tmp/b && /tmp/b
 python3 tests/test_http.py HOST
 python3 tests/test_net_trial.py HOST GATEWAY
 uv run --with paho-mqtt tests/test_mqtt.py HOST SSH_HOST BROKER_IP MOSQ_DIR out.json

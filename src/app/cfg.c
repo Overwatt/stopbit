@@ -165,6 +165,7 @@ static bool apply(cfg_t *c, const char *k, const char *v)
             if (!strcmp(PORT_F[i].key, k + 6))
                 return set_field(&c->port[k[4] - '1'], &PORT_F[i], v);
         uint32_t min;
+        if (!strcmp(k + 6, "access")) return acl_parse(&c->access[k[4] - '1'], v);
         if (strcmp(k + 6, "quiet_min") || !parse_u32(v, &min)) return false;
         for (unsigned q = 0; q < 16; q++)
             if (QUIET_MIN[q] == min) {
@@ -204,7 +205,10 @@ bool cfg_parse(cfg_t *c, char *body, char *err, size_t errlen)
         if (!eq) { snprintf(err, errlen, "Expected key=value: %.40s", line); return false; }
         *eq = 0;
         if (!apply(c, line, eq + 1)) {
-            snprintf(err, errlen, "Not accepted: %.24s = %.32s", line, eq + 1);
+            if (!strncmp(line, "port", 4) && !strcmp(line + 5, ".access"))
+                snprintf(err, errlen, "Access: up to %d different addresses, like 10.0.0.5 read, 10.0.0.0/24 write", ACL_MAX);
+            else
+                snprintf(err, errlen, "Not accepted: %.24s = %.32s", line, eq + 1);
             return false;
         }
     }
@@ -359,7 +363,9 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
         if (i) ADD(",");
         if (!(w = cfg_port_json(&c->port[i], out + n, max - n))) return 0;
         n += w - 1;
-        ADD(",\"quiet_min\":%u}", cfg_quiet_min(c, i));
+        char t[ACL_TEXT];
+        acl_text(&c->access[i], t);
+        ADD(",\"quiet_min\":%u,\"access\":\"%s\"}", cfg_quiet_min(c, i), t);
     }
     ADD("]}\n");
     return n;
@@ -400,7 +406,9 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         snprintf(pre, sizeof pre, "port%d", i + 1);
         if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;
         n += w;
-        ADD("%s.quiet_min=%u\n", pre, cfg_quiet_min(c, i));
+        char t[ACL_TEXT];
+        acl_text(&c->access[i], t);
+        ADD("%s.quiet_min=%u\n%s.access=%s\n", pre, cfg_quiet_min(c, i), pre, t);
     }
     return n;
 }

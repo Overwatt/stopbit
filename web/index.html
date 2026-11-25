@@ -77,7 +77,7 @@ input:hover,select:hover,input:focus,select:focus{border-color:var(--sea)}input:
 ::placeholder{color:var(--soft);opacity:1}
 input[type=file]{padding:6px;overflow:hidden}input::file-selector-button{font:inherit;font-weight:600;color:var(--ink);background:var(--key-h);border:0;border-radius:4px;padding:5px 14px;margin-right:12px;cursor:pointer}
 label.check{display:flex;gap:12px;align-items:flex-start;color:var(--ink);font-size:1rem;max-width:62ch}label.check input{width:20px;height:20px;min-height:0;margin:2px 0 0;flex:none;accent-color:var(--accent)}label.check span span{display:block;color:var(--soft);font-size:.875rem}
-.checks{display:grid;gap:12px}.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.msg{margin:0}
+.checks{display:grid;gap:12px}.acl{display:grid;grid-template-columns:minmax(0,260px) minmax(0,200px) auto;gap:8px 14px;align-items:end;justify-content:start}.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.msg{margin:0}
 code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
 [hidden]{display:none!important}
 @media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -94,7 +94,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  .chart{padding:14px 12px 8px}.chart svg{height:170px}
  thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}table.stack,table.stack tbody{display:block}
  table.stack tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}table.stack tr.row td{border:0;padding:0}table.stack td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}table.stack td:first-child{grid-column:1/-1}table.stack td:empty{display:none}
- label.wide{grid-column:1/-1}
+ label.wide{grid-column:1/-1}.acl{grid-template-columns:minmax(0,1fr) auto}.acl label:first-child{grid-column:1/-1}
 }
 .stale .chart .ln{opacity:.45}.stale .chart .ar{opacity:.06}.stale .it em{font-style:italic}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -177,7 +177,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  </form></section><section><h3>Installed</h3><dl class="list" id="fwinfo"></dl></section></div>
   <h3>Kept firmware</h3><table class="stack"><thead><tr><th>Version</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody id="kept"><tr><td colspan="4">Reading…</td></tr></tbody></table>
   <p class="msg" id="keptmsg" role="status"></p>
-  <p class="hint">Older firmware ignores settings it does not know.</p></div>
+  <p class="hint">Older firmware ignores settings it does not know, such as access lists.</p></div>
 </main></div>
 <script>
 "use strict";
@@ -247,6 +247,24 @@ const MODES={server:"TCP server",client:"TCP client",udp:"UDP"};
 const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
 function where(p){if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
  return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
+/* access lists: "10.0.0.5 read, 10.0.0.0/24 write"; the most specific entry decides */
+const ipn=t=>{const m=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(t);return m&&m.slice(1).every(x=>+x<256)?m.slice(1).reduce((a,x)=>a*256+ +x,0):-1};
+const entries=t=>t.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{const [a,r]=x.split(/\s+/),[h,b]=a.split("/");return {a,r:r||"read",ip:ipn(h),bits:b===undefined?32:+b}});
+function allowed(t,ip){const L=entries(t),n=ipn(ip);if(!L.length)return true;return L.some(e=>e.ip>=0&&Math.floor(e.ip/2**(32-e.bits))===Math.floor(n/2**(32-e.bits)))}
+const hostOf=x=>x.replace(/:\d+$/,"");
+function access(p,i){const out=el("input",{type:"hidden",name:"access",value:p.access||""}),rows=el("div",{class:"checks"}),sug=el("div",{class:"acts",style:"margin-top:12px"}),hint=el("p",{class:"hint"});
+ const read=()=>[...rows.children].map(r=>[r.querySelector("input").value.trim(),r.querySelector("select").value]).filter(x=>x[0]);
+ function sync(){const L=read();out.value=L.map(x=>x.join(" ")).join(", ");const s=st.ports[i],on=[...new Set(s.peers.map(hostOf))],off=on.filter(x=>!allowed(out.value,x));
+  hint.className="hint"+(off.length?" warn":"");hint.textContent=!L.length?"Empty: anyone on this network can connect"+(p.listen_only?".":" and send."):off.length?"Will be disconnected: "+off.join(", ")+".":"Everyone else is turned away. The most specific address decides.";
+  const have=new Set(L.map(x=>x[0])),offer=on.filter(x=>!have.has(x)).map(x=>[x,"connected"]);
+  if(s.denied_ip&&!have.has(s.denied_ip)&&!on.includes(s.denied_ip))offer.push([s.denied_ip,"turned away "+ago(s.denied_ms)]);
+  sug.replaceChildren(...(rows.children.length<8?[el("button",{type:"button",onclick(){add("","read").focus()}},"Add address"),...offer.map(([x,w])=>el("button",{type:"button",onclick(){add(x,"read")}},"Add "+x+" ("+w+")"))]:[]))}
+ function add(a,r){const t=el("input",{value:a,maxLength:18,autocomplete:"off",placeholder:"10.0.0.5 or 10.0.0.0/24",spellcheck:false,oninput:sync}),
+   row=el("div",{class:"acl"},el("label",{},"Address",t),el("label",{},"May",el("select",{onchange:sync},...[["read","Read"],["write","Read and write"]].map(([v,n])=>el("option",{value:v,selected:r===v},n)))),
+    el("button",{type:"button","aria-label":"Remove "+(a||"address"),onclick(){row.remove();sync();sug.firstChild&&sug.firstChild.focus()}},"Remove"));
+  rows.append(row);sync();return t}
+ for(const e of entries(out.value))add(e.a,e.r);
+ sync();return el("fieldset",{},el("legend",{},"Access"),out,rows,sug,hint)}
 function editor(p,i){
  const inp=(n,l,o,w)=>el("label",{class:w?"wide":"","data-f":n},l,el("input",{name:n,value:String(p[n]),autocomplete:"off",...o}));
  const sel=(n,l,o)=>el("label",{"data-f":n},l,el("select",{name:n},...o.map(([v,t])=>el("option",{value:v,selected:String(p[n])===String(v)},t))));
@@ -263,6 +281,7 @@ function editor(p,i){
   el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid-f"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
   el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
+  access(p,i),
   el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75\u00a0ms. That suits Modbus RTU.")),
   el("fieldset",{},el("legend",{},"Alert"),el("div",{class:"grid-f"},sel("quiet_min","Alert if quiet",[[0,"Never"],...[1,2,3,5,10,15,20,30,60,120,180,240,360,720,1440].map(m=>[m,"After "+span(m*60)])])),el("p",{class:"hint"},"When nothing is heard, or no client is connected, for this long."+(!cfg.mqtt.enabled?"":cfg.mqtt.announce===false?" Also published over MQTT.":" Also sent to Home Assistant."))),
   el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
@@ -270,7 +289,7 @@ function editor(p,i){
  const m=f.elements.mode;m.onchange=()=>{const v=m.value;
   f.querySelector("[data-f=local_port]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server";
-  hint.textContent=v==="server"?"Up to 4 connections at once. Data ports have no password: anyone on this network can connect.":v==="client"?"Connects out and reconnects by itself.":"Leave the remote host empty to answer whoever sent last."};m.onchange();
+  hint.textContent=v==="server"?"Up to 4 connections at once. Data ports have no password.":v==="client"?"Connects out and reconnects by itself.":"Leave the remote host empty to answer whoever sent last."};m.onchange();
  save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
  return f}
 document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38400,57600,115200,230400,460800,921600].map(v=>el("option",{value:String(v)}))));
@@ -456,6 +475,7 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  const lim=p.quiet_min;
  L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+(s.alert==="silent"?", longer than the "+span(lim*60)+" allowed":"")+".");
  if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");else if(s.heard_ms>=0&&!s.alert)L.push("Clean.");
+ if(s.denied&&s.denied_ms<6e5)L.push(p.mode==="client"?s.denied_ip+" is not on the access list.":"Turned away "+s.denied_ip+" "+ago(s.denied_ms).toLowerCase()+".");
  if(p.loopback)L.push("Loopback test is on.");
  L.push(p.listen_only?"Listen only.":r[1]>=1?"Sending "+rt(r[1])+".":"");
  return L.filter(Boolean).join(" ")}
@@ -464,7 +484,7 @@ function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i))
  put($("psay"),sentence(i));
  const e=[["parity",s.parity],["framing",s.framing],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]),
   nz=s.serial_rx?100*s.noise/s.serial_rx:0;
- facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
+ facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)+(p.access?", listed addresses only":"")],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.map((x,k)=>x+(s.read_only>>k&1?" (read)":"")).join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
   ["Heard in all",bytes(s.serial_rx)],["Sent in all",bytes(s.serial_tx),p.listen_only?"Listen only":s.sent_ms>=0?ago(s.sent_ms):null],["Noise",s.noise?nz<.01?"Under 0.01%":nz.toFixed(2)+"%":"None",s.noise?s.noise.toLocaleString()+" flagged":null],["Errors, 10 min",s.err_10m?s.err_10m.toLocaleString():"None",e.length?"Since start: "+e.map(x=>x[1].toLocaleString()+" "+x[0]).join(", "):null]]);
  const now=performance.now();if(histFor!==i||now-histAt>5000){histAt=now;const was=histFor;histFor=i;if(was!==i){hist=null;drawCharts()}
   getj("/api/history/"+(i+1)).then(h=>{if(sel===i){hist=h;drawCharts()}}).catch(()=>{})}}

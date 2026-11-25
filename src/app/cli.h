@@ -18,6 +18,8 @@ typedef struct {
     char peers[112];
     uint32_t serial_rx, serial_tx, net_lost, rx_lost, parity, framing, noise, overrun, refused;
     const char *alert;
+    uint32_t denied, ignored;                    /* by the access list */
+    char denied_ip[16];
 } cli_port_t;
 
 typedef struct {
