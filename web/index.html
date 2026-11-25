@@ -440,7 +440,7 @@ function facts(F){const d=$("pfacts");if(d.childElementCount!==F.length)d.replac
  F.forEach(([a,b,c],k)=>{put(d.children[k].children[0],a);put(d.children[k].children[1],b,c?el("span",{class:"sub"},c):null)})}
 
 /* ---- charts: ten minutes, one series each ---- */
-const N=120,nice=m=>{if(m<=0)return 10;const p=10**Math.floor(Math.log10(m));for(const k of [1,1.5,2,2.5,3,4,5,6,8,10])if(k*p>=m)return k*p};
+const N=120,nice=m=>{if(m<=0)return 10;const p=10**Math.floor(Math.log10(m));for(const k of [1,2,4,6,8,10])if(k*p>=m)return k*p};
 const span=s=>s<60?s+" s":s>=3600&&!(s%3600)?s/3600+" h":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":"");
 function svg(t,a,txt){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e}
 const boxes={};
