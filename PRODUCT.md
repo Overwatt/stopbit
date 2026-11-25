@@ -48,7 +48,8 @@ so watching a live bus cannot disturb it.
 
 ## Capabilities and Constraints
 
-- Pages: Ports, Network (address and MQTT), Hardware, Firmware.
+- Pages: Status (a verdict, every part's state, and one part's report), Network (address and
+  MQTT), Hardware, Firmware.
 - Reading needs no password; saving, restarting and installing firmware do. With no
   password set, nothing can be saved from the page.
 - The web password can install firmware, which is full control of the device. Replacing
@@ -58,9 +59,9 @@ so watching a live bus cannot disturb it.
   a documented stretch goal, not a capability (`docs/HTTPS.md`).
 - **Must work with no internet:** no outside fonts, scripts, images or services. Size may
   grow when that helps.
-- The page is part of the firmware image, gzipped (about 14 KB today). The image runs
+- The page is part of the firmware image, gzipped (about 20 KB today). The image runs
   from a 384 KB RAM that also receives uploads, so images beyond roughly 190 KB could not
-  replace one another from the web page. The image is about 120 KB today. Larger assets
+  replace one another from the web page. The image is about 128 KB today. Larger assets
   would have to be served from the 4 MB of external flash, which is not built.
 - Up to 8 simultaneous web connections, closed after each response; the page polls once a
   second.

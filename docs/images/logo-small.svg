@@ -2,10 +2,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="N540 gateway">
   <!-- Small-size sibling of logo.svg: fewer, thicker strokes, flat tile. -->
   <rect width="64" height="64" rx="14" fill="#111A33"/>
-  <path d="M26 57V28a14 14 0 0 1 28 0v29Z" fill="#1D2A63"/>
+  <path d="M26 56V27a13 13 0 0 1 26 0v29Z" fill="#1D2A63"/>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M5 25c5 0 7 6 9 11" stroke="#C6D0E2" stroke-width="6.500"/>
-    <path d="M26 57V28a14 14 0 0 1 28 0v29" stroke="#C6D0E2" stroke-width="6.500"/>
-    <path d="M5 47c8 0 9-19 18-19 10 0 10 10 19 10h17" stroke="#F4B23C" stroke-width="7.500"/>
+    <path d="M8 26c8 0 8 18 17 18" stroke="#C6D0E2" stroke-width="6"/>
+    <path d="M26 56V27a13 13 0 0 1 26 0v29" stroke="#C6D0E2" stroke-width="6"/>
+    <path d="M8 46c8 0 8-18 17-18 10 0 9 10 18 10h13" stroke="#F4B23C" stroke-width="7"/>
   </g>
 </svg>

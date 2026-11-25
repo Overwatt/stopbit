@@ -4,21 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>N540 gateway</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111A33'/%3E%3Cpath d='M26 57V28a14 14 0 0 1 28 0v29Z' fill='%231D2A63'/%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 25c5 0 7 6 9 11' stroke='%23C6D0E2' stroke-width='6.500'/%3E%3Cpath d='M26 57V28a14 14 0 0 1 28 0v29' stroke='%23C6D0E2' stroke-width='6.500'/%3E%3Cpath d='M5 47c8 0 9-19 18-19 10 0 10 10 19 10h17' stroke='%23F4B23C' stroke-width='7.500'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111A33'/%3E%3Cpath d='M26 56V27a13 13 0 0 1 26 0v29Z' fill='%231D2A63'/%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 26c8 0 8 18 17 18' stroke='%23C6D0E2' stroke-width='6'/%3E%3Cpath d='M26 56V27a13 13 0 0 1 26 0v29' stroke='%23C6D0E2' stroke-width='6'/%3E%3Cpath d='M8 46c8 0 8-18 17-18 10 0 9 10 18 10h13' stroke='%23F4B23C' stroke-width='7'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{color-scheme:light dark;
---shell:#0d4a68;--shell-soft:#bfe0ee;--ground:#dcebf1;--sheet:#fff;--ink:#0b2230;--soft:#2d5468;--rule:#dbe7ed;
+--shell:#0d4a68;--shell-soft:#bfe0ee;--ground:#dcebf1;--sheet:#fff;--ink:#0b2230;--soft:#2d5468;--rule:#c3d7e1;
 --well:#eaf3f7;--foot:#5b7f91;--key:#dfebf1;--key-h:#cfe0e8;--key-p:#bed3de;
 --accent:#0d4a68;--accent-ink:#fff;--accent-h:#0a3b53;--accent-p:#072c3f;--sea:#1683b8;
 --ok:#17703d;--warn:#7d4b00;--warn-bg:#fdf0d6;--bad:#a3211a;--bad-bg:#ffe1dc;--idle:#4e6f7f}
 @media(prefers-color-scheme:dark){:root{
---shell:#0b3245;--shell-soft:#a9cfdf;--ground:#0a1a22;--sheet:#11242e;--ink:#e3f0f5;--soft:#9fbfcd;--rule:#1f3845;
---well:#0c1c24;--foot:#6f92a2;--key:#1d3947;--key-h:#274857;--key-p:#16303c;
+--shell:#0d3a50;--shell-soft:#a9cfdf;--ground:#05121a;--sheet:#173443;--ink:#e6f2f7;--soft:#a9c7d4;--rule:#2c5061;
+--well:#102733;--foot:#86a9b9;--key:#254a5c;--key-h:#305a6e;--key-p:#1d3d4c;
 --accent:#5bb8e2;--accent-ink:#06212d;--accent-h:#7cc8eb;--accent-p:#46a3cd;--sea:#3f9fd0;
 --ok:#62c98b;--warn:#e7b45e;--warn-bg:#352a10;--bad:#ff9a8f;--bad-bg:#451c18;--idle:#8fb0be}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;min-height:100vh;display:flex;flex-direction:column}
-::selection{background:var(--sea);color:#fff}
+::selection{background:var(--accent);color:var(--accent-ink)}
 :focus-visible{outline:2px solid var(--sea);outline-offset:2px}
 header{background:var(--shell);color:#fff}header .in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 30px;min-height:72px;padding:10px 32px}
 header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
@@ -27,7 +27,7 @@ nav{display:flex;gap:6px;align-self:stretch}nav a{color:var(--shell-soft);font-w
 nav a:hover{color:#fff;border-color:var(--shell-soft)}nav a[aria-current]{color:#fff;border-color:#fff}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
 .meta{color:var(--shell-soft);margin:0}.grow{flex:1}
-header button{background:#fff;color:#0d4a68}header button:hover{background:var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
+header button,header button.primary{background:#fff;color:#0d4a68}header button:hover,header button.primary:hover{background:var(--shell-soft)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
 header input{background:#fff;color:#0b2230;border-color:#5b7f91}header input::placeholder{color:#2d5468}
 h1,h2,h3{font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}
 h1{font-size:2.125rem}h2{font-size:2.5rem}h3{font-size:1.25rem;letter-spacing:-.01em;margin:40px 0 14px}
@@ -41,15 +41,15 @@ button:disabled,button.primary:disabled{background:transparent;color:var(--soft)
 .notes{padding:0 32px}
 .note{border-radius:8px;padding:12px 16px;margin-top:16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
 .note p{margin:0;flex:1 1 320px;max-width:none}.note.warn{background:var(--warn-bg);color:var(--warn)}.note.bad{background:var(--bad-bg);color:var(--bad)}
-.note b,.note code{color:var(--ink)}.note button{background:var(--sheet)}
+.note b,.note code{color:var(--ink)}.note button:not(:disabled){background:var(--sheet)}.note button:disabled{color:inherit;box-shadow:inset 0 0 0 1px currentColor}.note .msg{flex:0 1 auto;color:inherit}
 .app{flex:1;display:grid;grid-template-columns:400px minmax(0,1fr)}
 aside{padding:30px 20px 30px 32px}
-aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
-#vsub{margin:8px 0 22px;font-size:1.0625rem;color:var(--soft);min-height:1.45em}
+.vd{min-height:152px}aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+#vsub{margin:8px 0 20px;font-size:1.0625rem;color:var(--soft)}
 .it{display:grid;grid-template-columns:18px minmax(4.5rem,1fr) fit-content(72%);gap:12px;align-items:center;min-height:50px;padding:8px 16px;margin-bottom:4px;border-radius:8px;color:var(--ink);text-decoration:none;transition:background .15s}
-.it b{font-size:1.0625rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it em{font-style:normal;color:var(--soft);text-align:right}
+.it b{font-size:1.0625rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it em{font-style:normal;color:var(--soft);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .it:hover{background:color-mix(in srgb,var(--sheet) 55%,transparent)}.it.bad{background:var(--bad-bg);color:var(--bad)}.it.bad em{color:var(--bad)}.it.warn em{color:var(--warn)}
-.it[aria-current]{background:var(--sheet)}.it.bad[aria-current]{box-shadow:inset 0 0 0 2px var(--bad)}
+.it[aria-current]{background:var(--sheet)}.it.bad[aria-current]{background:var(--bad-bg);box-shadow:inset 0 0 0 2px var(--bad)}
 .mk{width:14px;height:14px;display:block}.mk.ok{color:var(--ok)}.mk.warn{color:var(--warn)}.mk.bad{color:var(--bad)}.mk.idle{color:var(--idle)}
 main{background:var(--sheet);border-radius:16px 0 0 0;margin-top:26px;padding:34px 44px 56px;min-width:0}
 main>div{max-width:1000px}
@@ -64,6 +64,7 @@ main>div{max-width:1000px}
 .chart .grid{stroke:var(--rule)}.chart text{fill:var(--soft);font-size:13px}.chart .ln{fill:none;stroke:var(--sea);stroke-width:2;stroke-linejoin:round}.chart .ar{fill:var(--sea);opacity:.14}.chart .er{fill:var(--warn)}.chart .xh{stroke:var(--soft)}.chart .pt{fill:var(--sea);stroke:var(--well);stroke-width:2}
 .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--sheet);border-radius:6px;padding:5px 10px;font-size:.875rem;white-space:nowrap;transform:translateX(-50%)}
 details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600}
+body[data-route=mqtt] #mqttsec{order:-1}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
 dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
@@ -94,12 +95,13 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  table.stack tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}table.stack tr.row td{border:0;padding:0}table.stack td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}table.stack td:first-child{grid-column:1/-1}table.stack td:empty{display:none}
  label.wide{grid-column:1/-1}
 }
+.stale .it em,.stale .chart,.stale .facts,.stale dl.list,.stale table{opacity:.5}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body data-view="list">
 <header><div class="in">
- <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111A33"/><path d="M26 57V28a14 14 0 0 1 28 0v29Z" fill="#1D2A63"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 25c5 0 7 6 9 11" stroke="#C6D0E2" stroke-width="6.500"/><path d="M26 57V28a14 14 0 0 1 28 0v29" stroke="#C6D0E2" stroke-width="6.500"/><path d="M5 47c8 0 9-19 18-19 10 0 10 10 19 10h17" stroke="#F4B23C" stroke-width="7.500"/></g></svg><b id="dname">N540 gateway</b>
+ <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111A33"/><path d="M26 56V27a13 13 0 0 1 26 0v29Z" fill="#1D2A63"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 26c8 0 8 18 17 18" stroke="#C6D0E2" stroke-width="6"/><path d="M26 56V27a13 13 0 0 1 26 0v29" stroke="#C6D0E2" stroke-width="6"/><path d="M8 46c8 0 8-18 17-18 10 0 9 10 18 10h13" stroke="#F4B23C" stroke-width="7"/></g></svg><b id="dname">N540 gateway</b>
  <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
  <span class="grow"></span>
  <p class="meta" id="dmeta">Connecting…</p>
@@ -114,17 +116,17 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <div class="notes">
  <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
  <div id="nopw" class="note warn" hidden><p>No web password is set, so nothing can be saved here yet. On the computer that builds the firmware, in the project folder, run <code id="pwcmd"></code> This page will then offer Sign in.</p></div>
- <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
- <div id="fwtrial" class="note warn" role="status" hidden><p>This firmware is on trial. The gateway goes back to the previous one unless you keep it.</p><button id="fwkeep" type="button">Keep firmware</button></div>
+ <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><p class="msg" id="keepmsg" role="status"></p><button id="keep" type="button">Keep settings</button></div>
+ <div id="fwtrial" class="note warn" role="status" hidden><p>This firmware is on trial. The gateway goes back to the previous one unless you keep it.</p><p class="msg" id="fwkeepmsg" role="status"></p><button id="fwkeep" type="button">Keep firmware</button></div>
 </div>
 <div class="app">
-<aside><h1 id="verdict" aria-live="polite">Connecting…</h1><p id="vsub"></p><div id="list" role="navigation" aria-label="Stations"></div></aside>
+<aside><div class="vd"><h1 id="verdict" aria-live="polite">Connecting…</h1><p id="vsub"></p></div><div id="list" role="navigation" aria-label="Stations"></div></aside>
 <main>
- <div id="p-port" hidden><a class="back" href="#status">All stations</a><div class="head"><h2 id="pname"></h2><button id="pedit" type="button">Edit port</button></div>
+ <div id="p-port" hidden><a class="back" href="#status">All stations</a><div class="head"><h2 id="pname"></h2><button id="pedit" class="primary" type="button">Edit port</button></div>
   <div id="report"><p class="say" id="psay"></p><div id="charts"></div><dl class="facts" id="pfacts"></dl>
   <details id="ptable"><summary>Traffic as a table</summary><table><thead><tr><th>Minutes ago</th><th>Heard</th><th>Sent</th><th>Errors</th></tr></thead><tbody id="ptrows"></tbody></table></details></div>
   <div id="edit" hidden></div></div>
- <div id="p-network" hidden><h2>Network</h2><div class="two">
+ <div id="p-network" hidden><h2 id="nhead">Network</h2><p class="say" id="nsay"></p><div class="two">
   <section><h3>Address</h3><dl class="list" id="netinfo" style="margin-bottom:26px"></dl><form id="net">
   <div class="grid-f" style="margin-bottom:16px">
    <label class="wide">How it gets its address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
@@ -151,7 +153,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
   <p class="hint">Status: <span id="mqst">off</span></p>
  </form></section></div></div>
- <div id="p-hardware" hidden><h2>Hardware</h2>
+ <div id="p-hardware" hidden><h2>Hardware</h2><p class="say" id="hsay"></p>
   <h3>Board</h3><table class="stack" id="board-t"><thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead><tbody id="board"><tr><td colspan="3">Reading the hardware…</td></tr></tbody></table>
   <h3>Serial port pins</h3><table class="stack"><thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead><tbody id="wiring"><tr><td colspan="5">Reading the hardware…</td></tr></tbody></table>
   <div class="two"><section><h3>Memory in use</h3><dl class="list" id="meminfo"></dl></section><section><h3>Device</h3>
@@ -164,7 +166,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
 </section></div></div>
- <div id="p-firmware" hidden><h2>Firmware</h2><div class="two">
+ <div id="p-firmware" hidden><h2>Firmware</h2><p class="say" id="fsay"></p><div class="two">
   <section><h3>Update</h3><form id="fw">
   <label style="margin-bottom:16px">Firmware file (app.bin)<input type="file" name="file" accept=".bin" required></label>
   <dl class="list" id="fwfile" style="margin-bottom:16px" hidden></dl>
@@ -207,8 +209,8 @@ function el(tag,props,...kids){const e=document.createElement(tag);
 function dot(){const s="http://www.w3.org/2000/svg",g=document.createElementNS(s,"svg"),c=document.createElementNS(s,"circle");
  g.setAttribute("viewBox","0 0 10 10");g.setAttribute("aria-hidden","true");
  for(const [k,v] of [["cx",5],["cy",5],["r",5],["fill","currentColor"]])c.setAttribute(k,v);g.append(c);return g}
-const bytes=n=>n<1e4?n.toLocaleString()+" B":n<1e6?(n/1e3).toFixed(1)+" kB":n<1e9?(n/1e6).toFixed(2)+" MB":(n/1e9).toFixed(2)+" GB";
-const dur=s=>s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/3600)+" h "+Math.floor(s%3600/60)+" min":Math.floor(s/86400)+" d "+Math.floor(s%86400/3600)+" h";
+const nb=t=>t.replace(/ /g,"\u00a0"),bytes=n=>nb(n<1e4?n.toLocaleString()+" B":n<1e6?(n/1e3).toFixed(1)+" kB":n<1e9?(n/1e6).toFixed(2)+" MB":(n/1e9).toFixed(2)+" GB");
+const dur=s=>nb(s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/3600)+" h "+Math.floor(s%3600/60)+" min":Math.floor(s/86400)+" d "+Math.floor(s%86400/3600)+" h");
 function say(m,text,cls){m.textContent=text;m.className="msg "+(cls||"")}
 
 /* ---- API ---- */
@@ -233,6 +235,7 @@ function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
  for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#fw")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
+ for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
  for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
@@ -294,7 +297,7 @@ $("mqtt").onsubmit=async ev=>{ev.preventDefault();const e=$("mqtt").elements,m=$
  const pw=utf(e.password.value),send=pw.length>0||e.clear.checked,k=key;if(pw.length>63)return say(m,"That password is too long.","bad");
  say(m,"Saving…");try{await post("/api/config",L,send?nonce=>{const pad=cat(hmac(k,utf("mqttpw0\n"+nonce)),hmac(k,utf("mqttpw1\n"+nonce))),v=new Uint8Array(64);if(!e.clear.checked)v.set(pw);
    return "mqtt.password_enc="+hex(v.map((x,i)=>x^pad[i]))+"\n"+L}:null);cfg=await getj("/api/config");fillMqtt();say(m,"Saved.","ok");tick()}catch(x){say(m,x.message,"bad")}};
-$("keep").onclick=async()=>{try{await post("/api/keep","");cfg=await getj("/api/config");fillForms();say($("net").querySelector(".msg"),"Saved.","ok");tick()}catch(e){say($("net").querySelector(".msg"),e.message,"bad")}};
+$("keep").onclick=async()=>{try{await post("/api/keep","");cfg=await getj("/api/config");fillForms();say($("net").querySelector(".msg"),"Saved.","ok");tick()}catch(e){$("keepmsg").textContent=e.message}};
 $("dev").onsubmit=async ev=>{ev.preventDefault();const m=$("dev").querySelector(".msg");say(m,"Saving…");
  try{await post("/api/config","device.name="+$("dev").elements.name.value.trim());cfg=await getj("/api/config");title();say(m,"Saved.","ok")}catch(e){say(m,e.message,"bad")}};
 let armed=0;$("restart").onclick=async()=>{const b=$("restart");
@@ -316,6 +319,10 @@ $("login").onsubmit=async ev=>{ev.preventDefault();const m=$("loginmsg"),b=$("lo
  catch(e){m.textContent=e.message;m.hidden=false}finally{b.disabled=false}};
 
 /* ---- refresh ---- */
+let okAt=0; /* when it last answered: old readings must not pass for live ones */
+function stale(){const a="Last answered "+dur(Math.max(1,Math.round((performance.now()-okAt)/1000)))+" ago.";document.body.classList.add("stale");put($("verdict"),"Not answering");put($("vsub"),a);
+ items.forEach((_,k)=>{const x=items[k][1];x.className="it";if(x.dataset.m!=="idle"){x.dataset.m="idle";x.children[0].replaceChildren(mark("idle"))}});
+ for(const id of ["psay","nsay","hsay","fsay"])put($(id),"Not answering. The readings below are from before.")}
 const RST=r=>{const v=parseInt(r,16);return v&0x800000?"Power on":v&0x1000000?"Restart":v&0x400000?"Watchdog or reset pin":"Other ("+r+")"};
 let failing=0,timer=0;
 async function tick(){clearTimeout(timer);
@@ -325,13 +332,13 @@ async function tick(){clearTimeout(timer);
   const a=samples[0],dt=(now-a.t)/1000;rate=dt>.4?s.ports.map((p,i)=>[(p.serial_rx-a.s.ports[i].serial_rx)/dt,(p.serial_tx-a.s.ports[i].serial_tx)/dt]):[];
   st=s;const first=!cfg;if(!cfg||failing){const l=await getj("/api/login");pwset=l.password_set;salt=l.salt;cfg=await getj("/api/config");if(first){fillForms();buildList();show()}authUI()}
   else if(!pwset){const l=await getj("/api/login");if(l.password_set){pwset=true;salt=l.salt;authUI()}} /* set while we were open */
-  failing=0;$("offline").hidden=true;
+  failing=0;okAt=now;document.body.classList.remove("stale");$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
   fillDl($("netinfo"),[["Now",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
   paint();hardware()}
- catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating)put($("verdict"),"Not answering")}}
+ catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not answering")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
 /* ---- hardware ---- */
 let hwAt=0,hw=null;
@@ -342,7 +349,7 @@ function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.quer
  rows.forEach((r,i)=>r.forEach((c,k)=>put(tb.children[i].children[k],...(Array.isArray(c)?c:[c]))))}
 const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
-const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?x+" × "+n:x).join(", ");
+const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?nb(x+" × "+n):x).join(", ");
 async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page==="hardware"||page==="firmware"?5000:30000))return;hwAt=now;
  let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}hw=h;
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
@@ -369,7 +376,7 @@ let sel=0,editing=false,hist=null,histFor=-1,histAt=0,samples=[];
 const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"network",hardware:"hardware",firmware:"firmware"};
 let route="status",page="port";
 const pn=i=>cfg&&cfg.ports[i].name||"Port "+(i+1),ago=ms=>ms<0?"Never":ms<2000?"Now":dur(Math.round(ms/1000))+" ago",
- rt=x=>x<1e3?Math.round(x)+" B/s":x<1e6?(x/1e3).toFixed(1)+" kB/s":(x/1e6).toFixed(2)+" MB/s",plural=(n,w)=>n.toLocaleString()+" "+w+(n===1?"":"s");
+ rt=x=>nb(x<1e3?Math.round(x)+" B/s":x<1e6?(x/1e3).toFixed(1)+" kB/s":(x/1e6).toFixed(2)+" MB/s"),plural=(n,w)=>n.toLocaleString()+" "+w+(n===1?"":"s");
 function mark(cls){const s="http://www.w3.org/2000/svg",g=document.createElementNS(s,"svg");g.setAttribute("viewBox","0 0 14 14");g.setAttribute("class","mk "+cls);g.setAttribute("aria-hidden","true");
  g.innerHTML={ok:'<circle cx="7" cy="7" r="6" fill="currentColor"/>',idle:'<circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2.5"/>',warn:'<path d="M7 1 13.5 13H.5Z" fill="currentColor"/>',bad:'<rect x="1" y="1" width="12" height="12" rx="1.5" fill="currentColor"/>'}[cls];return g}
 const quiet=s=>s.heard_ms<0?"Nothing heard":s.heard_ms>30000?"Quiet "+dur(Math.round(s.heard_ms/1000)):""; /* 30 s: ignore ordinary gaps */
@@ -392,7 +399,10 @@ function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
  if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
  if(st.net_pending)L.push(["warn","Network settings are on trial","#network"]);
  if(st.crashes-(st.uptime_s<30?1:0)>0)L.push(["warn","The gateway failed to start cleanly","#firmware"]);
+ for(const t of hwFaults())L.push(["warn",t,"#hardware"]);
  return L.sort((a,b)=>(a[0]==="bad"?0:1)-(b[0]==="bad"?0:1))}
+const hwFaults=()=>{if(!hw)return [];const L=[];hw.flash.forEach((id,i)=>{if(FLASH(id)!=="GigaDevice GD25Q16, 2 MB")L.push("Flash chip "+i+(FLASH(id)==="Unknown"?" is not recognised":" is not answering"))});if(!hw.cpu.crystal)L.push("The crystal is not running");if(hw.cpu.id!=="0x450")L.push("The processor is not recognised");if(hw.eth.phy_id!=="0x02430c54")L.push("The Ethernet chip is not recognised");if(hw.cpu.temp_c>85)L.push("The processor is hot, "+nb(Math.round(hw.cpu.temp_c)+" °C"));return L};
+const MQ={"Broker refused the protocol version":"Refused","Broker refused the client name":"Refused","Broker is unavailable":"Broker unavailable","Wrong user name or password":"Wrong login","Broker did not authorise this user":"Not authorised","Broker did not answer":"No answer","Could not connect, or the connection was lost":"Cannot connect","Could not start the connection":"Cannot connect","Broker name not found":"Name not found"};
 const items=[];
 function buildList(){$("list").replaceChildren();items.length=0;
  const add=(href,label)=>{const a=el("a",{class:"it",href},el("span"),el("b",{},label),el("em"));items.push([href,a]);$("list").append(a);return a};
@@ -400,15 +410,21 @@ function buildList(){$("list").replaceChildren();items.length=0;
 function setItem(k,cls,name,text){const a=items[k][1];a.className="it"+(cls==="bad"||cls==="warn"?" "+cls:"");if(a.dataset.m!==cls){a.dataset.m=cls;a.children[0].replaceChildren(mark(cls))}
  if(a.children[1].textContent!==name)a.children[1].textContent=name;if(a.children[2].textContent!==text)a.children[2].textContent=text}
 function paint(){if(!st||!cfg)return;if(!items.length)buildList();
- const m=cfg.mqtt,q=st.mqtt;setItem(0,!m.enabled?"idle":q.state==="connected"?"ok":q.error?"bad":"warn","MQTT",!m.enabled?"Off":q.state==="connected"?"Connected":q.error||"Connecting");
+ const m=cfg.mqtt,q=st.mqtt;setItem(0,!m.enabled?"idle":q.state==="connected"?"ok":q.error?"bad":"warn","MQTT",!m.enabled?"Off":q.state==="connected"?"Connected":q.error?MQ[q.error]||"Not connected":"Connecting");
  st.ports.forEach((_,i)=>{const [c,t]=portState(i);setItem(1+i,c,(i+1)+" "+pn(i),t)});
  setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
  const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
- setItem(7,"ok","Hardware",hw&&hw.cpu.temp_c!=null?Math.round(hw.cpu.temp_c)+" °C":"Up "+dur(st.uptime_s));
+ const hf=hwFaults();setItem(7,!hw?"idle":hf.length?"warn":"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
  const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All good");
  const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"Every port is off":"No port is connected";
  const hush=st.ports.map((s,i)=>[s,i]).filter(([s])=>!s.alert&&(s.peers.length||s.state==="connected")&&quiet(s)).map(([s,i])=>pn(i)+": "+quiet(s).toLowerCase());
  put($("vsub"),!first?(hush.length?hush.join("; "):sum)+"."+(m.enabled?" MQTT connected.":""):L.length===1?"Everything else is good.":"Also: "+L.slice(1,3).map(x=>x[1]).join("; ")+(L.length>3?"; and "+(L.length-3)+" more":"")+".");
+ const m2=cfg.mqtt,q2=st.mqtt,fl=hwFaults();
+ put($("nsay"),route==="mqtt"?(!m2.enabled?"Off.":q2.state==="connected"?"Connected to "+m2.host+(m2.user?" as "+m2.user:"")+". Home Assistant "+(m2.control?"can":"cannot")+" change settings.":(q2.error?"Not connected to "+m2.host+". "+q2.error+". Trying again.":"Connecting to "+m2.host+"."))
+  :st.ip+(cfg.net.mode==="dhcp"?" by DHCP":", fixed")+". "+nb(st.speed+" Mb/s")+(st.full_duplex?" full":" half")+" duplex."+(st.net_pending?" New settings on trial, reverting in "+span(st.net_pending_s)+".":""));
+ put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.join(". ")+".":"Every chip answers. "+(hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":""));
+ const fails=st.crashes-(st.uptime_s<30?1:0);
+ put($("fsay"),"Running "+st.version+(st.slot>=0&&st.slot<2?" from slot "+"AB"[st.slot]:"")+(st.fw_trial?", on trial":", kept")+". Up "+dur(st.uptime_s)+". "+(fails>0?plural(fails,"failed start")+".":"No failed starts."));
  if(page==="port")report()}
 function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>(x.textContent??x)+(x.className||"")).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
 
@@ -428,7 +444,7 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  L.push(p.listen_only?"Listen only.":r[1]>=1?"Sending "+rt(r[1])+".":"");
  return L.filter(Boolean).join(" ")}
 function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i));
- $("pedit").textContent=editing?"Back to report":"Edit port";if(editing)return;
+ if(editing)return;
  put($("psay"),sentence(i));
  const e=[["parity",s.parity],["framing",s.framing],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]),
   nz=s.serial_rx?100*s.noise/s.serial_rx:0;
@@ -441,7 +457,7 @@ function facts(F){const d=$("pfacts");if(d.childElementCount!==F.length)d.replac
 
 /* ---- charts: ten minutes, one series each ---- */
 const N=120,nice=m=>{if(m<=0)return 10;const p=10**Math.floor(Math.log10(m));for(const k of [1,2,4,6,8,10])if(k*p>=m)return k*p};
-const span=s=>s<60?s+" s":s>=3600&&!(s%3600)?s/3600+" h":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":"");
+const span=s=>nb(s<60?s+" s":s>=3600&&!(s%3600)?s/3600+" h":Math.floor(s/60)+" min"+(s%60?" "+s%60+" s":""));
 function svg(t,a,txt){const e=document.createElementNS("http://www.w3.org/2000/svg",t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e}
 const boxes={};
 function drawCharts(){const c=$("charts"),sent=hist&&hist.tx.some(x=>x);c.hidden=$("ptable").hidden=!!st&&st.ports[sel].state==="off"&&!(hist&&hist.rx.some(x=>x)||sent);
@@ -453,8 +469,8 @@ function chartBox(){const cap=el("div",{class:"cap"},el("b"),el("span")),g=svg("
  let D=null,E=null,step=5,at=-1,X=null,Y=null;
  function draw(){const W=Math.max(260,g.clientWidth),H=g.clientHeight||200,l=62,r=8,t=12,b=26;g.setAttribute("viewBox","0 0 "+W+" "+H);g.replaceChildren();
   const v=(D||[]).map(x=>x/step),top=nice(Math.max(...v,0)),n=v.length;X=i=>l+(W-l-r)*(N-n+i)/(N-1);Y=x=>t+(H-t-b)*(1-x/top);
-  for(const f of [0,.5,1]){g.append(svg("line",{class:"grid",x1:l,x2:W-r,y1:Y(top*f),y2:Y(top*f)}));g.append(svg("text",{x:l-8,y:Y(top*f)+4,"text-anchor":"end"},f?rt(top*f).replace(/\.0+(?= )/,""):"0"))}
-  g.append(svg("text",{x:l,y:H-6},"10 min ago"),svg("text",{x:(l+W-r)/2,y:H-6,"text-anchor":"middle"},"5"),svg("text",{x:W-r,y:H-6,"text-anchor":"end"},"now"));
+  for(const f of [0,.5,1]){g.append(svg("line",{class:"grid",x1:l,x2:W-r,y1:Y(top*f),y2:Y(top*f)}));g.append(svg("text",{x:l-8,y:Y(top*f)+4,"text-anchor":"end"},f?rt(top*f).replace(/\.0+(?=\u00a0)/,""):"0"))}
+  g.append(svg("text",{x:l,y:H-6},nb("10 min ago")),svg("text",{x:(l+W-r)/2,y:H-6,"text-anchor":"middle"},nb("5 min")),svg("text",{x:W-r,y:H-6,"text-anchor":"end"},"now"));
   if(!n){g.append(svg("text",{x:(l+W)/2,y:H/2-8,"text-anchor":"middle"},D?"Collecting; first reading in 5 s":"Reading…"));return}
   const pts=v.map((x,i)=>X(i).toFixed(1)+" "+Y(x).toFixed(1)).join("L");
   if(n>1)g.append(svg("path",{class:"ar",d:"M"+X(0)+" "+Y(0)+"L"+pts+"L"+X(n-1)+" "+Y(0)+"Z"}));g.append(svg("path",{class:"ln",d:"M"+pts+(n===1?"h.1":"")}));
@@ -470,15 +486,15 @@ function chartBox(){const cap=el("div",{class:"cap"},el("b"),el("span")),g=svg("
  return {box,set(title,d,e,s){D=d;E=e;step=s;const any=e&&e.some(x=>x),max=d&&d.length?Math.max(...d)/s:0;put(cap.children[0],title);put(cap.children[1],d&&d.length?"Peak "+rt(max)+(any?", triangles mark errors":""):"");g.setAttribute("aria-label",title+(d&&d.length?": "+rt(d[d.length-1]/s)+" now, at most "+rt(max)+".":". No readings yet."));draw()}}}
 
 /* ---- pages ---- */
-function showSheet(){const ed=page==="port"&&editing;$("report").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";if(st&&cfg&&page==="port")report();authUI()}
+function showSheet(){const ed=page==="port"&&editing;$("report").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";$("pedit").className=ed?"":"primary";if(st&&cfg&&page==="port")report();authUI()}
 function nav(){for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")===(page==="port"?"#status":"#"+page)?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
  const cur=page==="port"?"#port"+(sel+1):"#"+route;for(const [h,a] of items)h===cur?a.setAttribute("aria-current","true"):a.removeAttribute("aria-current")}
 let picked=false;
 function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];
  if(/^port/.test(route)){sel=+route.slice(4)-1;picked=true}else if(!picked&&cfg){sel=Math.max(0,cfg.ports.findIndex(p=>p.enabled))}
- editing=false;document.body.dataset.view=route==="status"?"list":"sheet";
+ editing=false;document.body.dataset.view=route==="status"?"list":"sheet";document.body.dataset.route=route;$("nhead").textContent=route==="mqtt"?"MQTT":"Network";
  for(const p of ["port","network","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
- nav();showSheet();scrollTo(0,0);if(route==="mqtt"&&innerWidth<=1240)$("mqttsec").scrollIntoView();
+ nav();showSheet();scrollTo(0,0);
  hwAt=0;hardware()}
 addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
@@ -509,7 +525,7 @@ $("fw").onsubmit=async ev=>{ev.preventDefault();if(!image)return fwsay("Choose a
   location.reload()}
  catch(e){fwsay(sent||!/did not answer/.test(e.message)?e.message:"The upload was interrupted. Nothing was installed unless the gateway restarts.","bad")}
  finally{updating=false;authUI();hwAt=0;tick()}};
-$("fwkeep").onclick=async()=>{const b=$("fwkeep");b.disabled=true;try{await post("/confirm","");hwAt=0}catch(e){$("fwtrial").querySelector("p").textContent=e.message}finally{b.disabled=!key;tick()}};
+$("fwkeep").onclick=async()=>{const b=$("fwkeep");b.disabled=true;try{await post("/confirm","");hwAt=0}catch(e){$("fwkeepmsg").textContent=e.message}finally{b.disabled=!key;tick()}};
 try{const n=sessionStorage.getItem("n540note");if(n){sessionStorage.removeItem("n540note");fwsay(n,"ok")}}catch(e){}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
