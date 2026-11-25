@@ -1,0 +1,667 @@
+{
+ "schemaVersion": 2,
+ "generatedAt": "2026-11-25T15:09:27+00:00",
+ "title": "Design System: N540 gateway",
+ "extensions": {
+  "colorMeta": {
+   "solder-mask": {
+    "role": "primary",
+    "displayName": "Solder-mask teal",
+    "canonical": "oklch(45.9% 0.080 179)",
+    "tonalRamp": [
+     "#00100b",
+     "#002d25",
+     "#094d42",
+     "#1f7062",
+     "#529083",
+     "#81b1a5",
+     "#aed2c9",
+     "#ddf5ee"
+    ]
+   },
+   "solder-mask-deep": {
+    "role": "primary",
+    "displayName": "Solder-mask teal, pressed",
+    "canonical": "oklch(39.5% 0.068 179)",
+    "tonalRamp": [
+     "#000f0b",
+     "#052c25",
+     "#194c43",
+     "#2f6e62",
+     "#5b8e83",
+     "#87afa6",
+     "#b3d1c9",
+     "#e0f4ef"
+    ]
+   },
+   "solder-mask-tint": {
+    "role": "primary",
+    "displayName": "Mask tint",
+    "canonical": "oklch(94.3% 0.012 178)",
+    "tonalRamp": [
+     "#090c0b",
+     "#212625",
+     "#3d4442",
+     "#5a6461",
+     "#7c8482",
+     "#a0a7a5",
+     "#c5cac9",
+     "#ecefee"
+    ]
+   },
+   "on-mask": {
+    "role": "primary",
+    "displayName": "Ink on teal",
+    "canonical": "oklch(100.0% 0.000 90)",
+    "tonalRamp": [
+     "#0b0b0b",
+     "#252525",
+     "#424242",
+     "#616161",
+     "#828282",
+     "#a5a5a5",
+     "#c9c9c9",
+     "#eeeeee"
+    ]
+   },
+   "bench": {
+    "role": "neutral",
+    "displayName": "Bench",
+    "canonical": "oklch(96.8% 0.003 146)",
+    "tonalRamp": [
+     "#0b0b0b",
+     "#242524",
+     "#414241",
+     "#606260",
+     "#818381",
+     "#a4a5a4",
+     "#c8c9c8",
+     "#eeefee"
+    ]
+   },
+   "panel": {
+    "role": "neutral",
+    "displayName": "Panel",
+    "canonical": "oklch(100.0% 0.000 90)",
+    "tonalRamp": [
+     "#0b0b0b",
+     "#252525",
+     "#424242",
+     "#616161",
+     "#828282",
+     "#a5a5a5",
+     "#c9c9c9",
+     "#eeeeee"
+    ]
+   },
+   "ink": {
+    "role": "neutral",
+    "displayName": "Ink",
+    "canonical": "oklch(23.4% 0.013 170)",
+    "tonalRamp": [
+     "#090c0b",
+     "#212624",
+     "#3d4441",
+     "#5a6460",
+     "#7c8481",
+     "#a0a7a4",
+     "#c5cac8",
+     "#ecefee"
+    ]
+   },
+   "ink-soft": {
+    "role": "neutral",
+    "displayName": "Soft ink",
+    "canonical": "oklch(47.8% 0.016 167)",
+    "tonalRamp": [
+     "#080c0a",
+     "#212724",
+     "#3c4440",
+     "#59645f",
+     "#7b8580",
+     "#9fa7a3",
+     "#c5cbc8",
+     "#ebf0ee"
+    ]
+   },
+   "line": {
+    "role": "neutral",
+    "displayName": "Line",
+    "canonical": "oklch(88.6% 0.008 157)",
+    "tonalRamp": [
+     "#0a0c0a",
+     "#232624",
+     "#3f4340",
+     "#5e635f",
+     "#7f8481",
+     "#a2a6a3",
+     "#c7cac8",
+     "#edefee"
+    ]
+   },
+   "field": {
+    "role": "neutral",
+    "displayName": "Field",
+    "canonical": "oklch(100.0% 0.000 90)",
+    "tonalRamp": [
+     "#0b0b0b",
+     "#252525",
+     "#424242",
+     "#616161",
+     "#828282",
+     "#a5a5a5",
+     "#c9c9c9",
+     "#eeeeee"
+    ]
+   },
+   "field-line": {
+    "role": "neutral",
+    "displayName": "Field line",
+    "canonical": "oklch(66.5% 0.016 164)",
+    "tonalRamp": [
+     "#080c0a",
+     "#202724",
+     "#3c4440",
+     "#59645f",
+     "#7b8580",
+     "#9fa7a3",
+     "#c5cbc8",
+     "#ebf0ed"
+    ]
+   },
+   "ok": {
+    "role": "state",
+    "displayName": "Running green",
+    "canonical": "oklch(48.2% 0.115 153)",
+    "tonalRamp": [
+     "#001102",
+     "#002f12",
+     "#075028",
+     "#1d7340",
+     "#529366",
+     "#80b38e",
+     "#aed4b8",
+     "#ddf6e3"
+    ]
+   },
+   "warn": {
+    "role": "state",
+    "displayName": "Caution amber",
+    "canonical": "oklch(49.4% 0.109 67)",
+    "tonalRamp": [
+     "#190500",
+     "#3b1c00",
+     "#613700",
+     "#895302",
+     "#a77743",
+     "#c49d74",
+     "#e2c3a4",
+     "#ffebd6"
+    ]
+   },
+   "warn-ground": {
+    "role": "state",
+    "displayName": "Caution ground",
+    "canonical": "oklch(96.2% 0.031 82)",
+    "tonalRamp": [
+     "#0e0b05",
+     "#2a241a",
+     "#494133",
+     "#6a604e",
+     "#8a8171",
+     "#aca497",
+     "#cec8be",
+     "#f2eee7"
+    ]
+   },
+   "bad": {
+    "role": "state",
+    "displayName": "Fault red",
+    "canonical": "oklch(50.1% 0.178 29)",
+    "tonalRamp": [
+     "#250000",
+     "#4f0000",
+     "#7e0c09",
+     "#af241c",
+     "#cc594c",
+     "#e6877a",
+     "#feb4a8",
+     "#ffe1d9"
+    ]
+   },
+   "bad-ground": {
+    "role": "state",
+    "displayName": "Fault ground",
+    "canonical": "oklch(95.3% 0.019 26)",
+    "tonalRamp": [
+     "#0f0a09",
+     "#2b2322",
+     "#4a3f3e",
+     "#6b5d5c",
+     "#8c7f7d",
+     "#ada2a1",
+     "#cfc7c6",
+     "#f2edec"
+    ]
+   },
+   "idle": {
+    "role": "state",
+    "displayName": "Idle grey",
+    "canonical": "oklch(61.2% 0.017 164)",
+    "tonalRamp": [
+     "#080c0a",
+     "#202724",
+     "#3c4440",
+     "#59645f",
+     "#7b8580",
+     "#9fa7a3",
+     "#c4cbc8",
+     "#ebf0ed"
+    ]
+   },
+   "solder-mask-dark": {
+    "role": "primary",
+    "displayName": "Solder-mask teal (dark)",
+    "canonical": "oklch(71.5% 0.102 178)",
+    "tonalRamp": [
+     "#00110b",
+     "#002f25",
+     "#005042",
+     "#007361",
+     "#3f9382",
+     "#75b3a5",
+     "#a6d5c9",
+     "#d8f6ee"
+    ]
+   },
+   "solder-mask-deep-dark": {
+    "role": "primary",
+    "displayName": "Solder-mask teal, pressed (dark)",
+    "canonical": "oklch(77.6% 0.094 179)",
+    "tonalRamp": [
+     "#00110b",
+     "#002e26",
+     "#004f43",
+     "#007262",
+     "#469283",
+     "#79b2a6",
+     "#a9d4ca",
+     "#daf6ef"
+    ]
+   },
+   "solder-mask-tint-dark": {
+    "role": "primary",
+    "displayName": "Mask tint (dark)",
+    "canonical": "oklch(28.9% 0.023 177)",
+    "tonalRamp": [
+     "#070d0b",
+     "#1e2725",
+     "#384542",
+     "#546661",
+     "#778682",
+     "#9ca8a5",
+     "#c2ccc9",
+     "#eaf0ee"
+    ]
+   },
+   "on-mask-dark": {
+    "role": "primary",
+    "displayName": "Ink on teal (dark)",
+    "canonical": "oklch(20.3% 0.022 175)",
+    "tonalRamp": [
+     "#070d0b",
+     "#1e2725",
+     "#384541",
+     "#556660",
+     "#778682",
+     "#9ca8a4",
+     "#c2ccc9",
+     "#eaf0ee"
+    ]
+   },
+   "bench-dark": {
+    "role": "neutral",
+    "displayName": "Bench (dark)",
+    "canonical": "oklch(20.3% 0.009 169)",
+    "tonalRamp": [
+     "#0a0c0b",
+     "#232625",
+     "#3f4341",
+     "#5d6360",
+     "#7e8481",
+     "#a2a6a4",
+     "#c7cac8",
+     "#edefee"
+    ]
+   },
+   "panel-dark": {
+    "role": "neutral",
+    "displayName": "Panel (dark)",
+    "canonical": "oklch(24.1% 0.010 173)",
+    "tonalRamp": [
+     "#090c0b",
+     "#222625",
+     "#3e4342",
+     "#5c6361",
+     "#7e8482",
+     "#a1a6a5",
+     "#c6cac9",
+     "#ecefee"
+    ]
+   },
+   "ink-dark": {
+    "role": "neutral",
+    "displayName": "Ink (dark)",
+    "canonical": "oklch(93.5% 0.007 160)",
+    "tonalRamp": [
+     "#0a0c0b",
+     "#232624",
+     "#404341",
+     "#5e6260",
+     "#808381",
+     "#a3a6a4",
+     "#c7cac8",
+     "#edefee"
+    ]
+   },
+   "ink-soft-dark": {
+    "role": "neutral",
+    "displayName": "Soft ink (dark)",
+    "canonical": "oklch(74.3% 0.016 165)",
+    "tonalRamp": [
+     "#080c0a",
+     "#212724",
+     "#3c4440",
+     "#59645f",
+     "#7b8580",
+     "#9fa7a3",
+     "#c5cbc8",
+     "#ebf0ed"
+    ]
+   },
+   "line-dark": {
+    "role": "neutral",
+    "displayName": "Line (dark)",
+    "canonical": "oklch(33.9% 0.014 167)",
+    "tonalRamp": [
+     "#090c0b",
+     "#212624",
+     "#3c4441",
+     "#5a645f",
+     "#7c8581",
+     "#a0a7a4",
+     "#c5cbc8",
+     "#ecefee"
+    ]
+   },
+   "field-dark": {
+    "role": "neutral",
+    "displayName": "Field (dark)",
+    "canonical": "oklch(20.7% 0.009 169)",
+    "tonalRamp": [
+     "#0a0c0b",
+     "#232625",
+     "#3f4341",
+     "#5d6360",
+     "#7e8481",
+     "#a2a6a4",
+     "#c7cac9",
+     "#edefee"
+    ]
+   },
+   "field-line-dark": {
+    "role": "neutral",
+    "displayName": "Field line (dark)",
+    "canonical": "oklch(54.3% 0.018 166)",
+    "tonalRamp": [
+     "#080c0a",
+     "#202724",
+     "#3b4540",
+     "#58655f",
+     "#7a8580",
+     "#9ea8a3",
+     "#c4cbc8",
+     "#ebf0ed"
+    ]
+   },
+   "ok-dark": {
+    "role": "state",
+    "displayName": "Running green (dark)",
+    "canonical": "oklch(75.8% 0.132 155)",
+    "tonalRamp": [
+     "#001201",
+     "#003011",
+     "#005227",
+     "#00763e",
+     "#439664",
+     "#77b68d",
+     "#a8d6b7",
+     "#d9f8e2"
+    ]
+   },
+   "warn-dark": {
+    "role": "state",
+    "displayName": "Caution amber (dark)",
+    "canonical": "oklch(79.9% 0.119 79)",
+    "tonalRamp": [
+     "#170700",
+     "#391f00",
+     "#5d3a00",
+     "#855700",
+     "#a37b34",
+     "#c09f6b",
+     "#dec59e",
+     "#fdecd2"
+    ]
+   },
+   "warn-ground-dark": {
+    "role": "state",
+    "displayName": "Caution ground (dark)",
+    "canonical": "oklch(27.9% 0.041 85)",
+    "tonalRamp": [
+     "#0f0a03",
+     "#2b2416",
+     "#4a412d",
+     "#6c6047",
+     "#8c816b",
+     "#ada492",
+     "#cfc8bb",
+     "#f3eee5"
+    ]
+   },
+   "bad-dark": {
+    "role": "state",
+    "displayName": "Fault red (dark)",
+    "canonical": "oklch(73.8% 0.132 26)",
+    "tonalRamp": [
+     "#1f0001",
+     "#460e0d",
+     "#712522",
+     "#9e3d38",
+     "#bc665f",
+     "#d78f88",
+     "#f1b9b3",
+     "#ffe4e0"
+    ]
+   },
+   "bad-ground-dark": {
+    "role": "state",
+    "displayName": "Fault ground (dark)",
+    "canonical": "oklch(26.2% 0.049 25)",
+    "tonalRamp": [
+     "#140707",
+     "#331f1d",
+     "#563a37",
+     "#7b5753",
+     "#9a7976",
+     "#b99e9b",
+     "#d9c3c1",
+     "#f9ebe9"
+    ]
+   },
+   "idle-dark": {
+    "role": "state",
+    "displayName": "Idle grey (dark)",
+    "canonical": "oklch(66.1% 0.017 160)",
+    "tonalRamp": [
+     "#080c0a",
+     "#212723",
+     "#3c443f",
+     "#59645e",
+     "#7b857f",
+     "#9fa7a3",
+     "#c5cbc7",
+     "#ebf0ed"
+    ]
+   }
+  },
+  "typographyMeta": {
+   "headline": {
+    "displayName": "Headline",
+    "purpose": "The device name. One per page."
+   },
+   "title": {
+    "displayName": "Title",
+    "purpose": "Section headings above panels."
+   },
+   "body": {
+    "displayName": "Body",
+    "purpose": "Readings, values, messages."
+   },
+   "label": {
+    "displayName": "Label",
+    "purpose": "Field labels, second lines, hints."
+   },
+   "mono": {
+    "displayName": "Mono",
+    "purpose": "Commands and the chip serial only."
+   }
+  },
+  "shadows": [],
+  "motion": [
+   {
+    "name": "colour-change",
+    "value": ".15s",
+    "purpose": "Hover colour on buttons and tabs. Removed under reduced motion."
+   }
+  ],
+  "breakpoints": [
+   {
+    "name": "narrow",
+    "value": "960px"
+   }
+  ]
+ },
+ "components": [
+  {
+   "name": "Button",
+   "kind": "button",
+   "refersTo": "button",
+   "description": "Secondary actions.",
+   "html": "<button class=\"ds-btn\">Cancel</button>",
+   "css": ".ds-btn{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--field-line,#8b9791);background:var(--panel,#fff);color:var(--ink,#18201d);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn:hover{background:var(--tint,#e4efec)}.ds-btn:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+  },
+  {
+   "name": "Primary button",
+   "kind": "button",
+   "refersTo": "button-primary",
+   "description": "The one action a form exists for.",
+   "html": "<button class=\"ds-btn-p\">Save port</button>",
+   "css": ".ds-btn-p{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--accent,#0d6658);background:var(--accent,#0d6658);color:var(--accent-ink,#fff);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn-p:hover{background:var(--accent-hover,#0a5247);border-color:var(--accent-hover,#0a5247)}.ds-btn-p:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+  },
+  {
+   "name": "Confirm (danger) button",
+   "kind": "button",
+   "refersTo": "button-danger",
+   "description": "Second press of a two-press confirm.",
+   "html": "<button class=\"ds-btn-d\">Confirm restart</button>",
+   "css": ".ds-btn-d{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--bad,#b3261e);background:var(--panel,#fff);color:var(--bad,#b3261e);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn-d:hover{background:var(--tint,#e4efec)}.ds-btn-d:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+  },
+  {
+   "name": "Field",
+   "kind": "input",
+   "refersTo": "field",
+   "description": "Label above, value below.",
+   "html": "<label class=\"ds-f\">Baud rate<input value=\"9600\"></label>",
+   "css": ".ds-f{display:block;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.875rem;color:var(--soft,#55605b)}.ds-f input{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;color:var(--ink,#18201d);display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:7px 9px;border:1px solid var(--field-line,#8b9791);border-radius:6px;background:var(--field,#fff);caret-color:var(--accent,#0d6658);min-height:38px}.ds-f input:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+  },
+  {
+   "name": "Checkbox with consequence",
+   "kind": "input",
+   "refersTo": "field",
+   "description": "A setting and what it does.",
+   "html": "<label class=\"ds-c\"><input type=\"checkbox\" checked><span>Listen only<span>Nothing is sent on the line.</span></span></label>",
+   "css": ".ds-c{display:flex;gap:9px;align-items:flex-start;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.9375rem;color:var(--ink,#18201d)}.ds-c input{width:17px;height:17px;margin:3px 0 0;accent-color:var(--accent,#0d6658)}.ds-c span span{display:block;color:var(--soft,#55605b);font-size:.875rem}"
+  },
+  {
+   "name": "Tabs",
+   "kind": "nav",
+   "refersTo": "nav-link",
+   "description": "Pages, under the device name.",
+   "html": "<nav class=\"ds-n\"><a href=\"#\" aria-current=\"page\">Ports</a><a href=\"#\">Network</a></nav>",
+   "css": ".ds-n{display:flex;gap:4px;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;}.ds-n a{color:var(--soft,#55605b);text-decoration:none;font-weight:550;padding:9px 12px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}.ds-n a:hover{color:var(--ink,#18201d);border-color:var(--field-line,#8b9791)}.ds-n a[aria-current]{color:var(--ink,#18201d);border-color:var(--accent,#0d6658)}.ds-n a:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:-2px}"
+  },
+  {
+   "name": "Reading table",
+   "kind": "custom",
+   "refersTo": "panel",
+   "description": "One row per port or part.",
+   "html": "<div class=\"ds-t\"><div><b>Port 1</b><span class=\"ok\"><i></i>Connected</span><span class=\"n\">1.9 MB<small>2.0 kB/s</small></span></div><div><b>Port 2</b><span><i></i>Off</span><span class=\"n\">0 B</span></div></div>",
+   "css": ".ds-t{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;background:var(--panel,#fff);color:var(--ink,#18201d);border:1px solid var(--line,#d5dbd7);border-radius:8px}.ds-t>div{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:11px 20px;border-top:1px solid var(--line,#d5dbd7)}.ds-t>div:first-child{border-top:0}.ds-t b{font-weight:600}.ds-t i{display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:7px}.ds-t span{color:var(--idle,#7b8781)}.ds-t .ok{color:var(--ok,#17703d)}.ds-t .n{text-align:right;color:inherit}.ds-t small{display:block;font-size:.875rem;color:var(--soft,#55605b)}"
+  },
+  {
+   "name": "Notice",
+   "kind": "custom",
+   "refersTo": "notice-warn",
+   "description": "Something will happen unless you act.",
+   "html": "<div class=\"ds-w\"><p>New network settings are on trial.</p><button>Keep settings</button></div>",
+   "css": ".ds-w{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;border:1px solid;border-radius:8px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--warn-bg,#fdf1dc);color:var(--warn,#8a5300)}.ds-w p{margin:0;flex:1}.ds-w button{font:inherit;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--field-line,#8b9791);background:var(--panel,#fff);color:var(--ink,#18201d)}"
+  }
+ ],
+ "narrative": {
+  "northStar": "The Bench Instrument",
+  "overview": "A well-made meter on a workbench. Readings line up, nothing decorates, and a fault is obvious. The interface is plain and exact, calm, and friendly in the way a good tool is: short words that help, with no chatter.\n\nEverything sits on one faint grey-green bench. One teal, the colour of the coating on a circuit board, marks what can be operated and what is current. Green, amber and red belong to state and nothing else, so when one appears it means something.\n\nIt must never look like the vendor's old web UI (frames and grey forms), and it must never look like a marketing dashboard (big number tiles, gradients, charts for show).",
+  "keyCharacteristics": [
+   "System type with tabular figures; numbers align and hold still.",
+   "Light and dark follow the viewer's setting, with the same roles in both.",
+   "Tables for readings, plain forms for settings, one column of controls at a time.",
+   "Colour and motion only when something is operable, current, or wrong."
+  ],
+  "rules": [
+   {
+    "name": "The State-Only Rule",
+    "body": "Green, amber and red appear only for state, never as decoration or category.",
+    "section": "colors"
+   },
+   {
+    "name": "The Dot-and-Word Rule",
+    "body": "State is never colour alone: a dot and a word carry it together.",
+    "section": "colors"
+   },
+   {
+    "name": "The Steady Figures Rule",
+    "body": "Figures are tabular everywhere, and a changing number never moves its column.",
+    "section": "typography"
+   },
+   {
+    "name": "The Still Table Rule",
+    "body": "Live values change in place. Column widths and row positions do not react to them.",
+    "section": "layout"
+   }
+  ],
+  "dos": [
+   "**Do** give every live number a fixed column and tabular figures.",
+   "**Do** pair every state colour with a word.",
+   "**Do** keep one primary button per form, and say beside a disabled one what unlocks it.",
+   "**Do** use the same roles in light and dark; change values, not meaning.",
+   "**Do** ship with system fonts and inline drawing only."
+  ],
+  "donts": [
+   "**Don't** look like the vendor's old web UI: frames, grey forms.",
+   "**Don't** look like a marketing dashboard: big number tiles, gradients, charts for show.",
+   "**Don't** use green, amber or red for anything but state.",
+   "**Don't** nest panels.",
+   "**Don't** animate anything but colour on hover."
+  ]
+ }
+}
