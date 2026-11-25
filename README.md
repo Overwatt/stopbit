@@ -1,72 +1,139 @@
 <img src="docs/images/logo.svg" width="96" alt="">
 
-# lino — open firmware for the USR-N540
+# Open firmware for the USR-N540
 
-Custom, open firmware for the **USR-N540** (4-port RS485 ↔ Ethernet gateway),
-built on bare-metal **STM32H750VBT6** with ST's HAL and LwIP.
+Firmware for the **USR-N540**, a 4-port RS485-to-Ethernet gateway, that replaces the
+vendor's closed one. Bare-metal C on an STM32H750, with lwIP. A for-fun project: open,
+hackable and observable, not a copy of the vendor's whole feature list.
 
-This is a for-fun project to replace the closed vendor firmware with something
-open, hackable, observable, and tailored — not to re-implement USR's entire
-product. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the plan and
-[`docs/HARDWARE.md`](docs/HARDWARE.md) for what we know about the board.
+Not made or endorsed by the vendor.
 
-## Hardware (from chip markings + pusr.com)
+![The Status page: a verdict, a list of parts, and one port's report](docs/images/status.png)
 
-| | |
-|---|---|
-| MCU | STM32H750VBT6 (Cortex-M7, LQFP100), run at 400 MHz |
-| Internal flash | 128 KB @ `0x08000000` |
-| External flash | GigaDevice GD25Q16 (2 MB SPI NOR) + a second GD SOIC-8 |
-| Clock | 25 MHz HSE crystal |
-| I/O | 4× RS485 (half-duplex), 1× 10/100 Ethernet (external PHY, model TBD) |
-| Debug | SWD (5-pin header), `T R G` 3-pin UART console |
+*Example data.*
 
-> **Pin map is not reverse-engineered yet.** Every pin lives in
-> [`src/board/board.h`](src/board/board.h), marked `TODO(dump)`. Those values
-> are placeholder guesses. Correcting that one file after the firmware dump is
-> what makes this build real on the hardware.
+## What it does
 
-## Toolchain
+- **RS485 to network.** Each port is a TCP server, TCP client or UDP endpoint, with its own
+  line settings, 300 to 2,000,000 baud.
+- **Status page.** A verdict that names the fault, every part's state, and each port's last
+  ten minutes of traffic. Works on a phone, in light and dark, with no internet.
+- **Listen only.** A port's transmitter can be turned off in hardware setup, so watching a
+  live bus cannot disturb it.
+- **Alert if quiet.** Per port: silence, or no client, for a chosen time.
+- **MQTT,** with Home Assistant discovery that can be turned off.
+- **Updates over the network,** from the web page or the command line, into two slots. An
+  update that does not start is undone by the loader.
+- **Console** (`tools/n540.py HOST`): the same settings, plus send, watch and traffic logs.
+- **Reload button:** hold 3 to 15 seconds to get back to DHCP with no web password.
 
-Everything needed is already standard: `arm-none-eabi-gcc`, `cmake` (≥3.20),
-`ninja`, `git`, and `openocd` (with an ST-Link) for flashing. The ST
-HAL/CMSIS are fetched automatically by CMake (pinned versions) on first
-configure.
+## How far it has been tested
+
+On one gateway:
+
+- All four ports with a USB-RS485 adapter, 9600 to 1,000,000 baud, both ways and
+  request/reply, with no errors.
+- A real bus at 38,400 baud: every packet checksum valid in each 30-second capture.
+- Update, rollback and refusal of bad images.
+
+Not tested: several ports busy at once, long or terminated buses, more than 1,000,000 baud,
+power loss during an update, and silence on the wire in listen only (checked by counters,
+not measured). [GATEWAY.md](docs/GATEWAY.md) and [NETWORK-UPDATE.md](docs/NETWORK-UPDATE.md)
+have the details.
+
+## Security, plainly
+
+- Use it on a network you trust. Pages are HTTP, and **the ports' data sockets have no
+  login**.
+- Anyone on the network can view the pages. Changes need the web password, which is unset
+  at first, or the update key. Neither crosses the network in clear.
+- **The web password can install firmware**, which is full control. Replacing the loader and
+  reading flash need the update key.
+- MQTT is unencrypted, and the gateway sends the broker's login in clear. With changes
+  allowed over MQTT, anyone who can publish to the broker can make them.
+
+HTTPS is [designed, not built](docs/HTTPS.md).
 
 ## Build
+
+Needs CMake 3.20+, Ninja, Python 3, git and Arm's GCC toolchain **with newlib**. Homebrew's
+`arm-none-eabi-gcc` lacks it; unpack [Arm's](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)
+into `toolchain/` and CMake finds it. ST's HAL and CMSIS, and lwIP, are fetched at pinned
+versions on the first configure.
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
 cmake --build build
 ```
 
-Outputs: `build/lino-n540.elf`, `.bin`, `.hex`, plus a size report and `.map`.
+| Output | |
+|---|---|
+| `build/app.bin` | the gateway |
+| `build/loader_flash.bin` | the loader, for internal flash |
+| `build/loader_ram.bin` | the same loader, run from RAM over SWD |
 
-## Flash (ST-Link + OpenOCD)
+The first configure creates `secrets/n540.key`, the update key, and compiles it into both.
+**Back it up:** without it, only SWD can replace the loader.
+
+## Install
+
+**Already running this firmware:** choose `app.bin` on the Firmware page, or
 
 ```sh
-openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
-  -c "program build/lino-n540.elf verify reset exit"
+tools/n540.py n540-xxxxxx.local update build/app.bin
 ```
 
-> ⚠️ **Do not flash until we have a verified backup of the stock firmware.**
-> Flashing wipes the vendor bootloader in internal flash. The RDP level must be
-> checked first (see ROADMAP milestone 0). This repo's `.gitignore` keeps
-> `dumps/` out of git — store backups there, and copy them somewhere durable.
+The name comes from the gateway's MAC address. Then set the web password with
+`tools/n540.py HOST passwd`.
+
+**From the vendor's firmware** needs an ST-Link once. Read these first:
+
+- It has been done on one unit. It erases the vendor's bootloader, and **going back is
+  unproven**: our backup of that bootloader is a single unverified read. Take your own
+  backups and check them ([DUMPS.md](docs/DUMPS.md)).
+- **An external watchdog resets the chip about every 1.6 s** unless PC10 toggles, even while
+  halted, so long SWD flash writes get cut off and can leave the unit unbootable. Do not
+  flash it over SWD directly.
+
+Instead, start the loader from RAM, which writes nothing, and let it install itself:
+
+```sh
+tools/ramrun.sh HOST_WITH_STLINK          # OpenOCD over ssh; read the script first
+tools/n540.py n540-xxxxxx.local selfupdate build/loader_flash.bin
+tools/n540.py n540-xxxxxx.local update build/app.bin
+```
+
+## Hardware
+
+| | |
+|---|---|
+| Processor | STM32H750VBT6, Cortex-M7 at 400 MHz |
+| Flash | 128 KB internal (the loader), 2 × 2 MB GD25Q16 (firmware slots, settings) |
+| Ethernet | IC Plus IP101G, 10/100 |
+| RS485 | 4 × TI SN65HVD75 |
+| Watchdog | UM706SS, external |
+
+The app runs from RAM: internal flash is one 128 KB erase block, so it holds only the
+loader. Pins, and how sure we are of each, are in [HARDWARE.md](docs/HARDWARE.md).
 
 ## Layout
 
 ```
-cmake/      toolchain file
-linker/     STM32H750 linker script (memory map)
-src/board/  board.h — THE pin map (single source of truth)
-src/core/   boot, clock, HAL config, interrupt handlers, main
-src/drivers/ led, rs485 (more to come: eth, phy)
-src/app/    gateway logic (later milestones)
-docs/       ROADMAP.md, HARDWARE.md
+src/loader/   boot, network update, slot choice
+src/app/      ports, settings, MQTT, console, API
+src/http/     web server shared by both
+src/net/      Ethernet driver, lwIP glue
+src/common/   flash, slots, watchdog, SHA-256
+src/board/    the pin map
+web/          the page, one file, built into the firmware
+tools/        n540.py (updates, console), SWD scripts
+tests/        host and on-device tests
+docs/         GATEWAY, HARDWARE, NETWORK-UPDATE, DUMPS, HTTPS, ROADMAP
 ```
 
-## Status
+[PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record what the pages are for and how
+they look. Plans are in [ROADMAP.md](docs/ROADMAP.md).
 
-Milestone 1 (boot → 400 MHz → heartbeat LED → 4× RS485 echo) scaffolded.
-Pin map pending the bench dump. Ethernet/LwIP/gateway are later milestones.
+## License
+
+[Apache 2.0](LICENSE)
