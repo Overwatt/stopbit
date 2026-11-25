@@ -4,34 +4,30 @@ Milestone ladder from "boots" to "better than stock." Each rung is a working,
 testable state. Scope is kept deliberately narrow — we build the open/hackable
 gateway we want, not a clone of USR's whole feature matrix.
 
-## Direction (current): our firmware + network update, not stock restore
+## Direction
 
-We run our own firmware on the board and prioritize a **network firmware-update
-path** so SWD flashing stops mattering. Reach: Ethernet up → a TCP/HTTP endpoint
-that writes a received image to flash → split into a tiny **bootloader**
-(SWD-flashed once) + **app** (updated over the network) with a golden-image
-fallback. This mirrors USR's own "web_boot" design. After that, SWD is only for
-first-flash/emergencies; everyday updates are `curl` over the LAN.
+We run our own firmware and update it over the network. SWD is only for first
+flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 
-## ⚠️ Flashing over SWD — hard-won lessons (read before flashing)
+## Flashing over SWD (read before flashing)
 
-- **The board MUST have its own external power connected.** On the ST-Link's
-  3.3 V alone, reads/erases work but **flash *programming* silently fails** (the
-  program charge pumps need real current) — you read back blank and think the
-  write failed. This caused a multi-hour brick scare. Always power the board.
-- ST-Link into a **direct USB port** (not a hub); **3.3V/VTref wire connected**
-  (header pin 1). SWD header: `1=3V3, 2=GND, 3/4=SWDIO/NRST, 5=SWCLK`.
-- This ST-Link **clone can't connect-under-reset**, so a corrupt flash → CPU
-  lockup → debug-domain gating → intermittent examine failures. Workaround =
-  "escape" trick (run a loop in SRAM to get a clean CPU state), then flash. A
-  **genuine ST-Link/J-Link removes all of this.** Recovery scripts live on
-  `swd-host:~/n540_dumps/*.cfg`.
+- **An external watchdog on PC10 pulls NRST about every 1.6 s unless PC10
+  toggles, even while the core is halted.** Any SWD flash operation longer than
+  that gets reset part-way. This very likely caused, or contributed to, the
+  "brick" of 2026-11-24. Connecting external power coincided with the recovery,
+  so keep it connected, but it was never isolated as the cause.
+- Preferred route: `tools/ramrun.sh` loads the loader into SRAM over SWD (no
+  flash writes), then `tools/n540.py HOST selfupdate build/loader_flash.bin`
+  writes internal flash, feeding the watchdog as it goes.
+- ST-Link on a direct USB port, VTref wired. SWD header:
+  `1=3V3, 2=GND, 3/4=SWDIO/NRST, 5=SWCLK`. This clone cannot
+  connect-under-reset.
 
 ## M0 — Back up the stock firmware (bench, prerequisite)
-- [ ] SWD: connect ST-Link, read Option Bytes → **RDP level** (go/no-go for the
+- [x] SWD: connect ST-Link, read Option Bytes → **RDP level** (go/no-go for the
       whole project — RDP2 means SWD is dead and we stop).
-- [ ] If RDP0: dump internal 128 KB (`0x08000000`) → `dumps/internal_bootloader.bin`.
-- [ ] CH341A + SOIC-8 clip: dump both external GD SPI flashes (hold MCU in reset).
+- [x] If RDP0: dump internal 128 KB (`0x08000000`) → `dumps/internal_bootloader.bin`.
+- [x] Dump both external flashes (over the network, via our loader).
 - [ ] Analyse dumps → confirm boot flow, begin extracting the **pin map**.
 
 ## M1 — Boot + heartbeat + RS485 echo  *(scaffolded)*
@@ -47,10 +43,12 @@ first-flash/emergencies; everyday updates are `curl` over the LAN.
 - [ ] `T R G` debug console: printf logging + a tiny CLI.
 
 ## M3 — Ethernet up
-- [ ] Identify PHY (LAN8720 / RTL8201 / DP83848?), set address + reset line.
-- [ ] HAL ETH + **LwIP** (add dep: lwip `STABLE-2_2_1_RELEASE`).
-- [ ] MPU region for non-cacheable DMA descriptors (M7 D-cache coherency).
-- [ ] DHCP + static IP; **ping** the board. 🎯 first big milestone.
+- [x] PHY: IP101G (ID 0x02430C54) at MDIO address 1. No reset line needed so far.
+- [x] Own polled MAC driver + **LwIP** 2.2.1 (raw API).
+- [x] MPU region for non-cacheable DMA memory (D-cache itself still off).
+- [x] DHCP, mDNS, **ping** (~0.4 ms).
+- [ ] Static IP configuration.
+- [x] Network update: loader self-update, A/B app slots, rollback.
 
 ## M4 — The core product: transparent RS485 ↔ TCP bridge
 - [ ] Each RS485 port ↔ a TCP server socket (configurable port).
@@ -66,8 +64,7 @@ first-flash/emergencies; everyday updates are `curl` over the LAN.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.
 
 ## Known risks / open questions
-- Power supply topology (LDO vs SMPS) affects clock bring-up — see `system_clock.c`.
-- 128 KB internal flash is tight once LwIP + web land → plan to move code to
-  external QSPI (XIP @ `0x90000000`) with a small internal bootloader.
-- RS485 DE line: using manual GPIO toggle; confirm whether DE sits on a UART
-  native DE/RTS pin (would allow hardware auto-direction).
+- Internal flash is a single 128 KB erase sector, so it holds only the loader;
+  apps run from AXI SRAM (384 KB).
+- RS485 direction: no GPIO in a 16-pin sweep affected any RX line, with TX high
+  or low. Hypothesis: hardware auto-direction from TX. Prove with a loopback.

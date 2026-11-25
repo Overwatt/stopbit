@@ -11,21 +11,16 @@ SWD is fully open: we can read everything *and* flash our own firmware.
 
 ## What we have
 
-| File | Source | Size | Status |
-|---|---|---|---|
-| `internal_bootloader.bin` | internal flash `0x08000000` | 128 KB | ✅ complete, authoritative |
-| `qspi_flash1_2MB.bin` | QSPI flash #1, mem-mapped `0x90000000` | 2 MB | ⚠️ 15/16 (see gap) |
+| File | Source | Status |
+|---|---|---|
+| `extflash0.bin` | QSPI bank 2 chip (stock app) | 2 MB, read twice, identical. SHA-256 `2d1ed206…` |
+| `extflash1.bin` | SPI4 chip, CS=PE4 (stock config, littlefs) | 2 MB, read twice, identical. SHA-256 `c4542dc8…` |
+| `internal_bootloader.bin` | internal flash, via SWD | 128 KB, single read, not cross-checked |
+| `qspi_flash1_2MB.CORRUPT-swd.bin` | SWD memory-mapped read | **Bad**: dropped and bit-shifted words in 10 of 16 chunks |
 
-**Gap:** `0x90160000–0x9017FFFF` (128 KB, "chunk 11") is `0xFF`-filled — it faults
-reliably on SWD memory-mapped reads at any speed. Likely an unused/special window
-(it sits between app content and the empty `0xFF` tail). Top up via CH341A if it
-turns out to be real content.
+The external dumps were read by our own loader over the network.
 
-**Not yet dumped:** the **second GD25Q16** (2 MB). It is *not* in the `0x90000000`
-memory-mapped window, so SWD can't reach it — needs the **CH341A + SOIC-8 clip**
-(hold the MCU in reset so it releases the SPI bus).
-
-## How the dump was done (SWD via swd-host)
+## How the SWD dump was done (superseded for external flash)
 
 ST-Link/V2 is on **swd-host** (Ubuntu). openocd 0.12 installed there. Drive remotely:
 

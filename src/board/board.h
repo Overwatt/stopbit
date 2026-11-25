@@ -52,14 +52,12 @@
  */
 #define BOARD_RS485_PORT_COUNT  4
 
-/* TX/RX pins below are CONFIRMED from live GPIO AF registers on the stock
- * firmware; the 4 ports map to logical UART1-4 (AT responses "+OK=UART1..4")
- * = peripherals USART1/USART2/USART3/UART4. DE pins are still TODO(ghidra) —
- * the firmware's board-config table hasn't been decoded yet; the DE values
- * here are PLACEHOLDERS picked from the 14 spare GPIO outputs and are NOT
- * confirmed. Port ordering (which connector is #1) is also tentative. */
+/* LIKELY, not proven: stock enables nine UARTs (same firmware as the 8-port
+ * N580); these four are the ones whose RX lines are driven on this board. The
+ * DE pins are PLACEHOLDERS: no GPIO was found to control direction, so it is
+ * probably automatic. Do not drive them until that is settled. */
 
-/* --- Port 1 = USART1 (TX/RX confirmed) --- */
+/* --- Port 1 = USART1 (likely) --- */
 #define RS485_1_UART            USART1
 #define RS485_1_UART_CLK_EN()   __HAL_RCC_USART1_CLK_ENABLE()
 #define RS485_1_TX_PORT         GPIOA
@@ -67,10 +65,10 @@
 #define RS485_1_RX_PORT         GPIOA
 #define RS485_1_RX_PIN          GPIO_PIN_10
 #define RS485_1_AF              GPIO_AF7_USART1
-#define RS485_1_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_1_DE_PORT         GPIOA          /* placeholder: see above */
 #define RS485_1_DE_PIN          GPIO_PIN_3
 
-/* --- Port 2 = USART2 (TX/RX confirmed) --- */
+/* --- Port 2 = USART2 (likely) --- */
 #define RS485_2_UART            USART2
 #define RS485_2_UART_CLK_EN()   __HAL_RCC_USART2_CLK_ENABLE()
 #define RS485_2_TX_PORT         GPIOD
@@ -78,10 +76,10 @@
 #define RS485_2_RX_PORT         GPIOD
 #define RS485_2_RX_PIN          GPIO_PIN_6
 #define RS485_2_AF              GPIO_AF7_USART2
-#define RS485_2_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_2_DE_PORT         GPIOA          /* placeholder: see above */
 #define RS485_2_DE_PIN          GPIO_PIN_4
 
-/* --- Port 3 = USART3 (TX/RX confirmed) --- */
+/* --- Port 3 = USART3 (likely) --- */
 #define RS485_3_UART            USART3
 #define RS485_3_UART_CLK_EN()   __HAL_RCC_USART3_CLK_ENABLE()
 #define RS485_3_TX_PORT         GPIOD
@@ -89,10 +87,10 @@
 #define RS485_3_RX_PORT         GPIOD
 #define RS485_3_RX_PIN          GPIO_PIN_9
 #define RS485_3_AF              GPIO_AF7_USART3
-#define RS485_3_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_3_DE_PORT         GPIOA          /* placeholder: see above */
 #define RS485_3_DE_PIN          GPIO_PIN_5
 
-/* --- Port 4 = UART4 (TX/RX confirmed) --- */
+/* --- Port 4 = UART4 (likely) --- */
 #define RS485_4_UART            UART4
 #define RS485_4_UART_CLK_EN()   __HAL_RCC_UART4_CLK_ENABLE()
 #define RS485_4_TX_PORT         GPIOD
@@ -100,7 +98,7 @@
 #define RS485_4_RX_PORT         GPIOD
 #define RS485_4_RX_PIN          GPIO_PIN_0
 #define RS485_4_AF              GPIO_AF8_UART4
-#define RS485_4_DE_PORT         GPIOA          /* TODO(ghidra): DE unconfirmed */
+#define RS485_4_DE_PORT         GPIOA          /* placeholder: see above */
 #define RS485_4_DE_PIN          GPIO_PIN_12
 
 /* Default serial parameters for each RS485 port (changeable at runtime). */
@@ -124,17 +122,12 @@
 #define BOARD_ETH_PINS_B  (GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13)  /* TX_EN TXD0 TXD1 */
 #define BOARD_ETH_PINS_C  (GPIO_PIN_1 | GPIO_PIN_4 | GPIO_PIN_5)     /* MDC RXD0 RXD1 */
 
-/* TODO: PHY hardware-reset GPIO not yet identified among the spare outputs.
- * #define BOARD_ETH_PHY_RST_PORT  GPIOx
- * #define BOARD_ETH_PHY_RST_PIN   GPIO_PIN_x
- */
-
-/* RMII signal pins — CONFIRMED from live GPIO registers on the stock firmware
+/* RMII signal pins — CONFIRMED by a working link
  * (all AF11, GPIOA/B/C only):
  *   REF_CLK = PA1    TX_EN = PB11
  *   CRS_DV  = PA7    TXD0  = PB12
  *   RXD0    = PC4    TXD1  = PB13
- *   RXD1    = PC5    MDIO  = PA2  (SMI, driven as GPIO/AF by firmware)
+ *   RXD1    = PC5    MDIO  = PA2  (SMI, AF11)
  *                    MDC   = PC1  (SMI)
  * These are the exact pins the vendor firmware uses; HAL ETH GPIO init
  * (milestone 3) will configure precisely these.                          */

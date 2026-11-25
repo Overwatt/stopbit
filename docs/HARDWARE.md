@@ -45,24 +45,16 @@ loaded by a small internal bootloader. See ROADMAP M0.
   (SWDIO=PA13, SWCLK=PA14 on the MCU; GND to ground plane; 3V3 to a cap).
 - **`T R G` 3-pin header:** **TX / RX / GND** UART console (3.3 V TTL).
 
-## Pin map — TO RECOVER (fill `board.h`)
+## Pin map
 
-Everything below is a **placeholder guess** until the dump + continuity test.
+`src/board/board.h` holds the values; this is how sure we are of them.
 
-| Function | Signal | Guess | Confirmed? |
-|---|---|---|---|
-| Heartbeat LED | GPIO | PE2 | ❌ TODO(dump) |
-| RS485 #1 | USART1 TX/RX/DE | PA9 / PA10 / PA8 | ❌ |
-| RS485 #2 | USART3 TX/RX/DE | PD8 / PD9 / PD10 | ❌ |
-| RS485 #3 | UART4 TX/RX/DE | PC10 / PC11 / PA15 | ❌ |
-| RS485 #4 | USART6 TX/RX/DE | PG14 / PG9 / PG12 | ❌ |
-| Ethernet | RMII (AF11) | standard RMII pins | ❌ |
-| Eth PHY addr | MDIO | 0x01 (strap default) | ❌ |
-| Eth PHY model | — | **IC Plus IP101GRI** | ✅ |
-| RS485 xcvr | — | **TI SN65HVD75** ×4 | ✅ |
-
-### How we'll recover it
-1. **Firmware dump** (SWD internal + CH341A external) → disassemble / inspect
-   the RCC + GPIO AF config and ETH init to read pins directly.
-2. **Continuity testing** — buzz MCU pins to transceivers, PHY, LEDs.
-3. **Scope/logic probe** — confirm which UART is live per RS485 port.
+| Function | Pins | Confidence |
+|---|---|---|
+| Ethernet RMII + MDIO | PA1 PA2 PA7 PB11-13 PC1 PC4 PC5 | ✅ working link, MDIO reads PHY |
+| **External watchdog (WDI)** | **PC10**, ~1.6 s | ✅ by experiment |
+| Ext flash 0 | CLK PB2, CS PC11, IO PE7-10 | ✅ JEDEC C84015 |
+| Ext flash 1 | SCK PE2, MISO PE5, MOSI PE6, CS PE4 | ✅ JEDEC C84015 |
+| RS485 UARTs | USART1/2/3, UART4 | likely: these RX lines are driven; U5/U6/U8 RX float. Stock enables 9 UARTs (shared with the 8-port N580), so not proven |
+| RS485 DE | none found | hypothesis: auto-direction |
+| Other stock outputs | PA3-5 PA12 PA15 PC8 PD4 PD12 PD13 PD15 PE12 PE14 | unknown |
