@@ -50,7 +50,7 @@
 #define MBEDTLS_SSL_EXTENDED_MASTER_SECRET
 #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 #define MBEDTLS_SSL_IN_CONTENT_LEN  16384       /* browsers fill records when uploading */
-#define MBEDTLS_SSL_OUT_CONTENT_LEN 2048
+#define MBEDTLS_SSL_OUT_CONTENT_LEN 4352        /* the certificate chain goes out in one message */
 #define MBEDTLS_SSL_CIPHERSUITES MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
 #define MBEDTLS_MPI_MAX_SIZE 512
 #endif

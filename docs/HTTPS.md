@@ -15,6 +15,17 @@ tools/n540.py HOST cert-install fullchain.pem
 tools/n540.py HOST https                             # state, fingerprint, timings
 ```
 
+A Let's Encrypt certificate from another computer, with Route 53 credentials in the usual
+places. `--staging` first. It is not renewed by itself: repeat before it expires.
+
+```sh
+uvx --from certbot --with certbot-dns-route53 certbot certonly --dns-route53 --csr request.pem \
+  --config-dir le/c --work-dir le/w --logs-dir le/l --fullchain-path fullchain.pem \
+  --cert-path cert.pem --chain-path chain.pem
+```
+
+Asking the gateway for another request makes another key: install the certificate first.
+
 - **Port 80 keeps working**, by address and by `.local` name, so a bad or expired
   certificate cannot lock anyone out. Only the certificate's own name is redirected, and
   with a 302. There is no HSTS. **So anyone on the network can still use plain HTTP**, and
@@ -42,9 +53,11 @@ between requests for a minute; idle ones give way to new ones.
 | | Measured |
 |---|---|
 | Image | 223 KB, from 139 KB |
-| Memory, 4 connections and a handshake | 87 KB of 112 KB |
+| Memory, 4 connections and a handshake | 96 KB of 124 KB |
 | Emulated Cortex-M7: longest slice | 1.01 ms |
-| On the gateway | **not yet**: see `https` and Longest pause on the Hardware page |
+| On the gateway: longest slice, arithmetic stack | 1.01 ms, 1.8 KB of 12 KB |
+| On the gateway: handshakes | **not yet**: see `https` and Longest pause on the Hardware page |
+| Let's Encrypt's chain, November 2026 | 4 certificates, 3.4 KB; up to 4 KB can be stored and sent |
 
 ## Tests
 
@@ -69,10 +82,11 @@ Checked 2026-11-25:
 - Needed besides: network time (SNTP), a TLS client that checks certificates, and the ACME
   and Route 53 requests. The certificate's expiry should go to the Hardware page and Home
   Assistant.
-- **RAM:** 375 of 384 KB is spoken for, so it needs room made, e.g. by fewer connections.
+- **RAM:** the image is 218 of at most 384 KB, the loader's limit. Buffers have more room:
+  main RAM is 512 KB, and D2, D3 and ITCM have about 190 KB free between them.
 - Certificates are publicly logged, so the host name becomes public. The name needs a DNS
   record for the gateway's LAN address; some routers block public names that resolve to
   private addresses.
 
-Open: the host name, and whether a restricted DNS key may live on the gateway. If not,
+Open: whether a restricted DNS key may live on the gateway. If not,
 renewal runs on another computer, which only needs the signing request once.

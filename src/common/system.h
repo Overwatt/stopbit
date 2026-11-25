@@ -2,7 +2,8 @@
 #define SYSTEM_H
 #include <stdint.h>
 #include <stdbool.h>
-/* Load area for staged images, and for apps once running. */
+/* Load area for staged images, and for apps once running. AXI SRAM goes on for another
+ * 128 KB; the app keeps buffers there (linker/app_ram.ld). */
 #define STAGE_ADDR 0x24000000u
 #define STAGE_SIZE (384u * 1024u)
 

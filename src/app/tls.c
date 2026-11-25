@@ -21,14 +21,19 @@
 
 #ifndef AXI_BSS
 #define AXI_BSS __attribute__((section(".axi_bss")))
+#define AXI_HI  __attribute__((section(".axi_hi")))
+#endif
+#ifndef AXI_HI
+#define AXI_HI
 #endif
 #define TLS_MAX      4
-#define TLS_HEAP     (112u * 1024u)      /* 4 connections, one of them in a handshake */
+#define TLS_HEAP     (124u * 1024u)      /* 4 connections, one of them in a handshake */
 #define SHAKE_MS     20000u
 #define REQUEST_MS   20000u
 #define IDLE_MS      60000u
 #define STUCK_MS     180000u             /* a reply nobody takes; installs are slow too */
 #define TICKET_MS    (12u * 3600u * 1000u)
+#define SEND_MAX     2048u               /* plaintext per record sent */
 #define PASS_MAX     4096u               /* plaintext taken in one pass of the main loop */
 
 /* ---- what is stored -------------------------------------------------------- */
@@ -115,7 +120,7 @@ void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n)
 }
 
 /* ---- mbedTLS --------------------------------------------------------------- */
-static AXI_BSS uint64_t s_heap[TLS_HEAP / 8];
+static AXI_HI uint64_t s_heap[TLS_HEAP / 8];
 static mbedtls_entropy_context  s_ent;
 static mbedtls_ctr_drbg_context s_rng;
 static mbedtls_ssl_config       s_conf;
@@ -489,7 +494,7 @@ uint32_t tls_room(const tls_t *t)
     uint32_t room = tcp_sndbuf(t->pcb);
     if (room < 512 || tcp_sndqueuelen(t->pcb) >= TCP_SND_QUEUELEN - 6) return 0;
     room -= 64;                          /* a record's own bytes */
-    return room < MBEDTLS_SSL_OUT_CONTENT_LEN ? room : MBEDTLS_SSL_OUT_CONTENT_LEN;
+    return room < SEND_MAX ? room : SEND_MAX;
 }
 
 static void wrote(struct tls *t, int r, uint32_t n)
@@ -513,7 +518,7 @@ void tls_close(tls_t *t)
 
 static void service(struct tls *t)
 {
-    static uint8_t buf[MBEDTLS_SSL_OUT_CONTENT_LEN];
+    static uint8_t buf[SEND_MAX];
     uint32_t now = HAL_GetTick();
     if (t->state == T_FREE || t->state == T_SHAKE) return;
     if (!t->pcb || t->dead) { finish(t); return; }
@@ -666,6 +671,9 @@ static bool name_ok(const char *n)
     }
     return dot;
 }
+
+/* All of it goes out in one message. */
+_Static_assert(sizeof s_rec.b.chain + 64 <= MBEDTLS_SSL_OUT_CONTENT_LEN, "a full chain could not be sent");
 
 static const char *take_cert(const uint8_t *der, size_t len)
 {

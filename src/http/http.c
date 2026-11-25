@@ -50,9 +50,9 @@
 #include "tls.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
-#define BODY_MAX   3072
+#define BODY_MAX   4608            /* a certificate chain */
 #ifndef CONN_MEM
-#define CONN_MEM   __attribute__((section(".d2_bss")))
+#define CONN_MEM   __attribute__((section(".axi_bss")))
 #endif
 #else
 #define MAX_CONN   4

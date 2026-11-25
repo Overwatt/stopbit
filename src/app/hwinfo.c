@@ -13,7 +13,7 @@
 #include <stdlib.h>
 
 extern bool g_clock_hse;
-extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi;
+extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi, _eaxi_hi;
 
 /* Factory calibration, in system memory (DS12556). */
 #define CAL_VREF   (*(const uint16_t *)0x1FF1E860u)     /* raw at 3.3 V */
@@ -156,7 +156,7 @@ size_t hwinfo_json(char *out, size_t max)
     for (int i = 0; i < SLOT_COUNT; i++) slots_get(i, &sl[i]);
     OUT("],\"mem\":[{\"name\":\"AXI\",\"used\":%lu,\"size\":%lu},{\"name\":\"DTCM\",\"used\":%lu,\"size\":%lu},"
         "{\"name\":\"D2\",\"used\":%lu,\"size\":%lu}]",
-        U((uint32_t)&_eaxi - D1_AXISRAM_BASE), U(384u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
+        U((uint32_t)&_eaxi - D1_AXISRAM_BASE + (uint32_t)&_eaxi_hi - (D1_AXISRAM_BASE + (384u << 10))), U(512u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
         U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10));
 
     OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu}", U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max));

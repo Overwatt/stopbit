@@ -17,7 +17,7 @@ if [ ! -f "$O/done" ] || [ src/app/mbedtls_cfg.h -nt "$O/done" ]; then
   done
   touch "$O/done"
 fi
-cc $FLAGS "$CFG" -DAPP_IMAGE -DFLASH_REAL -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= -DCONN_MEM= -DWORKER_STACK=131072 ${SIM_FLAGS} \
+cc $FLAGS "$CFG" -DAPP_IMAGE -DFLASH_REAL -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= -DAXI_HI= -DCONN_MEM= -DWORKER_STACK=131072 ${SIM_FLAGS} \
   -Itests/sim -Itests/stub -Isrc/common -Isrc/http -Isrc/net -Ibuild/gen \
   tests/sim/sim.c tests/sim/id.c src/http/http.c src/app/fwlib.c src/app/tls.c src/app/worker.c \
   src/common/slots.c src/common/image.c src/common/sha256.c "$O"/*.o -o "${TMPDIR:-/tmp}/n540sim" && exec "${TMPDIR:-/tmp}/n540sim" build/app.bin

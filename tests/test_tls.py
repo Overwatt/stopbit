@@ -251,7 +251,19 @@ chain = sign(["www.example.com", N])
 assert "not a certificate" in cmd(b"cert\n" + chain[:-5], ok=False)
 assert tls()["kind"] == "self"
 cmd(b"cert\n" + chain); t = tls(); assert t["kind"] == "issued" and t["name"] == N and t["live"] and t["until"], t
-good = ctx(cafile=T + "/root.pem"); s = conn(good, N); assert get(s, "/status")[0] == 200; s.close(); ok("certificate installed; full chain verifies from the root")
+# as long as the real ones: four certificates, about 3.5 KB, the last cross-signed with RSA
+good = ctx(cafile=T + "/root.pem")
+ca("x1", T + "/root.key", md="-sha256"); run("openssl", "ecparam", "-genkey", "-name", "secp384r1", "-out", T + "/x2.key"); run("openssl", "ecparam", "-genkey", "-name", "secp384r1", "-out", T + "/ye.key")
+ca("x2", T + "/x2.key", ("x1", T + "/root.key"), md="-sha256"); ca("ye", T + "/ye.key", ("x2", T + "/x2.key")); ca("inter", T + "/int.key", ("ye", T + "/ye.key"))
+sign([N, "www." + N]); long = b"".join(run("openssl", "x509", "-in", T + f"/{f}.pem", "-outform", "DER") for f in ("leaf", "inter", "ye", "x2", "x1"))
+print("     chain of", len(long), "bytes"); assert 3300 < len(long) <= 4096, len(long)
+cmd("request " + N); csr = base64.b64decode(json.loads(d.get("/api/tls/csr"))["csr"]); open(T + "/r.der", "wb").write(csr)
+sign([N]); long = b"".join(run("openssl", "x509", "-in", T + f"/{f}.pem", "-outform", "DER") for f in ("leaf", "inter", "ye", "x2", "x1"))
+cmd(b"cert\n" + long); c1 = ctx(cafile=T + "/x1.pem"); s = conn(c1, N); assert get(s, "/status")[0] == 200; s.close(); ok("a long chain is sent whole and verifies")
+assert "too long" in cmd(b"cert\n" + long + b"x" * (4100 - len(long)), ok=False)
+run("openssl", "req", "-new", "-key", T + "/int.key", "-subj", "/CN=inter", "-out", T + "/c.csr"); ca("inter", T + "/int.key", ("root", T + "/root.key"), md="-sha256")
+cmd("request " + N); csr = base64.b64decode(json.loads(d.get("/api/tls/csr"))["csr"]); open(T + "/r.der", "wb").write(csr)
+cmd(b"cert\n" + sign(["www.example.com", N])); s = conn(good, N); assert get(s, "/status")[0] == 200; s.close(); ok("certificate installed; full chain verifies from the root")
 def host(h):
     c = http.client.HTTPConnection(H, d.port, timeout=5); c.request("GET", "/", headers={"Host": h}); r = c.getresponse(); r.read(); return r.status, r.getheader("Location")
 assert host(N) == (302, f"https://{N}/") and host(N.upper() + ":80") == (302, f"https://{N}/")
