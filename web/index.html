@@ -64,7 +64,7 @@ main>div{max-width:1000px}
 .chart .grid{stroke:var(--rule)}.chart text{fill:var(--soft);font-size:13px}.chart .ln{fill:none;stroke:var(--sea);stroke-width:2;stroke-linejoin:round}.chart .ar{fill:var(--sea);opacity:.14}.chart .er{fill:var(--warn)}.chart .xh{stroke:var(--soft)}.chart .pt{fill:var(--sea);stroke:var(--well);stroke-width:2}
 .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--sheet);border-radius:6px;padding:5px 10px;font-size:.875rem;white-space:nowrap;transform:translateX(-50%)}
 details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600}
-body[data-route=mqtt] #mqttsec{order:-1}
+body[data-route=mqtt] #mqttsec{order:-1}body[data-route=mqtt] #mqttsec .hint{display:none}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
 dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
@@ -86,6 +86,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
  aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
+ .vd{min-height:88px}
  h2{font-size:2rem}.say{font-size:1.25rem;min-height:4.2em}.facts{grid-template-columns:repeat(2,minmax(0,1fr))}
  body[data-view=list] .it[aria-current]{background:none}body[data-view=list] .it.bad[aria-current]{background:var(--bad-bg);box-shadow:none}
  .meta{order:3;flex-basis:100%;margin-bottom:2px}.grow{flex:1 1 0}#login{order:4;flex-basis:100%}
@@ -95,7 +96,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  table.stack tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}table.stack tr.row td{border:0;padding:0}table.stack td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}table.stack td:first-child{grid-column:1/-1}table.stack td:empty{display:none}
  label.wide{grid-column:1/-1}
 }
-.stale .it em,.stale .chart,.stale .facts,.stale dl.list,.stale table{opacity:.5}
+.stale .chart .ln{opacity:.45}.stale .chart .ar{opacity:.06}.stale .it em{font-style:italic}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -261,7 +262,7 @@ function editor(p,i){
   el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid-f"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
   el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
-  el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
+  el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75\u00a0ms. That suits Modbus RTU.")),
   el("fieldset",{},el("legend",{},"Alert"),el("div",{class:"grid-f"},sel("quiet_min","Alert if quiet",[[0,"Never"],...[1,2,3,5,10,15,20,30,60,120,180,240,360,720,1440].map(m=>[m,"After "+span(m*60)])])),el("p",{class:"hint"},"When nothing is heard, or no client is connected, for this long. Also sent to Home Assistant.")),
   el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
   el("div",{class:"acts"},save,el("button",{type:"button",onclick(){editing=false;showSheet()}},"Cancel"),msg));

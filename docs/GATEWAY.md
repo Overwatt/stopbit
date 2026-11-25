@@ -65,6 +65,31 @@ checked before flash is touched, and never replaces the running slot.
 updates and flash dumps still need the update key. `POST /install` and `POST /confirm` are
 the endpoints; `tests/test_install.py HOST` checks the refusals.
 
+### Being told when a bus goes quiet
+
+Each port has an alert sensor in Home Assistant (`binary_sensor`, on = problem). The gateway
+cannot report its own loss of power, network or broker: then the sensor becomes
+**unavailable**, not on. A notification should watch for both. The wait skips restarts,
+which take about ten seconds.
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.n540_gateway_port_1_alert   # yours may differ
+    to: "on"
+  - trigger: state
+    entity_id: binary_sensor.n540_gateway_port_1_alert
+    to: "unavailable"
+    for: "00:05:00"
+actions:
+  - action: notify.notify
+    data:
+      message: "Port 1: {{ 'problem' if trigger.to_state.state == 'on' else 'gateway unreachable' }}"
+```
+
+If Home Assistant or the broker loses power in the same outage, nothing can be sent until
+it is back.
+
 ## Reload button
 
 Hold 3 to 15 seconds and release: the network goes back to DHCP, the web password is
