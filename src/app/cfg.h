@@ -51,6 +51,8 @@ typedef struct {
 } cfg_t;
 
 void cfg_defaults(cfg_t *c);
+/* Network back to DHCP, web password cleared; the rest stays. */
+void cfg_reset_access(cfg_t *c);
 /* Applies lines in `body` (modified in place) to *c. False + message on error. */
 bool cfg_parse(cfg_t *c, char *body, char *err, size_t errlen);
 bool cfg_validate(const cfg_t *c, char *err, size_t errlen);

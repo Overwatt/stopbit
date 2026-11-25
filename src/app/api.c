@@ -66,6 +66,15 @@ void api_restart(void)
     NVIC_SystemReset();
 }
 
+/* The reload button. If flash cannot be written, nothing changes. */
+static void reset_access(void)
+{
+    static cfg_t c;
+    c = s_cfg;
+    cfg_reset_access(&c);
+    if (commit(&c)) api_restart();
+}
+
 bool api_set_line(char *line, char *err, size_t errlen)
 {
     static cfg_t c;
@@ -83,7 +92,7 @@ bool api_set_line(char *line, char *err, size_t errlen)
 void api_poll(void)
 {
     uint32_t now = HAL_GetTick();
-    hwinfo_poll();
+    if (hwinfo_button()) reset_access();
     mqtt_ha_poll(&s_cfg);
     if (s_restart && (int32_t)(now - s_restart_at) >= 0) api_restart();
     if (s_unsaved && (int32_t)(now - s_save_at) >= 0) {

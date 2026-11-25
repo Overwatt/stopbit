@@ -64,6 +64,15 @@ void cfg_defaults(cfg_t *c)
     }
 }
 
+void cfg_reset_access(cfg_t *c)
+{
+    memset(&c->net, 0, sizeof c->net);
+    c->net.dhcp = 1;
+    c->web_set = 0;
+    memset(c->web_salt, 0, sizeof c->web_salt);
+    memset(c->web_key, 0, sizeof c->web_key);
+}
+
 /* ---- text helpers -------------------------------------------------------- */
 static bool parse_u32(const char *s, uint32_t *out)
 {

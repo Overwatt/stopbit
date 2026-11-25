@@ -49,6 +49,13 @@ the gateway and is reached through signed requests, so there is no telnet port.
 The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no password. The
 temperature is the processor's own sensor, so it reads above room temperature.
 
+## Reload button
+
+Hold 3 to 15 seconds and release: the network goes back to DHCP, the web password is
+cleared, and the gateway restarts. Ports, names and MQTT stay. The work light blinks fast
+while releasing would act; holding past 15 seconds cancels. Set a new password with
+`tools/n540.py HOST passwd`.
+
 ## Ports
 
 All four ship disabled. Each one is a TCP server (default 4001-4004, up to 4
@@ -116,6 +123,7 @@ cc -Isrc/app tests/test_cfg.c src/app/cfg.c -o /tmp/t && /tmp/t   # host
 cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,traffic}.c -o /tmp/c && /tmp/c
 python3 tests/test_cli_device.py HOST       # nothing attached to the RS485 ports
 python3 tests/test_device.py HOST           # nothing attached to the RS485 ports
+cc -Isrc/app tests/test_button.c src/app/{button,cfg}.c -o /tmp/b && /tmp/b
 python3 tests/test_http.py HOST
 python3 tests/test_net_trial.py HOST GATEWAY
 uv run --with paho-mqtt tests/test_mqtt.py HOST SSH_HOST BROKER_IP MOSQ_DIR out.json

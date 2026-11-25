@@ -1,5 +1,6 @@
 #include "hwinfo.h"
 #include "board.h"
+#include "button.h"
 #include "cfg.h"
 #include "eth_mac.h"
 #include "extflash.h"
@@ -33,10 +34,8 @@ static bool wait_set(volatile uint32_t *r, uint32_t bit, bool want)
     return true;
 }
 
-/* ---- reload button: reported, does nothing yet ---------------------------- */
-#define DEBOUNCE_MS 30u
-static bool     s_down, s_raw;
-static uint32_t s_raw_at, s_down_at, s_presses, s_held_ms;
+/* ---- reload button ------------------------------------------------------- */
+static button_t s_button;
 
 static void button_init(void)
 {
@@ -45,16 +44,12 @@ static void button_init(void)
     HAL_GPIO_Init(BOARD_BUTTON_PORT, &g);
 }
 
-void hwinfo_poll(void)
+bool hwinfo_button(void)
 {
-    uint32_t now = HAL_GetTick();
-    bool raw = !(BOARD_BUTTON_PORT->IDR & BOARD_BUTTON_PIN);
-    if (raw != s_raw) { s_raw = raw; s_raw_at = now; }
-    if (raw == s_down || now - s_raw_at < DEBOUNCE_MS) return;
-    s_down = raw;
-    if (raw) { s_presses++; s_down_at = s_raw_at; }
-    else s_held_ms = s_raw_at - s_down_at;
+    return button_step(&s_button, !(BOARD_BUTTON_PORT->IDR & BOARD_BUTTON_PIN), HAL_GetTick());
 }
+
+bool hwinfo_button_armed(void) { return button_armed(&s_button, HAL_GetTick()); }
 
 void hwinfo_init(void)
 {
@@ -122,7 +117,7 @@ size_t hwinfo_json(char *out, size_t max)
         OUT(",\"temp_c\":%s%ld.%ld,\"mv\":%ld", s_decic < 0 ? "-" : "",
             labs(s_decic) / 10, labs(s_decic) % 10, (long)s_mv);
     OUT("},\"button\":{\"pressed\":%s,\"presses\":%lu,\"held_ms\":%lu},\"flash\":[",
-        s_down ? "true" : "false", U(s_presses), U(s_held_ms));
+        s_button.down ? "true" : "false", U(s_button.presses), U(s_button.held_ms));
     for (int i = 0; i < EXTFLASH_COUNT; i++) OUT("%s\"0x%06lx\"", i ? "," : "", U(extflash_id(i)));
     OUT("],\"eth\":{\"phy_id\":\"0x%08lx\",\"phy_addr\":%lu,\"link\":%s,\"speed\":%d,\"full_duplex\":%s,"
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu}",
