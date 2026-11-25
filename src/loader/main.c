@@ -55,6 +55,8 @@ int main(void)
     wdt_feed();
     bkp_init();
     bkp_log_reset(g_reset_cause);
+    /* Pulling the plug is not a crash; only count resets while powered. */
+    if (g_reset_cause & RCC_RSR_PORRSTF) bkp_set(BKP_CRASHES, 0);
     extflash_init();
     try_boot_app();
 

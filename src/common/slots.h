@@ -36,7 +36,7 @@ int  slots_load_best(void);
 const char *slots_install(uint32_t size, int *slot);
 bool slots_confirm(int slot);
 
-/* Backup registers: survive resets (not power loss). */
+/* Backup registers: survive resets and, on this board, short power cycles. */
 void     bkp_init(void);
 uint32_t bkp_get(int i);
 void     bkp_set(int i, uint32_t v);

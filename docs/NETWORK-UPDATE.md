@@ -26,12 +26,15 @@ key never crosses the wire. `/status` is open and nothing is encrypted.
 **Boot.** Newest bootable slot wins. A new image gets 3 boots until `update`
 confirms it; otherwise the loader falls back to the other slot. An unconfirmed
 app also reboots itself after 3 minutes. Five boots in a row without 30 s of
-uptime keeps the board in the loader.
+uptime keeps the board in the loader; a power-on reset clears that count.
+`/status` shows the last six reset causes (`fe0000` power-on, `460000` watchdog or
+NRST pin, `1460000` software). These survive short power cycles.
 
 **Tested on hardware (2026-11-24):** loader self-update from SRAM and from flash,
 interrupted upload, tampered body, replayed nonce, wrong path, junk and wrongly
-linked images, app that hangs, app that never networks, recovery after each.
-**Not tested:** power loss during an install, power-cycle boot, the 3-minute
+linked images, app that hangs, app that never networks, recovery after each,
+power-cycle boot (two, ST-Link detached).
+**Not tested:** power loss during an install, the 3-minute
 trial timeout, the crash-count limit.
 
 **Known gap:** losing power during `selfupdate` (about 2 s) leaves no loader;
