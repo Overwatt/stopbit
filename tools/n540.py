@@ -11,6 +11,7 @@
   n540.py HOST set KEY=VALUE ...           e.g. port1.enabled=1 port1.baud=19200
   n540.py HOST state                       live port counters
   n540.py HOST keep                        keep new network settings
+  n540.py HOST mqtt-passwd                 set the MQTT broker password
   n540.py HOST passwd [--clear]            set or remove the web password
   n540.py HOST reboot
 """
@@ -90,6 +91,17 @@ def set_password(d, pw):
     d.auth("POST", "/api/password", f"salt={salt.hex()}\nkey={blob.hex()}".encode(), nonce)
 
 
+def set_mqtt_password(d, pw, extra=""):
+    d.load_key()
+    raw = pw.encode()
+    if len(raw) > 63:
+        raise SystemExit("at most 63 bytes")
+    nonce = d.get("/nonce").decode().strip()
+    pad = b"".join(hmac.new(d.key, b"mqttpw%d\n" % i + nonce.encode(), hashlib.sha256).digest() for i in (0, 1))
+    enc = bytes(x ^ y for x, y in zip(raw.ljust(64, b"\0"), pad))
+    d.auth("POST", "/api/config", f"mqtt.password_enc={enc.hex()}\n{extra}".encode(), nonce)
+
+
 def enter_loader(d):
     s = json.loads(d.get("/status"))
     if s["mode"] != "loader":
@@ -145,6 +157,9 @@ def main(a):
     elif cmd == "keep":
         d.auth("POST", "/api/keep")
         print("kept")
+    elif cmd == "mqtt-passwd":
+        set_mqtt_password(d, getpass.getpass("MQTT broker password (empty to remove): "))
+        print("saved")
     elif cmd == "passwd":
         if a[2:] == ["--clear"]:
             d.auth("POST", "/api/password", b"clear")

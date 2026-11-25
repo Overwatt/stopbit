@@ -8,6 +8,7 @@
 #include "sha256.h"
 #include "slots.h"
 #include "fw_id.h"
+#include "wdt.h"
 #include "web_page.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
@@ -47,9 +48,16 @@ void api_init(void)
     mqtt_ha_configure(&s_cfg);
 }
 
-void api_flush(void)
+void api_restart(void)
 {
     if (s_unsaved) commit(&s_cfg);
+    mqtt_ha_shutdown();
+    for (uint32_t t0 = HAL_GetTick(); HAL_GetTick() - t0 < 300;) {
+        wdt_feed();
+        net_poll();
+    }
+    bkp_set(BKP_CRASHES, 0);             /* deliberate, not a crash */
+    NVIC_SystemReset();
 }
 
 bool api_set_line(char *line, char *err, size_t errlen)

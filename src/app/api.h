@@ -16,7 +16,8 @@ void api_init(void);             /* loads config, starts network settings + brid
 void api_poll(void);
 /* Applies one "key=value" now and saves it shortly after (bursts write once). */
 bool api_set_line(char *line, char *err, size_t errlen);
-void api_flush(void);            /* write any change still waiting to be saved */
+/* Saves anything pending, signs off from MQTT and resets. */
+void api_restart(void) __attribute__((noreturn));
 /* Length of JSON written, 0 if it did not fit, -1 if no such path. */
 int  api_get(const char *path, char *out, size_t max);
 bool api_is_post(const char *path);

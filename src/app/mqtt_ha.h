@@ -16,6 +16,9 @@
 /* Call after any configuration change (cheap; compares with what is running). */
 void mqtt_ha_configure(const cfg_t *c);
 void mqtt_ha_poll(const cfg_t *c);
+/* Tell the broker we are leaving, so HA shows it at once. Follow with a moment
+ * of net_poll() before resetting. */
+void mqtt_ha_shutdown(void);
 const char *mqtt_ha_state(void);       /* off, connecting, connected, ... */
 const char *mqtt_ha_error(void);       /* last connection problem, or "" */
 #endif

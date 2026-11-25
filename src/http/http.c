@@ -596,7 +596,8 @@ void http_poll(void)
         __attribute__((fallthrough));
     default:
 #ifdef APP_IMAGE
-        api_flush();
+        s_action = ACT_NONE;                    /* api_restart() still polls the network */
+        api_restart();
 #endif
         bkp_set(BKP_CRASHES, 0);                /* deliberate, not a crash */
         NVIC_SystemReset();

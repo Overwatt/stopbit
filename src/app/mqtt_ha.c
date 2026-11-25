@@ -61,7 +61,7 @@ static uint8_t  s_state;
 static uint32_t s_retry_at, s_backoff, s_gen;
 static const char *s_err = "";
 static int      s_disc;                 /* next entity to announce; NENT = done */
-static bool     s_online, s_sub, s_lost;
+static bool     s_online, s_sub, s_lost, s_leaving;
 static mqtt_connection_status_t s_lost_why;
 static uint32_t s_port_hash[PORTS], s_port_cnt[PORTS], s_port_at[PORTS], s_dev_hash;
 static char     s_reject[96];           /* last refused command */
@@ -335,9 +335,21 @@ static bool publish_device(void)
     return true;
 }
 
+void mqtt_ha_shutdown(void)
+{
+    char topic[40];
+    if (s_state == M_UP && mqtt_client_is_connected(&s_c)) {
+        snprintf(topic, sizeof topic, "%s/status", g_hostname);
+        pub(topic, "offline", true);
+    }
+    if (s_state != M_OFF) drop();       /* queued data still goes out before the FIN */
+    s_leaving = true;
+}
+
 void mqtt_ha_poll(const cfg_t *c)
 {
     char topic[40];
+    if (s_leaving) return;
     if (s_lost) {
         s_lost = false;
         if (s_state == M_REMOVING) { drop(); return; }
@@ -358,7 +370,7 @@ void mqtt_ha_poll(const cfg_t *c)
     }
     if (s_restart) {
         s_restart = false;
-        if (s_run.control) { api_flush(); NVIC_SystemReset(); }
+        if (s_run.control) api_restart();
     }
 
     if (s_state == M_REMOVING) {
