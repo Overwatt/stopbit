@@ -5,6 +5,7 @@
 #include "cli.h"
 #include "hwinfo.h"
 #include "history.h"
+#include "fwlib.h"
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
@@ -111,6 +112,14 @@ void api_poll(void)
 }
 
 const uint8_t *api_web_key(void) { return s_cfg.web_set ? s_cfg.web_key : NULL; }
+/* The setting's name is in any firmware that knows it. Older firmware would let
+ * clients transmit on a port that must only listen. */
+const char *api_fw_need(void)
+{
+    for (int i = 0; i < PORTS; i++) if (s_cfg.port[i].listen_only) return "listen_only";
+    return NULL;
+}
+
 const uint8_t *api_page(uint32_t *len) { *len = sizeof WEB_PAGE; return WEB_PAGE; }
 
 static void hex(const uint8_t *in, int n, char *out)
@@ -157,6 +166,7 @@ int api_get(const char *path, char *out, size_t max)
     }
     if (!strncmp(path, "/api/history/", 13) && path[13] >= '1' && path[13] <= '0' + PORTS && !path[14])
         return (int)history_json(path[13] - '1', out, max);
+    if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
     if (strcmp(path, "/api/state")) return -1;
 

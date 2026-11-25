@@ -8,3 +8,16 @@ MEMORY
 }
 REGION_ALIAS("CODE", AXI);
 INCLUDE sections.ld
+
+/* Buffers in what the image leaves of AXI SRAM (not zeroed, not in the image). */
+SECTIONS
+{
+  .axi_bss (NOLOAD) :
+  {
+    . = ALIGN(32);
+    *(.axi_bss)
+    . = ALIGN(32);
+    _eaxi = .;
+  } >AXI
+}
+ASSERT(ADDR(.axi_bss) >= _image_end, "axi_bss overlaps the image")

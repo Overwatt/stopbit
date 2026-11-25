@@ -17,4 +17,9 @@ uint32_t extflash_id(int dev);        /* JEDEC: 0xC84015 = GD25Q16 */
 bool     extflash_erase(int dev, uint32_t addr, uint32_t len);
 bool     extflash_write(int dev, uint32_t addr, const void *src, uint32_t len);
 void     extflash_read(int dev, uint32_t addr, void *dst, uint32_t len);
+/* Start one 4 KB erase, or one write within a 256-byte page, and return at once.
+ * Everything else waits for the chip first, so these may overlap other use. */
+void     extflash_erase_start(int dev, uint32_t addr);
+void     extflash_write_start(int dev, uint32_t addr, const void *src, uint32_t len);
+bool     extflash_busy(int dev);
 #endif

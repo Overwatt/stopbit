@@ -76,20 +76,6 @@ uint32_t extflash_id(int dev)
     return id;
 }
 
-void extflash_read(int dev, uint32_t addr, void *dst, uint32_t len)
-{
-    const bus_t *b = &BUS[dev];
-    uint8_t *p = dst;
-    lo(b->cs);
-    xfer(b, 0x03);
-    xfer(b, (uint8_t)(addr >> 16)); xfer(b, (uint8_t)(addr >> 8)); xfer(b, (uint8_t)addr);
-    while (len--) {
-        *p++ = xfer(b, 0);
-        if ((len & 0xFFFu) == 0) wdt_feed();
-    }
-    hi(b->cs);
-}
-
 static bool wait_idle(const bus_t *b, uint32_t ms)
 {
     uint32_t t0 = HAL_GetTick();
@@ -104,36 +90,73 @@ static bool wait_idle(const bus_t *b, uint32_t ms)
     return ok;
 }
 
+void extflash_read(int dev, uint32_t addr, void *dst, uint32_t len)
+{
+    const bus_t *b = &BUS[dev];
+    uint8_t *p = dst;
+    wait_idle(b, 1000);          /* an erase or write may have been started */
+    lo(b->cs);
+    xfer(b, 0x03);
+    xfer(b, (uint8_t)(addr >> 16)); xfer(b, (uint8_t)(addr >> 8)); xfer(b, (uint8_t)addr);
+    while (len--) {
+        *p++ = xfer(b, 0);
+        if ((len & 0xFFFu) == 0) wdt_feed();
+    }
+    hi(b->cs);
+}
+
 static void addr_cmd(const bus_t *b, uint8_t op, uint32_t a)
 {
+    wait_idle(b, 1000);
     cmd1(b, 0x06);
     lo(b->cs);
     xfer(b, op);
     xfer(b, (uint8_t)(a >> 16)); xfer(b, (uint8_t)(a >> 8)); xfer(b, (uint8_t)a);
 }
 
-bool extflash_erase(int dev, uint32_t addr, uint32_t len)
+bool extflash_busy(int dev)
 {
     const bus_t *b = &BUS[dev];
+    lo(b->cs);
+    xfer(b, 0x05);
+    bool busy = xfer(b, 0) & 1u;
+    hi(b->cs);
+    return busy;
+}
+
+void extflash_erase_start(int dev, uint32_t addr)
+{
+    const bus_t *b = &BUS[dev];
+    addr_cmd(b, 0x20, addr);
+    hi(b->cs);
+}
+
+void extflash_write_start(int dev, uint32_t addr, const void *src, uint32_t len)
+{
+    const bus_t *b = &BUS[dev];
+    const uint8_t *p = src;
+    addr_cmd(b, 0x02, addr);
+    for (uint32_t i = 0; i < len; i++) xfer(b, p[i]);
+    hi(b->cs);
+}
+
+bool extflash_erase(int dev, uint32_t addr, uint32_t len)
+{
     for (uint32_t end = addr + len; addr < end; addr += 4096) {
-        addr_cmd(b, 0x20, addr);
-        hi(b->cs);
-        if (!wait_idle(b, 1000)) return false;
+        extflash_erase_start(dev, addr);
+        if (!wait_idle(&BUS[dev], 1000)) return false;
     }
     return true;
 }
 
 bool extflash_write(int dev, uint32_t addr, const void *src, uint32_t len)
 {
-    const bus_t *b = &BUS[dev];
     const uint8_t *p = src;
     while (len) {
         uint32_t n = 256u - (addr & 255u);
         if (n > len) n = len;
-        addr_cmd(b, 0x02, addr);
-        for (uint32_t i = 0; i < n; i++) xfer(b, p[i]);
-        hi(b->cs);
-        if (!wait_idle(b, 50)) return false;
+        extflash_write_start(dev, addr, p, n);
+        if (!wait_idle(&BUS[dev], 50)) return false;
         addr += n; p += n; len -= n;
     }
     return true;

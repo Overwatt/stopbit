@@ -88,8 +88,9 @@ The name comes from the gateway's MAC address. Then set the web password with
 
 **From the vendor's firmware** needs an ST-Link once. Read these first:
 
-- It has been done on one unit. It erases the vendor's bootloader, and **going back is
-  unproven**: our backup of that bootloader is a single unverified read. Take your own
+- It has been done on one unit. It erases the vendor's bootloader, and kept firmware later
+  overwrites the rest. **Going back is unproven** and there is no tool for it: our backup of
+  that bootloader is a single unverified read. Take your own
   backups and check them ([DUMPS.md](docs/DUMPS.md)).
 - **An external watchdog resets the chip about every 1.6 s** unless PC10 toggles, even while
   halted, so long SWD flash writes get cut off and can leave the unit unbootable. Do not
@@ -108,7 +109,7 @@ tools/n540.py n540-xxxxxx.local update build/app.bin
 | | |
 |---|---|
 | Processor | STM32H750VBT6, Cortex-M7 at 400 MHz |
-| Flash | 128 KB internal (the loader), 2 × 2 MB GD25Q16 (firmware slots, settings) |
+| Flash | 128 KB internal (the loader), 2 × 2 MB GD25Q16 (firmware slots, kept firmware, settings) |
 | Ethernet | IC Plus IP101G, 10/100 |
 | RS485 | 4 × TI SN65HVD75 |
 | Watchdog | UM706SS, external |

@@ -10,7 +10,10 @@ Set N540_HOST to leave HOST out. Besides the console's own commands:
   n540.py HOST dump FLASH OUT [OFF LEN]    read external flash 0 or 1
   n540.py HOST run IMAGE.bin               load into SRAM and jump (no flash)
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
-  n540.py HOST update APP.bin              install to the spare slot, boot, confirm
+  n540.py HOST update APP.bin [--loader]   install to the spare slot, boot, confirm
+                                           (--loader: through the loader, not the app)
+  n540.py HOST firmware                    firmware kept on the gateway
+  n540.py HOST rollback VERSION            start a kept one, confirm
   n540.py HOST loader                      leave the app, stay in the loader
   n540.py HOST config | state              settings or live counters as JSON
   n540.py HOST save FILE                   save settings (no passwords)
@@ -31,15 +34,16 @@ PBKDF2_ROUNDS = 30000        # must match web/index.html
 class Device:
     def __init__(self, host):
         # Resolve once, IPv4 only: macOS stalls 5 s waiting for a .local AAAA record.
-        self.name = host
+        self.name, _, port = host.partition(":")
+        self.port = int(port or 80)
         self.resolve()
         self.key = None
 
     def resolve(self):
-        self.host = socket.getaddrinfo(self.name, 80, socket.AF_INET)[0][4][0]
+        self.host = socket.getaddrinfo(self.name, self.port, socket.AF_INET)[0][4][0]
 
     def _raw(self, method, path, body=b"", headers=None, timeout=60):
-        c = http.client.HTTPConnection(self.host, 80, timeout=timeout)
+        c = http.client.HTTPConnection(self.host, self.port, timeout=timeout)
         try:
             c.request(method, path, body=body or None, headers=headers or {})
             r = c.getresponse()
@@ -58,7 +62,7 @@ class Device:
         if self.key is None:
             self.key = bytes.fromhex(open(KEYFILE).read().strip())
 
-    def auth(self, method, path, body=b"", nonce=None):
+    def auth(self, method, path, body=b"", nonce=None, timeout=60):
         self.load_key()
         nonce = nonce or self.get("/nonce").decode().strip()
         sha = hashlib.sha256(body).hexdigest()
@@ -66,19 +70,40 @@ class Device:
         hdr = {"X-Auth": mac, "X-Body-SHA256": sha}
         if method == "POST":
             hdr["Content-Length"] = str(len(body))
-        st, data = self._raw(method, path, body, hdr)
+        st, data = self._raw(method, path, body, hdr, timeout)
         if st != 200:
             raise SystemExit(f"{method} {path}: {st} {data.decode(errors='replace').strip()}")
         return data
 
 
-def wait_back(d, secs=40):
+def has_library(d):
+    if json.loads(d.get("/status"))["mode"] != "app":
+        return False
+    return d._raw("GET", "/api/library", timeout=10)[0] == 200
+
+
+def started(d, want, slot, before):
+    """Wait for the image just installed, then keep it."""
+    s = wait_back(d, boots=before)
+    # The version alone can't tell a rollback apart from success; the slot can.
+    if s["mode"] != "app" or s["running_slot"] != slot or s["version"] != want:
+        raise SystemExit(f"new image did not come up (rolled back: now {s['mode']} "
+                         f"{s['version']} slot {s['running_slot']}, wanted slot {slot}); not confirmed")
+    d.auth("POST", "/confirm")
+    print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
+
+
+def wait_back(d, secs=40, boots=None):
+    """`boots`: the count before; an answer with the same count is from before the restart."""
     end = time.time() + secs
     time.sleep(1.5)
     while time.time() < end:
         try:
             d.resolve()      # loader and app may not share an address
-            return json.loads(d.get("/status"))
+            s = json.loads(d.get("/status"))
+            if boots is None or s["mode"] != "app" or s["boots"] > boots:
+                return s
+            time.sleep(0.5)
         except (OSError, http.client.HTTPException, ValueError):
             time.sleep(0.5)
     raise SystemExit("device did not come back")
@@ -285,18 +310,30 @@ def main(a):
     elif cmd == "update":
         img = open(a[2], "rb").read()
         want = img[0x2A8:0x2A8 + 24].split(b"\0")[0].decode()
-        enter_loader(d)
         t = time.time()
-        slot = int(d.auth("POST", "/install", img).split(b"slot=")[1])
-        print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
-        d.auth("POST", "/reboot")
-        s = wait_back(d)
-        # The version alone can't tell a rollback apart from success; the slot can.
-        if s["mode"] != "app" or s["running_slot"] != slot or s["version"] != want:
-            raise SystemExit("new image did not come up " f"(rolled back: now {s['mode']} "
-                             f"{s['version']} slot {s['running_slot']}, wanted slot {slot}); not confirmed")
-        d.auth("POST", "/confirm")
-        print(f"running {s['version']} from slot {s['running_slot']}, confirmed")
+        if "--loader" not in a and has_library(d):
+            before = json.loads(d.get("/status"))["boots"]
+            slot = int(d.auth("POST", "/install", img, timeout=150).split(b"slot=")[1])
+            print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
+        else:
+            before = None
+            enter_loader(d)
+            t = time.time()
+            slot = int(d.auth("POST", "/install", img).split(b"slot=")[1])
+            print(f"installed {want} ({len(img)} bytes) in {time.time()-t:.1f}s; booting")
+            d.auth("POST", "/reboot")
+        started(d, want, slot, before)
+    elif cmd == "firmware":
+        for i in sorted(json.loads(d.get("/api/library"))["images"], key=lambda i: -i["seq"]):
+            state = "running" if i["running"] else "kept" if i["kept"] else "did not pass its trial" if i["tried"] else "not started yet"
+            print(f"{i['version']:24} {i['size']:7}  {state:22}  {i['sha'][:12]}")
+    elif cmd == "rollback":
+        hit = [i for i in json.loads(d.get("/api/library"))["images"] if i["version"] == a[2] or i["sha"].startswith(a[2])]
+        if len(hit) != 1:
+            raise SystemExit("no such firmware kept" if not hit else "more than one matches; use its hash (see: firmware)")
+        before = json.loads(d.get("/status"))["boots"]
+        slot = int(d.auth("POST", "/rollback", b"sha=" + hit[0]["sha"].encode(), timeout=150).split(b"slot=")[1])
+        started(d, hit[0]["version"], slot, before)
     elif cmd in ("config", "state"):
         print(json.dumps(json.loads(d.get("/api/" + cmd)), indent=2))
     elif cmd == "save":

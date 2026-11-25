@@ -60,9 +60,11 @@ so watching a live bus cannot disturb it.
 - **Must work with no internet:** no outside fonts, scripts, images or services. Size may
   grow when that helps.
 - The page is part of the firmware image, gzipped (about 20 KB today). The image runs
-  from a 384 KB RAM that also receives uploads, so images beyond roughly 190 KB could not
-  replace one another from the web page. The image is about 128 KB today. Larger assets
-  would have to be served from the 4 MB of external flash, which is not built.
+  from a 384 KB RAM and is about 130 KB today. Uploads go straight to external flash, so
+  size is limited by that RAM alone. Larger assets would have to be served from the 4 MB
+  of external flash, which is not built.
+- Up to seven firmware images are kept in external flash besides the two boot slots, and
+  any can be started from the Firmware page.
 - Up to 8 simultaneous web connections, closed after each response; the page polls once a
   second.
 - Not tested: several ports busy at once, long or terminated buses, more than 1,000,000

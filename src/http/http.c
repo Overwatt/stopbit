@@ -8,21 +8,23 @@
  *   POST /reboot                                              (auth)
  * loader only:
  *   POST /run                         image -> SRAM, jump     (auth)
- *   POST /install                     image -> app slot       (auth; the app also
- *                                     takes the web password, and restarts)
+ *   POST /install                     image -> app slot       (auth)
  *   POST /selfupdate                  replace the loader      (auth)
  * app only:
  *   GET  /                            web UI, open
  *   GET  /api/{state,config,login}    JSON, open
+ *   GET  /api/library                 JSON, open: firmware kept, and progress
  *   POST /api/...                     see api.c               (auth)
+ *   POST /install                     image -> library -> spare slot, restart (auth)
+ *   POST /rollback                    "sha=<64 hex>": kept image -> spare slot, restart (auth)
  *   POST /loader                      reboot into the loader  (auth)
  *   POST /confirm                     keep the running image  (auth)
  *
  * Auth: X-Auth = hex HMAC-SHA256(key, "nonce\nMETHOD path\nbodysha256hex").
  * The nonce is single-use, and the MAC is checked before any body is accepted;
  * the body hash (X-Body-SHA256) is checked before it is acted on. The key never
- * crosses the wire. Replies are not encrypted. In the app, /api/ and /reboot
- * also accept the key derived from the web password.
+ * crosses the wire. Replies are not encrypted. In the app, some endpoints also
+ * accept the key derived from the web password: see web_key_allowed().
  */
 #include "http.h"
 #include "net.h"
@@ -42,10 +44,13 @@
 #ifdef APP_IMAGE
 #include "api.h"
 #include "cli.h"
+#include "fwlib.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600
 #define BODY_MAX   2048
+#ifndef CONN_MEM
 #define CONN_MEM   __attribute__((section(".d2_bss")))
+#endif
 #else
 #define MAX_CONN   4
 #define RESP_MAX   1460
@@ -54,9 +59,9 @@
 #define HDR_MAX    1024
 #define IDLE_TICKS 20            /* tcp_poll ticks (x 1 s) before abort */
 
-enum { ST_FREE, ST_HDR, ST_BODY, ST_SEND };
+enum { ST_FREE, ST_HDR, ST_BODY, ST_WAIT, ST_SEND };   /* WAIT: for fwlib */
 enum { ACT_NONE, ACT_RUN, ACT_REBOOT, ACT_SELFUPDATE,
-       ACT_INSTALL, ACT_LOADER, ACT_CONFIRM, ACT_API };
+       ACT_INSTALL, ACT_LOADER, ACT_CONFIRM, ACT_API, ACT_ROLLBACK };
 
 typedef struct {
     struct tcp_pcb *pcb;
@@ -75,6 +80,8 @@ typedef struct {
     char     path[32], nonce[33];
     const uint8_t *key;
     char     body[BODY_MAX];
+    uint32_t held;               /* upload bytes not yet acknowledged to the sender */
+    const char *why;             /* upload refused; the rest is read and dropped */
 #endif
 } conn_t;
 
@@ -82,15 +89,15 @@ static CONN_MEM conn_t s_conn[MAX_CONN];
 static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
 #ifdef APP_IMAGE
-/* The app runs from the bottom of AXI SRAM; uploads go in the rest of it. */
-extern uint8_t _image_end;
-#define UPLOAD      ((uint8_t *)(((uint32_t)&_image_end + 31u) & ~31u))
-#define UPLOAD_MAX  (STAGE_ADDR + STAGE_SIZE - (uint32_t)UPLOAD)
+static conn_t  *s_fw;            /* connection waiting on fwlib */
 #else
 #define UPLOAD      ((uint8_t *)STAGE_ADDR)
 #endif
 static uint8_t  s_action;
-static uint32_t s_action_at, s_stage_size;
+static uint32_t s_action_at;
+#ifndef APP_IMAGE
+static uint32_t s_stage_size;
+#endif
 extern uint32_t g_reset_cause;
 extern bool     g_clock_hse;
 
@@ -161,7 +168,7 @@ static uint32_t s_fails, s_fail_at;
 static bool web_key_allowed(const char *path)
 {
     return !strncmp(path, "/api/", 5) || !strcmp(path, "/reboot") ||
-           !strcmp(path, "/install") || !strcmp(path, "/confirm");
+           !strcmp(path, "/install") || !strcmp(path, "/rollback") || !strcmp(path, "/confirm");
 }
 #endif
 
@@ -197,6 +204,12 @@ static bool authorised(conn_t *c, const char *method, const char *path)
 static void conn_free(conn_t *c)
 {
     if (s_stage_owner == c) s_stage_owner = NULL;
+#ifdef APP_IMAGE
+    if (s_fw == c) {                         /* cut off mid-upload; a complete one carries on */
+        s_fw = NULL;
+        if (c->state == ST_BODY) fwlib_cancel();
+    }
+#endif
     c->state = ST_FREE;
     c->pcb = NULL;
 }
@@ -355,13 +368,36 @@ static err_t do_page(conn_t *c)
 }
 #endif
 
+#ifdef APP_IMAGE
+static const char *fw_refused(void)
+{
+    return slots_is_confirmed(RUNNING_SLOT) ? NULL : "the running firmware is still on trial";
+}
+#endif
+
+/* lwIP resets a connection that is closed with data unacknowledged. */
+static void release(conn_t *c)
+{
+#ifdef APP_IMAGE
+    if (c->held) tcp_recved(c->pcb, (u16_t)c->held);
+    c->held = 0;
+#else
+    (void)c;
+#endif
+}
+
 static err_t body_done(conn_t *c)
 {
     uint8_t d[32];
     char ok[24] = "ok\n";
     const char *why;
     sha256_final(&c->sha, d);
+    release(c);
     if (!ct_equal(d, c->body_sha, 32)) {
+#ifdef APP_IMAGE
+        if (c->action == ACT_INSTALL && !c->why) fwlib_cancel();
+        if (s_fw == c) s_fw = NULL;
+#endif
         c->action = ACT_NONE;
         return fail(c, "400 Bad Request", "body hash mismatch");
     }
@@ -376,33 +412,47 @@ static err_t body_done(conn_t *c)
         return reply(c, st, json ? "application/json" : "text/plain", msg);
     }
 #endif
+#ifdef APP_IMAGE
+    if (c->action == ACT_ROLLBACK) {
+        uint8_t sha[32];
+        c->body[c->body_len] = 0;
+        why = strncmp(c->body, "sha=", 4) || c->body_len != 68 || !unhex32(c->body + 4, sha)
+            ? "need sha=<64 hex>" : fw_refused();
+        if (!why) why = fwlib_rollback(sha, RUNNING_SLOT, api_fw_need());
+    } else {
+        why = c->action == ACT_INSTALL ? c->why : NULL;
+    }
+    if (!why && (c->action == ACT_INSTALL || c->action == ACT_ROLLBACK)) {
+        c->action = ACT_NONE;
+        c->state = ST_WAIT;                  /* http_poll() replies */
+        s_fw = c;
+        return ERR_OK;
+    }
+    if (!why && c->action == ACT_CONFIRM) {
+        why = slots_confirm(RUNNING_SLOT) ? NULL : "confirm failed";
+        if (!why) fwlib_mark_kept(RUNNING_SLOT);
+    }
+#else
     s_stage_size = c->body_len;
     if (c->action == ACT_RUN) why = image_check_ram(UPLOAD, STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_SELFUPDATE) why = image_check_loader((const uint8_t *)STAGE_ADDR, s_stage_size);
     else if (c->action == ACT_INSTALL) {
         int slot = SLOT_NONE;
         why = image_check_app(UPLOAD, s_stage_size);
-#ifdef APP_IMAGE
-        if (!why && !slots_is_confirmed(RUNNING_SLOT)) why = "the running firmware is still on trial";
-#endif
         if (!why) why = slots_install(UPLOAD, s_stage_size, RUNNING_SLOT, &slot);
         if (!why) {
             bkp_set(BKP_CRASHES, 0);
             snprintf(ok, sizeof ok, "ok slot=%d\n", slot);
         }
     }
-    else if (c->action == ACT_CONFIRM) why = slots_confirm(RUNNING_SLOT) ? NULL : "confirm failed";
     else why = NULL;
+#endif
     if (why) {
         c->action = ACT_NONE;
         return fail(c, "400 Bad Request", why);
     }
     if (c->action == ACT_INSTALL || c->action == ACT_CONFIRM) {
-#ifdef APP_IMAGE
-        c->action = c->action == ACT_INSTALL ? ACT_REBOOT : ACT_NONE;
-#else
         c->action = ACT_NONE;        /* already done; nothing deferred */
-#endif
         s_stage_owner = NULL;
     }
     return reply(c, "200 OK", "text/plain", ok);
@@ -455,6 +505,7 @@ static err_t on_request(conn_t *c)
         { "/loader",     ACT_LOADER,     0 },
         { "/confirm",    ACT_CONFIRM,    0 },
         { "/install",    ACT_INSTALL,    STAGE_SIZE },
+        { "/rollback",   ACT_ROLLBACK,   BODY_MAX - 1 },
 #else
         { "/run",        ACT_RUN,        STAGE_SIZE },
         { "/install",    ACT_INSTALL,    STAGE_SIZE },
@@ -466,12 +517,13 @@ static err_t on_request(conn_t *c)
     for (unsigned i = 0; i < sizeof POSTS / sizeof POSTS[0]; i++)
         if (!strcmp(path, POSTS[i].path)) { act = POSTS[i].act; max = POSTS[i].max; }
 #ifdef APP_IMAGE
-    if (act == ACT_INSTALL) max = UPLOAD_MAX;
     if (api_is_post(path)) { act = ACT_API; max = BODY_MAX - 1; }
+    if (fwlib_active() && act != ACT_NONE && act != ACT_API)
+        return fail(c, "409 Conflict", "an update is in progress");
 #endif
     if (act == ACT_NONE) return fail(c, "404 Not Found", "no such endpoint");
     if (c->body_len > max) return fail(c, "413 Payload Too Large", "too big");
-    if (max && act != ACT_API && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
+    if (max && s_stage_owner) return fail(c, "409 Conflict", "upload in progress");
     if (s_action != ACT_NONE) return fail(c, "409 Conflict", "busy");
     if (!authorised(c, line, path)) return fail(c, "401 Unauthorized", "bad auth");
 
@@ -480,8 +532,14 @@ static err_t on_request(conn_t *c)
     sha256_init(&c->sha);
 #ifdef APP_IMAGE
     snprintf(c->path, sizeof c->path, "%s", path);
+    if (act == ACT_INSTALL) {
+        c->why = fw_refused();
+        if (!c->why) c->why = fwlib_receive(c->body_len, c->body_sha, RUNNING_SLOT, api_fw_need());
+        if (!c->why) s_fw = c;
+    }
+#else
+    if (max) s_stage_owner = c;
 #endif
-    if (max && act != ACT_API) s_stage_owner = c;
     if (c->body_len == 0) return body_done(c);
     c->state = ST_BODY;
     return ERR_OK;
@@ -493,7 +551,8 @@ static err_t on_body(conn_t *c, const uint8_t *p, uint32_t n)
     uint32_t want = c->body_len - c->body_got;
     if (n > want) n = want;
 #ifdef APP_IMAGE
-    memcpy((c->action == ACT_INSTALL ? UPLOAD : (uint8_t *)c->body) + c->body_got, p, n);
+    if (c->action != ACT_INSTALL) memcpy(c->body + c->body_got, p, n);
+    else if (!c->why) fwlib_feed(p, n);
 #else
     memcpy(UPLOAD + c->body_got, p, n);
 #endif
@@ -508,14 +567,19 @@ static err_t cb_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
     (void)err;
     if (!c) { if (p) { tcp_recved(pcb, p->tot_len); pbuf_free(p); } return ERR_OK; }
     if (!p) {
-        if (c->state == ST_SEND) return ERR_OK;   /* half-close: finish the reply */
+        if (c->state == ST_SEND || c->state == ST_WAIT) return ERR_OK;   /* half-close: finish the reply */
         c->action = ACT_NONE;
         return conn_close(c);
     }
     c->idle = 0;
+    err_t r = ERR_OK;
+#ifdef APP_IMAGE
+    /* An upload is acknowledged as it reaches flash, which paces the sender. */
+    if (c->state == ST_BODY && c->action == ACT_INSTALL && !c->why) c->held += p->tot_len;
+    else
+#endif
     tcp_recved(pcb, p->tot_len);
 
-    err_t r = ERR_OK;
     for (struct pbuf *q = p; q && r == ERR_OK; q = q->next) {
         const uint8_t *d = q->payload;
         uint32_t n = q->len;
@@ -555,6 +619,7 @@ static err_t cb_poll(void *arg, struct tcp_pcb *pcb)
 {
     conn_t *c = arg;
     if (!c) return ERR_OK;
+    if (c->state == ST_WAIT) c->idle = 0;
     if (++c->idle > IDLE_TICKS) {
         tcp_err(pcb, NULL);
         conn_free(c);
@@ -600,8 +665,45 @@ void http_init(void)
     tcp_accept(tcp_listen_with_backlog(l, MAX_CONN), cb_accept);
 }
 
+#ifdef APP_IMAGE
+static void fw_poll(void)
+{
+    uint32_t n;
+    char ok[24];
+    fw_result_t r = fwlib_poll(&n);
+    conn_t *c = s_fw;
+    if (c && n && c->held) {
+        if (n > c->held) n = c->held;
+        c->held -= n;
+        c->idle = 0;
+        tcp_recved(c->pcb, (u16_t)n);
+    }
+    if (r != FW_DONE && r != FW_FAILED) return;
+    s_fw = NULL;
+    if (r == FW_FAILED) {
+        if (!c) return;
+        release(c);
+        if (c->state == ST_WAIT) fail(c, "400 Bad Request", fwlib_error());
+        else c->why = fwlib_error();         /* said once the rest has arrived */
+        return;
+    }
+    bkp_set(BKP_CRASHES, 0);
+    snprintf(ok, sizeof ok, "ok slot=%d\n", fwlib_slot());
+    if (c) {
+        c->action = ACT_REBOOT;
+        reply(c, "200 OK", "text/plain", ok);
+    } else {
+        s_action = ACT_REBOOT;
+        s_action_at = HAL_GetTick() + 300;
+    }
+}
+#endif
+
 void http_poll(void)
 {
+#ifdef APP_IMAGE
+    fw_poll();
+#endif
     if (s_action == ACT_NONE || (int32_t)(HAL_GetTick() - s_action_at) < 0) return;
     switch (s_action) {
 #ifndef APP_IMAGE

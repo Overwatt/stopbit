@@ -16,6 +16,8 @@
 #define SLOT_COUNT 2
 #define SLOT_TRIES 3
 #define SLOT_NONE  (-1)
+#define SLOT_DEV   1
+#define SLOT_HDR   4096u
 
 typedef struct {
     uint32_t magic, seq, size;
@@ -35,6 +37,12 @@ int  slots_load_best(void);
 /* Installs `img`, never into slot `avoid` (the running one, or SLOT_NONE).
  * Returns an error string, or NULL. */
 const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slot);
+/* Piecewise install: pick a slot, erase its header, erase and write the payload,
+ * then commit, which is what makes it bootable. */
+int  slots_spare(int avoid);
+uint32_t slots_addr(int slot);           /* external flash 1; payload is SLOT_HDR further on */
+/* Fills in magic and seq. */
+bool slots_commit(int slot, slot_hdr_t *h);
 bool slots_confirm(int slot);
 bool slots_is_confirmed(int slot);       /* true for SLOT_NONE (started by /run) */
 

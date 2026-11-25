@@ -50,6 +50,7 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] DHCP, mDNS, **ping** (~0.4 ms).
 - [x] Static IP configuration.
 - [x] Network update: loader self-update, A/B app slots, rollback.
+- [x] Firmware library: streaming uploads, seven kept images. Not yet run on a gateway.
 
 ## M4 — The core product: transparent RS485 ↔ TCP bridge
 - [x] Each RS485 port ↔ a TCP server socket (configurable port).

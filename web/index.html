@@ -68,7 +68,7 @@ details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
 dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
-.name{font-weight:650}
+.name{font-weight:650}#kept td{vertical-align:middle}
 form{margin:0}fieldset{border:0;margin:0 0 26px;padding:0;min-width:0}legend{font-size:1.25rem;font-weight:750;letter-spacing:-.01em;padding:0;margin-bottom:10px}
 .grid-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px 18px}
 label{display:block;font-size:.9375rem;color:var(--soft)}label.wide{grid-column:span 2}
@@ -174,7 +174,10 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <dl class="list" id="fwfile" style="margin-bottom:16px" hidden></dl>
   <div class="acts"><button class="primary">Install</button><p class="msg" role="status"></p></div>
   <p class="hint">The gateway restarts. If the new firmware does not start, it goes back to the current one.</p>
- </form></section><section><h3>Installed</h3><dl class="list" id="fwinfo"></dl></section></div></div>
+ </form></section><section><h3>Installed</h3><dl class="list" id="fwinfo"></dl></section></div>
+  <h3>Kept firmware</h3><table class="stack"><thead><tr><th>Version</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody id="kept"><tr><td colspan="4">Reading…</td></tr></tbody></table>
+  <p class="msg" id="keptmsg" role="status"></p>
+  <p class="hint">Older firmware ignores settings it does not know.</p></div>
 </main></div>
 <script>
 "use strict";
@@ -232,7 +235,7 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#fw")!==null);
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
@@ -348,14 +351,28 @@ function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.quer
 const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
  REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
 const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?nb(x+" × "+n):x).join(", ");
+let lib=null,pick=null,pickT=0,keptAs=""; /* pick: the image whose button was pressed once */
+const STAGE={storing:"Storing",checking:"Checking",saving:"Saving the previous firmware",installing:"Installing"};
+async function library(){try{lib=await getj("/api/library")}catch(e){return}
+ const now=JSON.stringify([lib.images,pick]);if(now===keptAs)return;keptAs=now;
+ if(!lib.images.length){$("kept").replaceChildren(el("tr",{},el("td",{colSpan:4},"None yet. The next update is kept here.")));return}
+ const run=lib.images.find(i=>i.running),seq=run?run.seq:1e9;
+ $("kept").replaceChildren(...[...lib.images].sort((a,b)=>b.seq-a.seq).map(i=>{
+  const verb=i.kept&&i.seq<seq?"Roll back":"Install";
+  return el("tr",{class:"row"},el("td",{},el("span",{class:"name"},i.version)),el("td",{"data-h":"Size"},kb(i.size)),el("td",{"data-h":"Status"},
+   i.running?el("span",{class:"ok"},i.kept?"Running":"Running, on trial"):i.kept?"Kept":i.tried?el("span",{class:"warn"},"Did not pass its trial"):"Not started yet"),
+   i.running?el("td"):el("td",{},el("button",{type:"button","data-auth":"",class:pick===i.sha?"danger":"",onclick:()=>choose(i)},pick===i.sha?"Confirm "+verb.toLowerCase():verb)))}));authUI()}
+function choose(i){clearTimeout(pickT);
+ if(pick!==i.sha){pick=i.sha;pickT=setTimeout(()=>{pick=null;library()},4000);library().then(()=>{const b=$("kept").querySelector(".danger");b&&b.focus()});return}
+ pick=null;install(i.version,$("keptmsg"),()=>post("/rollback","sha="+i.sha,null,null,120000))}
 async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page==="hardware"||page==="firmware"?5000:30000))return;hwAt=now;
- let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}hw=h;
+ let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}hw=h;if(page==="firmware"&&!pick)library();
  const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
  const reads=[c.mhz+" MHz"];if(c.temp_c!=null)reads.push(c.temp_c.toFixed(1)+" °C",(c.mv/1000).toFixed(2)+" V");
  fillRows($("board"),["Part","Model","Status"],[
   [nm("Processor"),c.id==="0x450"?"STM32H750, revision "+(REV[c.rev]||c.rev):"Unknown ("+c.id+")",[reads.join(", "),c.crystal?null:el("span",{class:"sub warn"},"Crystal not running")]],
   [nm("Internal flash"),c.flash_kb+" KB",h.loader?"Loader "+h.loader:[]],
-  ...h.flash.map((id,i)=>{const t=FLASH(id);return [nm("Flash chip "+i),bad(t)?el("span",{class:"bad"},t+" ("+id+")"):t,i?"Firmware and settings":"Stock firmware"]}),
+  ...h.flash.map((id,i)=>{const t=FLASH(id);return [nm("Flash chip "+i),bad(t)?el("span",{class:"bad"},t+" ("+id+")"):t,i?"Firmware and settings":"Kept firmware"]}),
   [nm("Ethernet"),e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown ("+e.phy_id+")",
    [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):null]],
   [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
@@ -509,21 +526,23 @@ $("fw").elements.file.onchange=async ev=>{image=null;$("fwfile").hidden=true;fws
  if(f.size>393216)return fwsay("That file is too large to be gateway firmware.","bad");
  const b=new Uint8Array(await f.arrayBuffer()),i=inspect(b);if(i.why)return fwsay(i.why,"bad");
  image={b,version:i.version};fillDl($("fwfile"),[["Version",i.version+(st&&i.version===st.version?" (already running)":"")],["Size",kb(b.length)]]);$("fwfile").hidden=false;if(!key)fwsay(lock(),"warn lock")};
-$("fw").onsubmit=async ev=>{ev.preventDefault();if(!image)return fwsay("Choose a firmware file first.","bad");
- const img=image;updating=true;authUI();let sent=false;
- try{await post("/api/check","");const before=(await getj("/status")).boots;fwsay("Uploading…");
-  const slot=+(/slot=(\d)/.exec(await post("/install",img.b,null,null,40000))||[])[1];sent=true;
-  fwsay("Installed. Restarting…");await pause(2500);
+async function install(version,m,send){updating=true;authUI();let sent=false,poll=0;
+ try{await post("/api/check","");const before=(await getj("/status")).boots;say(m,"Uploading…");
+  poll=setInterval(async()=>{try{const l=await getj("/api/library");if(poll&&l.job)say(m,STAGE[l.job]+"… "+l.percent+"%")}catch(e){}},700);
+  const r=await send(),slot=+(/slot=(\d)/.exec(r)||[])[1];sent=true;clearInterval(poll);poll=0;
+  say(m,"Installed. Restarting…");await pause(2500);
   const end=Date.now()+90000;let s=null;
-  while(Date.now()<end){try{s=await getj("/status");if(s.mode==="app"&&s.boots>before)break;if(s.mode!=="app")fwsay("Waiting in the loader…")}catch(e){}s=null;await pause(1000)}
+  while(Date.now()<end){try{s=await getj("/status");if(s.mode==="app"&&s.boots>before)break;if(s.mode!=="app")say(m,"Waiting in the loader…")}catch(e){}s=null;await pause(1000)}
   if(!s)throw new Error("No answer yet. If the new firmware cannot reach the network, the gateway goes back to the previous one within 10 minutes.");
-  if(s.running_slot!==slot)throw new Error(img.version+" did not start. The gateway went back to "+s.version+".");
-  fwsay("Checking "+img.version+"…");
+  if(s.running_slot!==slot)throw new Error(version+" did not start. The gateway went back to "+s.version+".");
+  say(m,"Checking "+version+"…");
   try{await post("/confirm","")}catch(e){throw new Error(s.version+" is running but could not be kept from here: "+e.message+" It goes back to the previous firmware within 10 minutes.")}
   try{sessionStorage.setItem("n540note","Now running "+s.version+".")}catch(e){}
   location.reload()}
- catch(e){fwsay(sent||!/did not answer/.test(e.message)?e.message:"The upload was interrupted. Nothing was installed unless the gateway restarts.","bad")}
- finally{updating=false;authUI();hwAt=0;tick()}};
+ catch(e){say(m,sent||!/did not answer/.test(e.message)?e.message:"The upload was interrupted. Nothing was installed unless the gateway restarts.","bad")}
+ finally{clearInterval(poll);poll=0;updating=false;authUI();hwAt=0;tick()}}
+$("fw").onsubmit=ev=>{ev.preventDefault();if(!image)return fwsay("Choose a firmware file first.","bad");
+ const img=image;install(img.version,$("fw").querySelector(".msg"),()=>post("/install",img.b,null,null,120000))};
 $("fwkeep").onclick=async()=>{const b=$("fwkeep");b.disabled=true;try{await post("/confirm","");hwAt=0}catch(e){$("fwkeepmsg").textContent=e.message}finally{b.disabled=!key;tick()}};
 try{const n=sessionStorage.getItem("n540note");if(n){sessionStorage.removeItem("n540note");fwsay(n,"ok")}}catch(e){}
 

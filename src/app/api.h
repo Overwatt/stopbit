@@ -24,6 +24,8 @@ bool api_is_post(const char *path);
 /* Returns an HTTP status line tail; `out` gets the message or JSON. */
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max);
 const uint8_t *api_page(uint32_t *len);          /* gzipped HTML */
+/* What firmware must contain to be started with these settings, or NULL. */
+const char *api_fw_need(void);
 /* Web-password key, or NULL if none is set. */
 const uint8_t *api_web_key(void);
 #endif

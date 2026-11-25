@@ -13,7 +13,7 @@
 #include <stdlib.h>
 
 extern bool g_clock_hse;
-extern uint8_t _ebss, _end, _estack, _ed2bss;
+extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi;
 
 /* Factory calibration, in system memory (DS12556). */
 #define CAL_VREF   (*(const uint16_t *)0x1FF1E860u)     /* raw at 3.3 V */
@@ -135,10 +135,9 @@ size_t hwinfo_json(char *out, size_t max)
     int run = (int)bkp_get(BKP_SLOT);
     slot_info_t sl[SLOT_COUNT];
     for (int i = 0; i < SLOT_COUNT; i++) slots_get(i, &sl[i]);
-    uint32_t image = run >= 0 && run < SLOT_COUNT && sl[run].valid ? sl[run].hdr.size : 0;
     OUT("],\"mem\":[{\"name\":\"AXI\",\"used\":%lu,\"size\":%lu},{\"name\":\"DTCM\",\"used\":%lu,\"size\":%lu},"
         "{\"name\":\"D2\",\"used\":%lu,\"size\":%lu}]",
-        U(image), U(384u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
+        U((uint32_t)&_eaxi - D1_AXISRAM_BASE), U(384u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
         U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10));
 
     const fw_id_t *ld = (const fw_id_t *)(FLASH_BASE + FW_ID_OFFSET);

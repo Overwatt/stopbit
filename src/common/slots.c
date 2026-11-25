@@ -7,9 +7,9 @@
 #include "stm32h7xx_hal.h"
 #include <string.h>
 
-#define DEV        1
+#define DEV        SLOT_DEV
 #define MAGIC      0x544C5335u
-#define HDR_SIZE   4096u
+#define HDR_SIZE   SLOT_HDR
 #define SLOT_BYTES (HDR_SIZE + STAGE_SIZE)
 #define OFF_CONFIRM  0x100u
 #define OFF_ATTEMPT  0x110u          /* SLOT_TRIES words */
@@ -62,27 +62,43 @@ int slots_load_best(void)
     return SLOT_NONE;
 }
 
-const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slot)
+/* Whichever slot we can best afford to lose: an invalid one, then an
+ * unconfirmed one, then the older one. */
+int slots_spare(int avoid)
 {
-    static uint8_t chk[256];
     slot_info_t in[SLOT_COUNT];
-    slot_hdr_t h = { .magic = MAGIC, .size = size };
-    sha256_t c;
-    uint32_t seq = 0;
-
-    for (int s = 0; s < SLOT_COUNT; s++) {
-        slots_get(s, &in[s]);
-        if (in[s].valid && in[s].hdr.seq > seq) seq = in[s].hdr.seq;
-    }
-    /* Overwrite whichever slot we can best afford to lose: an invalid one, then
-     * an unconfirmed one, then the older one. */
     int t;
+    for (int s = 0; s < SLOT_COUNT; s++) slots_get(s, &in[s]);
     if (in[0].valid != in[1].valid) t = in[0].valid ? 1 : 0;
     else if (in[0].valid && in[0].confirmed != in[1].confirmed) t = in[0].confirmed ? 1 : 0;
     else t = in[1].hdr.seq < in[0].hdr.seq ? 1 : 0;
-    if (t == avoid) t ^= 1;
+    return t == avoid ? t ^ 1 : t;
+}
 
-    h.seq = seq + 1;
+uint32_t slots_addr(int s) { return BASE[s]; }
+
+bool slots_commit(int t, slot_hdr_t *h)
+{
+    slot_info_t in;
+    h->magic = MAGIC;
+    h->seq = 0;
+    for (int s = 0; s < SLOT_COUNT; s++) {
+        slots_get(s, &in);
+        if (in.valid && in.hdr.seq > h->seq) h->seq = in.hdr.seq;
+    }
+    h->seq++;
+    if (!extflash_write(DEV, BASE[t], h, sizeof *h)) return false;
+    slots_get(t, &in);
+    return !memcmp(&in.hdr, h, sizeof *h);
+}
+
+const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slot)
+{
+    static uint8_t chk[256];
+    slot_hdr_t h = { .size = size };
+    sha256_t c;
+    int t = slots_spare(avoid);
+
     memcpy(h.version, ((const fw_id_t *)(img + FW_ID_OFFSET))->version, sizeof h.version);
     sha256_init(&c);
     sha256_update(&c, img, size);
@@ -99,9 +115,7 @@ const char *slots_install(const uint8_t *img, uint32_t size, int avoid, int *slo
         if (memcmp(chk, img + o, n)) return "verify failed";
         wdt_feed();
     }
-    if (!extflash_write(DEV, BASE[t], &h, sizeof h)) return "header write timeout";
-    slots_get(t, &in[t]);
-    if (memcmp(&in[t].hdr, &h, sizeof h)) return "header verify failed";
+    if (!slots_commit(t, &h)) return "header write failed";
     *slot = t;
     return NULL;
 }

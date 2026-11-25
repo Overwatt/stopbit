@@ -59,12 +59,15 @@ temperature is the processor's own sensor, so it reads above room temperature.
 Choose `app.bin` on the Firmware page. The page checks the file, uploads it signed with
 the web password's key, waits for the restart, and keeps the new firmware once it answers.
 If it does not start, the loader goes back to the previous one. An image that starts but is
-never kept is given up after three 3-minute trials. The upload goes into spare RAM and is
-checked before flash is touched, and never replaces the running slot.
+never kept is given up after three 3-minute trials. The upload is checked in the library
+before a slot is touched, and never replaces the running one.
+
+**Kept firmware** lists up to seven images, and starts any of them the same way. Older
+firmware ignores settings it does not know. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 
 **So the web password can install firmware, which is full control of the gateway.** Loader
-updates and flash dumps still need the update key. `POST /install` and `POST /confirm` are
-the endpoints; `tests/test_install.py HOST` checks the refusals.
+updates and flash dumps still need the update key. The endpoints are `POST /install`,
+`/rollback` and `/confirm`; `tests/test_install.py HOST` checks the refusals.
 
 ### Without Home Assistant
 
@@ -173,8 +176,8 @@ the UI, or `n540.py $H keep`). The loader always uses DHCP.
 Requests are signed with an HMAC over a single-use nonce, the path and the body.
 The browser derives its key from the password (PBKDF2, 30000 rounds). The password
 never crosses the wire, but pages and data are not encrypted, so a listener could
-attempt to guess a weak password offline. The web password can change settings and restart; it
-cannot install firmware, read flash, or enter the loader.
+attempt to guess a weak password offline. The web password can change settings, restart and
+install firmware; it cannot read flash, replace the loader, or enter it.
 
 ## Storage
 
@@ -186,6 +189,9 @@ MQTT cannot read schema 2 and would start with defaults.
 
 ```sh
 cc -Isrc/app tests/test_cfg.c src/app/cfg.c -o /tmp/t && /tmp/t   # host
+cc -w -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= tests/test_fwlib.c src/app/fwlib.c src/common/{slots,image,sha256}.c -o /tmp/fl && /tmp/fl
+tests/sim/run.sh                            # then, beside it:
+python3 tests/test_install.py 127.0.0.1:8541
 cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,traffic}.c -o /tmp/c && /tmp/c
 python3 tests/test_cli_device.py HOST       # nothing attached to the RS485 ports
 python3 tests/test_device.py HOST           # nothing attached to the RS485 ports
