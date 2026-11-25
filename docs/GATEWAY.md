@@ -111,7 +111,8 @@ uv run --with paho-mqtt tests/test_mqtt.py HOST SSH_HOST BROKER_IP MOSQ_DIR out.
 uv run --python 3.14 --with homeassistant --with paho-mqtt tests/check_ha.py out.json
 ```
 
-The device tests use on-chip loopback. **Nothing has been tested through the RS485
-transceivers yet**: port order, the UART mapping and direction control are unproven.
-With loopback off, transmitting on each port is heard by none of the four receivers,
-which fits automatic direction control but also fits several wrong mappings.
+The device tests use on-chip loopback. On the real transceivers, each port was tested
+with an FTDI USB-RS485 adapter through its TCP server: random data both ways and 50
+request/reply rounds at 9600 8N1, 19200 8E1, 38400 8O1, 115200 8N1 and 8N2, 460800 and
+1000000 8N1, with no errors. Not tested: several ports busy at once, long or terminated
+buses, and how fast the gateway turns the bus around (the adapter's 16 ms latency hides it).

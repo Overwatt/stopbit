@@ -55,6 +55,21 @@ loaded by a small internal bootloader. See ROADMAP M0.
 | **External watchdog (WDI)** | **PC10**, ~1.6 s | ✅ by experiment |
 | Ext flash 0 | CLK PB2, CS PC11, IO PE7-10 | ✅ JEDEC C84015 |
 | Ext flash 1 | SCK PE2, MISO PE5, MOSI PE6, CS PE4 | ✅ JEDEC C84015 |
-| RS485 UARTs | USART1/2/3, UART4 | likely: these RX lines are driven; U5/U6/U8 RX float. Stock enables 9 UARTs (shared with the 8-port N580), so not proven |
-| RS485 DE | none found | hypothesis: auto-direction |
-| Other stock outputs | PA3-5 PA12 PA15 PC8 PD4 PD12 PD13 PD15 PE12 PE14 | unknown |
+| RS485 ports 1-4 | USART1 PA9/PA10, USART2 PD5/PD6, USART3 PD8/PD9, UART4 PD1/PD0 (TX/RX) | ✅ tested on each port with a USB-RS485 adapter |
+| RS485 DE 1-4 | **PA12, PD4, PD12, PA15** (high = transmit; the UARTs' RTS/DE pins) | ✅ same; also stock's own per-port table |
+| Work light | PA3 | ✅ seen blinking |
+| `T R G` console | LPUART1 PB6/PB7 | likely: stock sets it up beside the four ports; not tested |
+| Other stock outputs | PA4 PA5 PC8 PD13 PD15 PE12 PE14 | unknown (PA4 and PA5 likely status lights) |
+
+### How the direction pins were found
+
+Stock's serial transmit routine (file offset `0x6b000` in `dumps/extflash0.bin`) sets
+the pin at `[port+12]/[port+16]` before sending, waits for TC, then clears it. The port
+structs are in the compressed `.data` (source `0xc4614`, copied to `0x24000000`); unpacked,
+they are at `0x2400079c` with a stride of `0xb0`, in port order. An earlier sweep missed
+the pins because it watched only the RX lines, which idle high whether the receiver is on
+or off.
+
+Our firmware uses the UART's hardware driver enable: DE rises one bit before a burst and
+falls a quarter bit after the last stop bit. With A and B swapped, received bytes come out
+as `(~b << 1) | 1`.

@@ -34,14 +34,14 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Project structure, CMake build, linker script, HAL vendored.
 - [x] Clock to 400 MHz from 25 MHz HSE.
 - [x] Heartbeat LED; 4× RS485 init + loopback echo (polling).
-- [ ] **Fill in real pins in `board.h`** (from M0), flash, confirm LED blinks
-      and each RS485 port echoes on a scope / USB-RS485 adapter.
+- [x] Real pins in `board.h`, LED blinks, each RS485 port checked with a
+      USB-RS485 adapter.
 
 ## M2 — Serial plumbing for real
 - [x] Interrupt/DMA RX with per-port ring buffers (replace polling).
 - [x] Runtime serial config per port (baud/parity/stop).
 - [x] Command console (network, signed).
-- [ ] The same console on the `T R G` serial header (its UART is not identified yet).
+- [ ] The same console on the `T R G` serial header (probably LPUART1 on PB6/PB7).
 
 ## M3 — Ethernet up
 - [x] PHY: IP101G (ID 0x02430C54) at MDIO address 1. No reset line needed so far.
@@ -55,7 +55,7 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Each RS485 port ↔ a TCP server socket (configurable port).
 - [x] Bidirectional byte shuttling with backpressure.
 - [x] TCP client + UDP modes.
-- [ ] **Prove it through the real transceivers** (jumper or USB-RS485 adapter).
+- [x] Proven through the real transceivers: all four ports, 9600 to 1000000 baud.
 
 ## M5 — "Better than stock" (pick what's fun)
 - [x] Modern web UI + **REST/JSON API** (vs. their 2010 iframe UI).
@@ -68,5 +68,5 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 ## Known risks / open questions
 - Internal flash is a single 128 KB erase sector, so it holds only the loader;
   apps run from AXI SRAM (384 KB).
-- RS485 direction: no GPIO in a 16-pin sweep affected any RX line, with TX high
-  or low. Hypothesis: hardware auto-direction from TX. Prove with a loopback.
+- RS485 was tested with one adapter on a short cable: no long bus, termination or
+  multi-drop testing, and nothing above 1000000 baud.
