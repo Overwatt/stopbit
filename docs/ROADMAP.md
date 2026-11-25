@@ -40,7 +40,8 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 ## M2 — Serial plumbing for real
 - [x] Interrupt/DMA RX with per-port ring buffers (replace polling).
 - [x] Runtime serial config per port (baud/parity/stop).
-- [ ] `T R G` debug console: printf logging + a tiny CLI.
+- [x] Command console (network, signed).
+- [ ] The same console on the `T R G` serial header (its UART is not identified yet).
 
 ## M3 — Ethernet up
 - [x] PHY: IP101G (ID 0x02430C54) at MDIO address 1. No reset line needed so far.

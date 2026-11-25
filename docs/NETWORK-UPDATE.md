@@ -11,7 +11,7 @@ use space that was blank.
 
 ```sh
 H=n540-a1b2c3.local
-tools/n540.py $H status
+tools/n540.py $H info
 tools/n540.py $H update build/app.bin            # install, boot, confirm
 tools/n540.py $H selfupdate build/loader_flash.bin
 tools/n540.py $H run build/app.bin               # SRAM only, nothing written
@@ -27,7 +27,7 @@ key never crosses the wire. `/status` is open and nothing is encrypted.
 confirms it; otherwise the loader falls back to the other slot. An unconfirmed
 app also reboots itself after 3 minutes. Five boots in a row without 30 s of
 uptime keeps the board in the loader; a power-on reset clears that count.
-`/status` shows the last six reset causes (`fe0000` power-on, `460000` watchdog or
+`info` shows the last six reset causes (`fe0000` power-on, `460000` watchdog or
 NRST pin, `1460000` software). These survive short power cycles.
 
 **Tested on hardware (2026-11-24):** loader self-update from SRAM and from flash,

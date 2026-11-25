@@ -6,7 +6,7 @@
 
 Set N540_HOST to leave HOST out. Besides the console's own commands:
 
-  n540.py HOST status
+  n540.py HOST info                        versions, slots and resets as JSON
   n540.py HOST dump FLASH OUT [OFF LEN]    read external flash 0 or 1
   n540.py HOST run IMAGE.bin               load into SRAM and jump (no flash)
   n540.py HOST selfupdate LOADER.bin       replace the loader in internal flash
@@ -118,7 +118,7 @@ def enter_loader(d):
     return s
 
 
-LOCAL = ("config", "state", "save", "load", "connect", "watch", "update", "dump", "passwd", "mqtt-passwd", "reboot",
+LOCAL = ("info", "config", "state", "save", "load", "connect", "watch", "update", "dump", "passwd", "mqtt-passwd", "reboot",
          "loader", "selfupdate", "run")
 
 
@@ -128,6 +128,8 @@ def join(words):
 
 
 def cli(d, line):
+    if json.loads(d.get("/status"))["mode"] != "app":
+        raise SystemExit("the gateway is in its loader, which has no console; try info, update or reboot")
     return d.auth("POST", "/api/cli", line.encode()).decode(errors="replace")
 
 
@@ -261,6 +263,9 @@ def main(a):
         return shell(d)
     cmd = a[1]
     if cmd == "status":
+        s = json.loads(d.get("/status"))
+        print(cli(d, "status") if s["mode"] == "app" else json.dumps(s, indent=2), end="" if s["mode"] == "app" else "\n")
+    elif cmd == "info":
         print(json.dumps(json.loads(d.get("/status")), indent=2))
     elif cmd == "dump":
         dev, out = int(a[2]), a[3]

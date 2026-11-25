@@ -15,6 +15,29 @@ tools/n540.py $H set port1.enabled=1 port1.baud=19200 port1.parity=even
 tools/n540.py $H state
 ```
 
+## Console
+
+```sh
+tools/n540.py $H                     # interactive: history, tab completion
+tools/n540.py $H ports               # or one command at a time
+```
+
+Set `N540_HOST` to leave the host out. `help` lists the commands. The console runs on
+the gateway and is reached through signed requests, so there is no telnet port.
+
+| Command | |
+|---|---|
+| `status`, `ports`, `port 1`, `resets` | look |
+| `get port1`, `set port1.baud=19200 port1.parity=even` | settings; a `set` is all or nothing |
+| `enable 1`, `disable 1`, `keep` | |
+| `send 1 "AT\r"`, `send 1 hex 01 03 00 00` | send on the line |
+| `log 1` | last 16 packets on a port, first 24 bytes of each |
+| `wiretest yes` | send on each port, report who hears it (disconnect equipment first) |
+| `watch 1`, `connect 1` | follow traffic live; talk to a TCP-server port |
+| `save FILE`, `load FILE` | all settings except passwords |
+
+`watch` polls twice a second and can miss packets on a busy line.
+
 ## Ports
 
 All four ship disabled. Each one is a TCP server (default 4001-4004, up to 4
@@ -79,6 +102,8 @@ MQTT cannot read schema 2 and would start with defaults.
 
 ```sh
 cc -Isrc/app tests/test_cfg.c src/app/cfg.c -o /tmp/t && /tmp/t   # host
+cc -DD2_BSS= -Isrc/app tests/test_cli.c src/app/{cli,cfg,traffic}.c -o /tmp/c && /tmp/c
+python3 tests/test_cli_device.py HOST       # nothing attached to the RS485 ports
 python3 tests/test_device.py HOST           # nothing attached to the RS485 ports
 python3 tests/test_http.py HOST
 python3 tests/test_net_trial.py HOST GATEWAY
