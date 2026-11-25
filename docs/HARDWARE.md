@@ -58,6 +58,7 @@ loaded by a small internal bootloader. See ROADMAP M0.
 | Ext flash 1 | SCK PE2, MISO PE5, MOSI PE6, CS PE4 | ✅ JEDEC C84015 |
 | RS485 ports 1-4 | USART1 PA9/PA10, USART2 PD5/PD6, USART3 PD8/PD9, UART4 PD1/PD0 (TX/RX) | ✅ tested on each port with a USB-RS485 adapter |
 | RS485 DE 1-4 | **PA12, PD4, PD12, PA15** (high = transmit; the UARTs' RTS/DE pins) | ✅ same; also stock's own per-port table |
+| Reload button | PA8, pull-up, low when pressed | ✅ pressed on the bench; stock resets to factory settings on a 3 to 15 s hold |
 | Work light | PA3 | ✅ seen blinking |
 | `T R G` console | LPUART1 PB6/PB7 | likely: stock sets it up beside the four ports; not tested |
 | Other stock outputs | PA4 PA5 PC8 PD13 PD15 PE12 PE14 | unknown (PA4 and PA5 likely status lights) |
