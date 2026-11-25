@@ -18,7 +18,7 @@ import getpass, hashlib, hmac, http.client, json, os, socket, sys, time
 
 KEYFILE = os.environ.get("N540_KEY", os.path.join(os.path.dirname(__file__), "..", "secrets", "n540.key"))
 
-PBKDF2_ROUNDS = 4000        # must match web/index.html
+PBKDF2_ROUNDS = 30000        # must match web/index.html
 
 
 class Device:

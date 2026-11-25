@@ -1,1 +1,316 @@
-<!doctype html><title>N540</title>placeholder
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>N540 gateway</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d6658'/%3E%3Cpath d='M3 6h10M3 10h10M6 4v8M10 4v8' stroke='%23fff' stroke-width='1.4'/%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light dark;
+--bg:#f3f5f3;--panel:#fff;--ink:#18201d;--soft:#55605b;--line:#d5dbd7;--field:#fff;--field-line:#8b9791;
+--accent:#0d6658;--accent-ink:#fff;--accent-hover:#0a5247;--tint:#e4efec;
+--ok:#17703d;--warn:#8a5300;--warn-bg:#fdf1dc;--bad:#b3261e;--bad-bg:#fcebe9;--idle:#7b8781}
+@media(prefers-color-scheme:dark){:root{
+--bg:#131816;--panel:#1b211f;--ink:#e6ebe8;--soft:#a3afa9;--line:#313a36;--field:#141917;--field-line:#66736d;
+--accent:#4fb8a3;--accent-ink:#0b1a16;--accent-hover:#6ccab7;--tint:#1f2f2b;
+--ok:#62c98b;--warn:#e7b45e;--warn-bg:#32270f;--bad:#f2877e;--bad-bg:#391a18;--idle:#8a968f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+::selection{background:var(--accent);color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main,header .in{max-width:1080px;margin:0 auto;padding:0 20px}
+header{background:var(--panel);border-bottom:1px solid var(--line)}
+header .in{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:center;padding-top:14px;padding-bottom:14px}
+h1{font-size:1.25rem;line-height:1.3;margin:0;font-weight:650;overflow-wrap:anywhere}
+h2{font-size:1.0625rem;margin:36px 0 10px;font-weight:650}
+.meta{color:var(--soft);margin:0}
+.grow{flex:1}
+p{margin:0 0 10px;max-width:70ch}
+.hint{color:var(--soft);font-size:.875rem;margin:4px 0 0}
+button{font:inherit;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--field-line);background:var(--panel);color:var(--ink);cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:var(--tint)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button:disabled,button.primary:disabled{background:transparent;color:var(--soft);border-color:var(--line);cursor:default}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.pad{padding:18px 20px}
+table{width:100%;border-collapse:collapse}
+th{font-weight:550;color:var(--soft);font-size:.875rem;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top}
+tbody tr:first-child td{border-top:0}
+th:first-child,td:first-child{padding-left:20px}th:last-child,td:last-child{padding-right:20px}
+td.n,th.n{text-align:right}
+td .sub.warn{color:var(--warn)}
+td .sub:not(.warn){color:var(--soft)}
+td .sub{display:block;font-size:.875rem;overflow-wrap:anywhere}
+.name{font-weight:600;overflow-wrap:anywhere}
+.st{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.st svg{width:9px;height:9px;flex:none}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.idle{color:var(--idle)}
+tr.edit>td{background:var(--bg);padding:18px 20px 20px}
+form{margin:0}
+fieldset{border:0;margin:0 0 18px;padding:0;min-width:0}
+legend{font-weight:600;padding:0;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 16px}
+label{display:block;font-size:.875rem;color:var(--soft)}
+label.wide{grid-column:span 2}
+input,select{font:inherit;color:var(--ink);display:block;width:100%;margin-top:3px;padding:7px 9px;border:1px solid var(--field-line);border-radius:6px;background:var(--field);caret-color:var(--accent);min-height:38px}
+input:disabled,select:disabled{opacity:.6}
+label.check{display:flex;gap:9px;align-items:flex-start;color:var(--ink);font-size:.9375rem;max-width:62ch}
+label.check input{width:17px;height:17px;min-height:0;margin:3px 0 0;flex:none;accent-color:var(--accent)}
+label.check span span{display:block;color:var(--soft);font-size:.875rem}
+.checks{display:grid;gap:10px}
+.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.msg{margin:0;font-size:.9375rem}
+.note{border:1px solid;border-radius:8px;padding:12px 16px;margin:20px 0 0;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.note p{margin:0;flex:1 1 320px}
+.note.warn{background:var(--warn-bg);color:var(--warn)}.note.bad{background:var(--bad-bg);color:var(--bad)}
+.note p b,.note code{color:var(--ink)}
+code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 20px;margin:0}
+dt{color:var(--soft)}dd{margin:0;overflow-wrap:anywhere}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.two h2{margin-top:36px}
+[hidden]{display:none!important}
+footer{height:48px}
+@media(max-width:760px){
+ .two{grid-template-columns:1fr;gap:0}
+ main,header .in{padding-left:16px;padding-right:16px}
+ thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+ table,tbody{display:block}
+ tbody tr.row{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;padding:14px 16px;border-top:1px solid var(--line)}
+ tbody tr.row:first-child{border-top:0}
+ tr.row td{display:block;border:0;padding:3px 0!important}
+ tr.row td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}
+ td.n{text-align:left}td:last-child button{width:100%}
+ tr.edit{display:block}tr.edit>td{display:block;padding:16px}
+ label.wide{grid-column:1/-1}
+ button{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><div class="in">
+ <h1 id="dname">N540 gateway</h1>
+ <p class="meta" id="dmeta">Connecting…</p>
+ <span class="grow"></span>
+ <form id="login" class="acts" hidden>
+  <input id="pw" type="password" autocomplete="current-password" aria-label="Web password" placeholder="Password" style="width:180px;margin:0">
+  <button class="primary">Sign in</button>
+ </form>
+ <button id="signin" type="button" hidden>Sign in</button>
+ <button id="signout" type="button" hidden>Sign out</button>
+ <p class="msg bad" id="loginmsg" role="alert" hidden></p>
+</div></header>
+<main>
+ <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
+ <div id="nopw" class="note warn" hidden><p>No web password is set, so settings are read-only here. Set one from the computer that builds the firmware: <code id="pwcmd"></code></p></div>
+ <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
+
+ <h2>Serial ports</h2>
+ <div class="panel"><table>
+  <thead><tr><th>Port</th><th>Status</th><th>Line</th><th>Network</th><th class="n">From serial</th><th class="n">To serial</th><th class="n">Errors</th><th><span hidden>Edit</span></th></tr></thead>
+  <tbody id="ports"><tr><td colspan="8" class="idle">Loading ports…</td></tr></tbody>
+ </table></div>
+
+ <div class="two">
+ <section><h2>Network</h2><div class="panel pad"><form id="net">
+  <div class="grid" style="margin-bottom:16px">
+   <label class="wide">Address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
+  </div>
+  <div class="grid" data-static style="margin-bottom:16px">
+   <label>IP address<input name="ip" inputmode="decimal" autocomplete="off"></label>
+   <label>Subnet mask<input name="mask" inputmode="decimal" autocomplete="off"></label>
+   <label>Gateway<input name="gateway" inputmode="decimal" autocomplete="off"></label>
+   <label>DNS server<input name="dns" inputmode="decimal" autocomplete="off" placeholder="Same as gateway"></label>
+  </div>
+  <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
+  <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
+ </form></div></section>
+
+ <section><h2>Device</h2><div class="panel pad">
+  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
+  <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
+  <dl id="info"></dl>
+  <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
+  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
+   <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
+   <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
+   <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
+ </div></section>
+ </div>
+ <footer></footer>
+</main>
+<script>
+"use strict";
+/* ---- SHA-256 / HMAC / PBKDF2 (crypto.subtle needs HTTPS) ---- */
+const K=new Uint32Array(64),IV=new Uint32Array(8);
+{let n=0;for(let p=2;n<64;p++){let q=1;for(let d=2;d*d<=p;d++)if(p%d===0){q=0;break}
+ if(!q)continue;const f=x=>(x-Math.floor(x))*4294967296;if(n<8)IV[n]=f(Math.sqrt(p));K[n++]=f(Math.cbrt(p))}}
+const W=new Uint32Array(64);
+function block(h,d,o){let i;for(i=0;i<16;i++)W[i]=d[o+4*i]<<24|d[o+4*i+1]<<16|d[o+4*i+2]<<8|d[o+4*i+3];
+ for(;i<64;i++){const a=W[i-15],b=W[i-2];W[i]=W[i-16]+W[i-7]+((a>>>7|a<<25)^(a>>>18|a<<14)^a>>>3)+((b>>>17|b<<15)^(b>>>19|b<<13)^b>>>10)}
+ let [a,b,c,e,f,g,j,k]=h;
+ for(i=0;i<64;i++){const t=k+((f>>>6|f<<26)^(f>>>11|f<<21)^(f>>>25|f<<7))+(f&g^~f&j)+K[i]+W[i]|0,
+  u=((a>>>2|a<<30)^(a>>>13|a<<19)^(a>>>22|a<<10))+(a&b^a&c^b&c)|0;k=j;j=g;g=f;f=e+t|0;e=c;c=b;b=a;a=t+u|0}
+ h[0]+=a;h[1]+=b;h[2]+=c;h[3]+=e;h[4]+=f;h[5]+=g;h[6]+=j;h[7]+=k}
+function sha(m){const n=m.length,d=new Uint8Array((n+72>>6)<<6);d.set(m);d[n]=128;
+ new DataView(d.buffer).setUint32(d.length-4,n*8);const h=IV.slice();for(let o=0;o<d.length;o+=64)block(h,d,o);
+ const r=new Uint8Array(32),v=new DataView(r.buffer);h.forEach((x,i)=>v.setUint32(4*i,x));return r}
+const cat=(a,b)=>{const r=new Uint8Array(a.length+b.length);r.set(a);r.set(b,a.length);return r},
+ utf=s=>new TextEncoder().encode(s),hex=b=>Array.from(b,x=>x.toString(16).padStart(2,"0")).join(""),
+ unhex=s=>Uint8Array.from(s.match(/../g)||[],x=>parseInt(x,16));
+function hmac(key,msg){if(key.length>64)key=sha(key);const k=new Uint8Array(64);k.set(key);
+ return sha(cat(k.map(x=>x^0x5c),sha(cat(k.map(x=>x^0x36),msg))))}
+function pbkdf2(pw,salt,n){let u=hmac(pw,cat(salt,Uint8Array.of(0,0,0,1)));const r=u.slice();
+ for(let i=1;i<n;i++){u=hmac(pw,u);for(let j=0;j<32;j++)r[j]^=u[j]}return r}
+const ROUNDS=30000; /* must match tools/n540.py */
+
+/* ---- helpers ---- */
+const $=id=>document.getElementById(id);
+function el(tag,props,...kids){const e=document.createElement(tag);
+ for(const k in props||{}){const v=props[k];if(v==null||v===false)continue;
+  if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);
+  else if(k in e&&k!=="list")e[k]=v;else e.setAttribute(k,v)}
+ e.append(...kids.filter(x=>x!=null));return e}
+function dot(){const s="http://www.w3.org/2000/svg",g=document.createElementNS(s,"svg"),c=document.createElementNS(s,"circle");
+ g.setAttribute("viewBox","0 0 10 10");g.setAttribute("aria-hidden","true");
+ for(const [k,v] of [["cx",5],["cy",5],["r",5],["fill","currentColor"]])c.setAttribute(k,v);g.append(c);return g}
+const bytes=n=>n<1e4?n.toLocaleString()+" B":n<1e6?(n/1e3).toFixed(1)+" kB":n<1e9?(n/1e6).toFixed(2)+" MB":(n/1e9).toFixed(2)+" GB";
+const dur=s=>s<60?s+" s":s<3600?Math.floor(s/60)+" min":s<86400?Math.floor(s/3600)+" h "+Math.floor(s%3600/60)+" min":Math.floor(s/86400)+" d "+Math.floor(s%86400/3600)+" h";
+function say(m,text,cls){m.textContent=text;m.className="msg "+(cls||"")}
+
+/* ---- API ---- */
+let key=null,cfg=null,st=null,salt="",pwset=false,prev=null,rate=[];
+try{const k=sessionStorage.getItem("n540key");if(k)key=unhex(k)}catch(e){}
+async function req(path,opt){const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
+ try{const r=await fetch(path,{cache:"no-store",signal:c.signal,...opt});return {ok:r.ok,status:r.status,text:await r.text()}}
+ catch(e){throw new Error("The gateway did not answer. Check the connection and try again.")}finally{clearTimeout(t)}}
+async function getj(p){const r=await req(p);if(!r.ok)throw new Error(r.text.trim()||"Request failed ("+r.status+")");return JSON.parse(r.text)}
+async function post(path,body,mk,withKey){const k=withKey||key;if(!k)throw new Error("Sign in first.");
+ for(let tries=0;;tries++){
+  const nonce=(await req("/nonce")).text.trim();if(mk)body=mk(nonce);
+  const h=hex(sha(utf(body))),mac=hex(hmac(k,utf(nonce+"\nPOST "+path+"\n"+h)));
+  const r=await req(path,{method:"POST",body,headers:{"X-Auth":mac,"X-Body-SHA256":h,"Content-Type":"text/plain"}});
+  if(r.ok)return r.text;
+  if(r.status===401){if(!tries)continue; /* another client may have used the nonce */
+   if(!withKey)setKey(null);throw new Error(withKey?"That password was not accepted. After several wrong tries, wait a few seconds.":"You are signed out. Sign in again.")}
+  throw new Error(r.text.trim()||"Request failed ("+r.status+")")}}
+function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionStorage.removeItem("n540key")}catch(e){}authUI()}
+function authUI(){const open=!$("login").hidden&&!key&&pwset;
+ $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
+ $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
+ for(const b of document.querySelectorAll("[data-auth],#net button,#dev button,#restart,#chpw,#keep"))b.disabled=!key;
+ for(const b of document.querySelectorAll("#net button,#dev button,#restart,#chpw,#keep,[data-auth]"))b.title=key?"":"Sign in to change settings";
+ if(!key)$("pwform").hidden=true}
+
+/* ---- ports ---- */
+const MODES={server:"TCP server",client:"TCP client",udp:"UDP"},
+ STATES={off:["Off","idle"],listening:["Listening","ok"],connected:["Connected","ok"],ready:["Ready","ok"],connecting:["Connecting","warn"],retrying:["Retrying","warn"],error:["Cannot open port","bad"]};
+let open=-1;
+const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
+function where(p){if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
+ return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
+function buildPorts(){const b=$("ports");b.replaceChildren();
+ cfg.ports.forEach((p,i)=>{
+  const c={st:el("td",{"data-h":"Status"}),rx:el("td",{class:"n","data-h":"From serial"}),tx:el("td",{class:"n","data-h":"To serial"}),er:el("td",{class:"n","data-h":"Errors"})};
+  const btn=el("button",{type:"button","aria-expanded":String(open===i),"aria-label":(open===i?"Close ":"Edit ")+p.name,onclick(){open=open===i?-1:i;buildPorts();const f=document.querySelector("tr.edit input,#ports .row:nth-child("+(i+1)+") button");if(f)f.focus()}},open===i?"Close":"Edit");
+  b.append(el("tr",{class:"row"},el("td",{},el("span",{class:"name"},p.name||"Port "+(i+1)),p.name!=="Port "+(i+1)&&p.name?el("span",{class:"sub"},"Port "+(i+1)):null),c.st,
+   el("td",{"data-h":"Line"},line(p),p.loopback?el("span",{class:"sub warn"},"Loopback test on"):null),
+   el("td",{"data-h":"Network"},MODES[p.mode],el("span",{class:"sub"},where(p))),c.rx,c.tx,c.er,el("td",{class:"n"},btn)));
+  cells[i]=c;if(open===i)b.append(editor(p,i))});
+ paint()}
+const cells=[];
+function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>x.textContent??x).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
+function paint(){if(!st||!cfg)return;st.ports.forEach((s,i)=>{const c=cells[i];if(!c)return;
+ const [t,cls]=STATES[s.state]||[s.state,"idle"],kids=[el("span",{class:"st "+cls},dot(),t)];
+ for(const p of s.peers)kids.push(el("span",{class:"sub"},p));put(c.st,...kids);
+ const r=rate[i]||[0,0],rt=x=>s.state==="off"?null:el("span",{class:"sub"},x>=1?bytes(Math.round(x))+"/s":"Idle");
+ put(c.rx,bytes(s.serial_rx),rt(r[0]));put(c.tx,bytes(s.serial_tx),rt(r[1]));
+ const e=[["parity",s.parity],["framing",s.framing],["noise",s.noise],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]);
+ put(c.er,el("span",{class:e.length?"bad":""},e.reduce((a,x)=>a+x[1],0).toLocaleString()),...e.map(x=>el("span",{class:"sub"},x[1].toLocaleString()+" "+x[0])))})}
+function editor(p,i){
+ const inp=(n,l,o,w)=>el("label",{class:w?"wide":"","data-f":n},l,el("input",{name:n,value:String(p[n]),autocomplete:"off",...o}));
+ const sel=(n,l,o)=>el("label",{"data-f":n},l,el("select",{name:n},...o.map(([v,t])=>el("option",{value:v,selected:String(p[n])===String(v)},t))));
+ const chk=(n,l,h)=>el("label",{class:"check"},el("input",{type:"checkbox",name:n,checked:p[n]}),el("span",{},l,el("span",{},h)));
+ const num=(a,b)=>({type:"number",min:a,max:b,required:true});
+ const msg=el("p",{class:"msg",role:"status"}),hint=el("p",{class:"hint"}),save=el("button",{class:"primary","data-auth":""},"Save port");
+ const f=el("form",{onsubmit:async ev=>{ev.preventDefault();const L=[];
+   for(const e of f.elements){if(!e.name)continue;const v=e.type==="checkbox"?(e.checked?"1":"0"):e.value.trim();
+    const was=typeof p[e.name]==="boolean"?(p[e.name]?"1":"0"):String(p[e.name]);if(v!==was)L.push("port"+(i+1)+"."+e.name+"="+(v===""&&e.type==="number"?"0":v))}
+   if(!L.length){say(msg,"Nothing changed.");return}
+   save.disabled=true;say(msg,"Saving…");
+   try{await post("/api/config",L.join("\n"));cfg=await getj("/api/config");open=-1;buildPorts();await tick()}
+   catch(e){say(msg,e.message,"bad")}finally{save.disabled=!key}}},
+  el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
+  el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
+  el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535})),hint),
+  el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"Silence 0 is automatic: 3.5 characters, at least 1.75 ms. That suits Modbus RTU.")),
+  el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("echo_cancel","Ignore own echo","Drops bytes received while this port is sending. Turn on if replies start with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, to test without wiring. It ignores the connected devices but still transmits to them."))),
+  el("div",{class:"acts"},save,el("button",{type:"button",onclick(){open=-1;buildPorts()}},"Cancel"),msg));
+ const m=f.elements.mode;m.onchange=()=>{const v=m.value;
+  f.querySelector("[data-f=local_port]").hidden=v==="client";
+  f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server";
+  hint.textContent=v==="server"?"Up to 4 connections at once. Data ports have no password: anyone on this network can connect.":v==="client"?"Connects out and reconnects by itself.":"Leave the remote host empty to answer whoever sent last."};m.onchange();
+ save.disabled=!key;save.title=key?"":"Sign in to change settings";
+ return el("tr",{class:"edit"},el("td",{colSpan:8},f))}
+document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38400,57600,115200,230400,460800,921600].map(v=>el("option",{value:String(v)}))));
+
+/* ---- network + device ---- */
+function showStatic(){document.querySelector("[data-static]").hidden=$("net").elements.mode.value!=="static"}
+function fillForms(){const n=$("net").elements;for(const k of ["mode","ip","mask","gateway","dns"])n[k].value=cfg.net[k];
+ if(cfg.net.mode==="dhcp"&&st){if(!n.ip.value)n.ip.value=st.ip;if(!n.mask.value)n.mask.value=st.mask;if(!n.gateway.value)n.gateway.value=st.gateway}
+ $("dev").elements.name.value=cfg.device.name;showStatic();title()}
+function title(){const n=cfg.device.name||"N540 gateway";$("dname").textContent=n;document.title=n}
+$("net").elements.mode.onchange=showStatic;
+$("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("net").querySelector(".msg");
+ const L=["net.mode="+n.mode.value];if(n.mode.value==="static")for(const k of ["ip","mask","gateway","dns"])L.push("net."+k+"="+n[k].value.trim());
+ else for(const k of ["ip","mask","gateway","dns"])L.push("net."+k+"="+cfg.net[k]);
+ say(m,"Saving…");try{const r=JSON.parse(await post("/api/config",L.join("\n")));
+  if(!r.net_pending){say(m,"Saved.","ok");return}
+  if(n.mode.value==="static"&&n.ip.value.trim()!==location.hostname&&!location.hostname.endsWith(".local"))
+   say(m,"Moving to a new address. Within two minutes open http://"+n.ip.value.trim()+"/ and choose Keep settings.","warn");
+  else say(m,"On trial. Choose Keep settings above.","warn")}catch(e){say(m,e.message,"bad")}};
+$("keep").onclick=async()=>{try{await post("/api/keep","");cfg=await getj("/api/config");fillForms();say($("net").querySelector(".msg"),"Saved.","ok");tick()}catch(e){say($("net").querySelector(".msg"),e.message,"bad")}};
+$("dev").onsubmit=async ev=>{ev.preventDefault();const m=$("dev").querySelector(".msg");say(m,"Saving…");
+ try{await post("/api/config","device.name="+$("dev").elements.name.value.trim());cfg=await getj("/api/config");title();say(m,"Saved.","ok")}catch(e){say(m,e.message,"bad")}};
+let armed=0;$("restart").onclick=async()=>{const b=$("restart");
+ if(!armed){b.textContent="Confirm restart";b.className="danger";armed=setTimeout(()=>{armed=0;b.textContent="Restart";b.className=""},4000);return}
+ clearTimeout(armed);armed=0;b.textContent="Restart";b.className="";
+ try{await post("/reboot","");say($("devmsg"),"Restarting; back in about 10 seconds.")}catch(e){say($("devmsg"),e.message,"bad")}};
+$("chpw").onclick=()=>{$("pwform").hidden=false;$("pwform").elements.a.focus()};
+$("pwcancel").onclick=()=>{$("pwform").reset();$("pwform").hidden=true};
+$("pwform").onsubmit=async ev=>{ev.preventDefault();const f=$("pwform"),m=f.querySelector(".msg"),a=f.elements.a.value;
+ if(a.length<8)return say(m,"Use at least 8 characters.","bad");if(a!==f.elements.b.value)return say(m,"The two passwords differ.","bad");
+ say(m,"Saving…");const s=crypto.getRandomValues(new Uint8Array(16)),nk=pbkdf2(utf(a),s,ROUNDS),old=key;
+ try{await post("/api/password","",nonce=>{const pad=hmac(old,utf("newkey\n"+nonce));return "salt="+hex(s)+"\nkey="+hex(nk.map((x,i)=>x^pad[i]))});
+  salt=hex(s);setKey(nk);f.reset();f.hidden=true;say($("devmsg"),"Password changed.","ok")}catch(e){say(m,e.message,"bad")}};
+$("signin").onclick=()=>{$("login").hidden=false;$("signin").hidden=true;$("pw").focus()};
+$("signout").onclick=()=>setKey(null);
+$("login").onsubmit=async ev=>{ev.preventDefault();const m=$("loginmsg"),b=$("login").querySelector("button");m.hidden=true;b.disabled=true;
+ try{const l=await getj("/api/login");salt=l.salt;await new Promise(r=>setTimeout(r));
+  const k=pbkdf2(utf($("pw").value),unhex(salt),ROUNDS);await post("/api/check","",null,k);$("pw").value="";$("login").hidden=true;setKey(k)}
+ catch(e){m.textContent=e.message;m.hidden=false}finally{b.disabled=false}};
+
+/* ---- refresh ---- */
+const RST=r=>{const v=parseInt(r,16);return v&0x800000?"Power on":v&0x1000000?"Restart":v&0x400000?"Watchdog or reset pin":"Other ("+r+")"};
+let failing=0,timer=0;
+async function tick(){clearTimeout(timer);
+ try{const s=await getj("/api/state"),now=performance.now();
+  if(prev&&s.uptime_s>=prev.s.uptime_s){const dt=(now-prev.t)/1000;if(dt>.4){rate=s.ports.map((p,i)=>[(p.serial_rx-prev.s.ports[i].serial_rx)/dt,(p.serial_tx-prev.s.ports[i].serial_tx)/dt]);prev={s,t:now}}}else{rate=[];prev={s,t:now}}
+  st=s;if(!cfg||failing){const l=await getj("/api/login");pwset=l.password_set;salt=l.salt;const c=await getj("/api/config");const first=!cfg;cfg=c;if(first||open<0)buildPorts();if(first)fillForms();authUI()}
+  failing=0;$("offline").hidden=true;
+  $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
+  $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
+  const rows=[["Address",s.ip+" ("+s.host+".local)"],["MAC",s.mac],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["Firmware",s.version+(s.slot>=0?", slot "+"AB"[s.slot]:"")],["Last start",RST(s.reset)+", "+dur(s.uptime_s)+" ago"]];
+  $("info").replaceChildren(...rows.flatMap(([a,b])=>[el("dt",{},a),el("dd",{},b)]));
+  paint()}
+ catch(e){failing++;if(failing>1){$("offline").hidden=false}}
+ timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
+tick();
+</script>
+</body>
+</html>
