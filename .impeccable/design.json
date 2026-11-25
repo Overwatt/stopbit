@@ -1,6 +1,6 @@
 {
  "schemaVersion": 2,
- "generatedAt": "2026-11-25T15:09:27+00:00",
+ "generatedAt": "2026-11-25T15:13:19+00:00",
  "title": "Design System: N540 gateway",
  "extensions": {
   "colorMeta": {
@@ -34,19 +34,19 @@
      "#e0f4ef"
     ]
    },
-   "solder-mask-tint": {
+   "solder-mask-press": {
     "role": "primary",
-    "displayName": "Mask tint",
-    "canonical": "oklch(94.3% 0.012 178)",
+    "displayName": "Solder-mask teal, held",
+    "canonical": "oklch(33.1% 0.056 180)",
     "tonalRamp": [
-     "#090c0b",
-     "#212625",
-     "#3d4442",
-     "#5a6461",
-     "#7c8482",
-     "#a0a7a5",
-     "#c5cac9",
-     "#ecefee"
+     "#000f0c",
+     "#0e2b26",
+     "#234a43",
+     "#3b6c63",
+     "#638c84",
+     "#8cada6",
+     "#b7cfca",
+     "#e2f3ef"
     ]
    },
    "on-mask": {
@@ -139,25 +139,85 @@
      "#edefee"
     ]
    },
-   "field": {
+   "rule": {
     "role": "neutral",
-    "displayName": "Field",
-    "canonical": "oklch(100.0% 0.000 90)",
+    "displayName": "Rule",
+    "canonical": "oklch(95.2% 0.004 157)",
     "tonalRamp": [
-     "#0b0b0b",
-     "#252525",
-     "#424242",
-     "#616161",
-     "#828282",
-     "#a5a5a5",
-     "#c9c9c9",
-     "#eeeeee"
+     "#0a0b0b",
+     "#242524",
+     "#414241",
+     "#5f6260",
+     "#818381",
+     "#a4a5a4",
+     "#c8c9c8",
+     "#eeefee"
+    ]
+   },
+   "well": {
+    "role": "neutral",
+    "displayName": "Well",
+    "canonical": "oklch(94.8% 0.006 154)",
+    "tonalRamp": [
+     "#0a0b0b",
+     "#242624",
+     "#404341",
+     "#5f6260",
+     "#808381",
+     "#a3a6a4",
+     "#c8cac8",
+     "#edefee"
+    ]
+   },
+   "key": {
+    "role": "neutral",
+    "displayName": "Key",
+    "canonical": "oklch(92.6% 0.008 165)",
+    "tonalRamp": [
+     "#0a0c0b",
+     "#232624",
+     "#3f4341",
+     "#5d6360",
+     "#7f8481",
+     "#a2a6a4",
+     "#c7cac8",
+     "#edefee"
+    ]
+   },
+   "key-hover": {
+    "role": "neutral",
+    "displayName": "Key, hovered",
+    "canonical": "oklch(89.0% 0.010 165)",
+    "tonalRamp": [
+     "#090c0b",
+     "#222624",
+     "#3e4341",
+     "#5c6360",
+     "#7e8481",
+     "#a1a6a4",
+     "#c6cac8",
+     "#ecefee"
+    ]
+   },
+   "key-press": {
+    "role": "neutral",
+    "displayName": "Key, pressed",
+    "canonical": "oklch(84.8% 0.013 165)",
+    "tonalRamp": [
+     "#090c0a",
+     "#212624",
+     "#3d4440",
+     "#5b645f",
+     "#7d8481",
+     "#a0a7a4",
+     "#c5cac8",
+     "#ecefee"
     ]
    },
    "field-line": {
     "role": "neutral",
     "displayName": "Field line",
-    "canonical": "oklch(66.5% 0.016 164)",
+    "canonical": "oklch(59.5% 0.017 164)",
     "tonalRamp": [
      "#080c0a",
      "#202724",
@@ -165,7 +225,7 @@
      "#59645f",
      "#7b8580",
      "#9fa7a3",
-     "#c5cbc8",
+     "#c4cbc8",
      "#ebf0ed"
     ]
    },
@@ -247,16 +307,16 @@
    "idle": {
     "role": "state",
     "displayName": "Idle grey",
-    "canonical": "oklch(61.2% 0.017 164)",
+    "canonical": "oklch(54.5% 0.015 167)",
     "tonalRamp": [
      "#080c0a",
-     "#202724",
+     "#212724",
      "#3c4440",
      "#59645f",
-     "#7b8580",
-     "#9fa7a3",
-     "#c4cbc8",
-     "#ebf0ed"
+     "#7b8581",
+     "#9fa7a4",
+     "#c5cbc8",
+     "#ebefee"
     ]
    },
    "solder-mask-dark": {
@@ -289,19 +349,19 @@
      "#daf6ef"
     ]
    },
-   "solder-mask-tint-dark": {
+   "solder-mask-press-dark": {
     "role": "primary",
-    "displayName": "Mask tint (dark)",
-    "canonical": "oklch(28.9% 0.023 177)",
+    "displayName": "Solder-mask teal, held (dark)",
+    "canonical": "oklch(62.6% 0.092 178)",
     "tonalRamp": [
-     "#070d0b",
-     "#1e2725",
-     "#384542",
-     "#546661",
-     "#778682",
-     "#9ca8a5",
-     "#c2ccc9",
-     "#eaf0ee"
+     "#00110b",
+     "#002e25",
+     "#004f42",
+     "#007261",
+     "#499282",
+     "#7ab2a5",
+     "#aad3c9",
+     "#daf6ee"
     ]
    },
    "on-mask-dark": {
@@ -394,10 +454,25 @@
      "#ecefee"
     ]
    },
-   "field-dark": {
+   "rule-dark": {
     "role": "neutral",
-    "displayName": "Field (dark)",
-    "canonical": "oklch(20.7% 0.009 169)",
+    "displayName": "Rule (dark)",
+    "canonical": "oklch(28.9% 0.011 168)",
+    "tonalRamp": [
+     "#090c0b",
+     "#222624",
+     "#3e4441",
+     "#5b6360",
+     "#7d8481",
+     "#a1a7a4",
+     "#c6cac8",
+     "#ecefee"
+    ]
+   },
+   "well-dark": {
+    "role": "neutral",
+    "displayName": "Well (dark)",
+    "canonical": "oklch(19.9% 0.009 169)",
     "tonalRamp": [
      "#0a0c0b",
      "#232625",
@@ -405,22 +480,67 @@
      "#5d6360",
      "#7e8481",
      "#a2a6a4",
-     "#c7cac9",
+     "#c6cac8",
      "#edefee"
+    ]
+   },
+   "key-dark": {
+    "role": "neutral",
+    "displayName": "Key (dark)",
+    "canonical": "oklch(31.5% 0.014 167)",
+    "tonalRamp": [
+     "#090c0a",
+     "#212724",
+     "#3c4441",
+     "#5a645f",
+     "#7c8581",
+     "#a0a7a4",
+     "#c5cbc8",
+     "#ecefee"
+    ]
+   },
+   "key-hover-dark": {
+    "role": "neutral",
+    "displayName": "Key, hovered (dark)",
+    "canonical": "oklch(36.1% 0.015 169)",
+    "tonalRamp": [
+     "#080c0b",
+     "#212724",
+     "#3c4441",
+     "#596460",
+     "#7b8581",
+     "#9fa7a4",
+     "#c5cbc8",
+     "#ebefee"
+    ]
+   },
+   "key-press-dark": {
+    "role": "neutral",
+    "displayName": "Key, pressed (dark)",
+    "canonical": "oklch(27.6% 0.013 171)",
+    "tonalRamp": [
+     "#090c0b",
+     "#212624",
+     "#3d4441",
+     "#5b6460",
+     "#7c8481",
+     "#a0a7a4",
+     "#c5cac8",
+     "#ecefee"
     ]
    },
    "field-line-dark": {
     "role": "neutral",
     "displayName": "Field line (dark)",
-    "canonical": "oklch(54.3% 0.018 166)",
+    "canonical": "oklch(59.3% 0.020 164)",
     "tonalRamp": [
      "#080c0a",
-     "#202724",
-     "#3b4540",
-     "#58655f",
-     "#7a8580",
+     "#202723",
+     "#3a4540",
+     "#58655e",
+     "#7a8680",
      "#9ea8a3",
-     "#c4cbc8",
+     "#c4cbc7",
      "#ebf0ed"
     ]
    },
@@ -537,18 +657,29 @@
     "purpose": "Commands and the chip serial only."
    }
   },
-  "shadows": [],
+  "shadows": [
+   {
+    "name": "lift",
+    "value": "0 1px 2px rgba(24,32,29,.08), 0 4px 14px rgba(24,32,29,.07)",
+    "purpose": "Panels and header, light."
+   },
+   {
+    "name": "lift-dark",
+    "value": "0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.28)",
+    "purpose": "Panels and header, dark."
+   }
+  ],
   "motion": [
    {
     "name": "colour-change",
     "value": ".15s",
-    "purpose": "Hover colour on buttons and tabs. Removed under reduced motion."
+    "purpose": "Hover and press on buttons, field feet and tabs. Removed under reduced motion."
    }
   ],
   "breakpoints": [
    {
     "name": "narrow",
-    "value": "960px"
+    "value": "1100px"
    }
   ]
  },
@@ -559,7 +690,7 @@
    "refersTo": "button",
    "description": "Secondary actions.",
    "html": "<button class=\"ds-btn\">Cancel</button>",
-   "css": ".ds-btn{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--field-line,#8b9791);background:var(--panel,#fff);color:var(--ink,#18201d);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn:hover{background:var(--tint,#e4efec)}.ds-btn:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+   "css": ".ds-btn{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:600;border:0;border-radius:6px;padding:9px 18px;min-height:44px;cursor:pointer;transition:background .15s;background:var(--key,#e2e8e5);color:var(--ink,#18201d)}.ds-btn:hover{background:var(--key-hover,#d5ddd9)}.ds-btn:active{background:var(--key-press,#c6d0cb)}.ds-btn:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
   },
   {
    "name": "Primary button",
@@ -567,7 +698,7 @@
    "refersTo": "button-primary",
    "description": "The one action a form exists for.",
    "html": "<button class=\"ds-btn-p\">Save port</button>",
-   "css": ".ds-btn-p{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--accent,#0d6658);background:var(--accent,#0d6658);color:var(--accent-ink,#fff);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn-p:hover{background:var(--accent-hover,#0a5247);border-color:var(--accent-hover,#0a5247)}.ds-btn-p:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+   "css": ".ds-btn-p{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:600;border:0;border-radius:6px;padding:9px 18px;min-height:44px;cursor:pointer;transition:background .15s;background:var(--accent,#0d6658);color:var(--accent-ink,#fff)}.ds-btn-p:hover{background:var(--accent-hover,#0a5247)}.ds-btn-p:active{background:var(--press,#073f37)}.ds-btn-p:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
   },
   {
    "name": "Confirm (danger) button",
@@ -575,7 +706,7 @@
    "refersTo": "button-danger",
    "description": "Second press of a two-press confirm.",
    "html": "<button class=\"ds-btn-d\">Confirm restart</button>",
-   "css": ".ds-btn-d{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--bad,#b3261e);background:var(--panel,#fff);color:var(--bad,#b3261e);cursor:pointer;transition:background .15s,border-color .15s}.ds-btn-d:hover{background:var(--tint,#e4efec)}.ds-btn-d:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+   "css": ".ds-btn-d{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-weight:600;border:0;border-radius:6px;padding:9px 18px;min-height:44px;cursor:pointer;transition:background .15s;background:var(--bad-bg,#fcebe9);color:var(--bad,#b3261e)}.ds-btn-d:hover{background:var(--bad-bg,#fcebe9)}.ds-btn-d:active{background:var(--bad-bg,#fcebe9)}.ds-btn-d:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
   },
   {
    "name": "Field",
@@ -583,7 +714,7 @@
    "refersTo": "field",
    "description": "Label above, value below.",
    "html": "<label class=\"ds-f\">Baud rate<input value=\"9600\"></label>",
-   "css": ".ds-f{display:block;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.875rem;color:var(--soft,#55605b)}.ds-f input{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;color:var(--ink,#18201d);display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:7px 9px;border:1px solid var(--field-line,#8b9791);border-radius:6px;background:var(--field,#fff);caret-color:var(--accent,#0d6658);min-height:38px}.ds-f input:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
+   "css": ".ds-f{display:block;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.875rem;color:var(--soft,#55605b)}.ds-f input{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;color:var(--ink,#18201d);display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:9px 12px;border:0;border-bottom:2px solid var(--field-line,#76827c);border-radius:6px 6px 2px 2px;background:var(--well,#ebefec);caret-color:var(--accent,#0d6658);min-height:44px;transition:border-color .15s}.ds-f input:hover,.ds-f input:focus{border-color:var(--accent,#0d6658)}.ds-f input:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:2px}"
   },
   {
    "name": "Checkbox with consequence",
@@ -591,7 +722,7 @@
    "refersTo": "field",
    "description": "A setting and what it does.",
    "html": "<label class=\"ds-c\"><input type=\"checkbox\" checked><span>Listen only<span>Nothing is sent on the line.</span></span></label>",
-   "css": ".ds-c{display:flex;gap:9px;align-items:flex-start;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.9375rem;color:var(--ink,#18201d)}.ds-c input{width:17px;height:17px;margin:3px 0 0;accent-color:var(--accent,#0d6658)}.ds-c span span{display:block;color:var(--soft,#55605b);font-size:.875rem}"
+   "css": ".ds-c{display:flex;gap:11px;align-items:flex-start;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:.9375rem;color:var(--ink,#18201d)}.ds-c input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent,#0d6658)}.ds-c span span{display:block;color:var(--soft,#55605b);font-size:.875rem}"
   },
   {
    "name": "Tabs",
@@ -599,7 +730,7 @@
    "refersTo": "nav-link",
    "description": "Pages, under the device name.",
    "html": "<nav class=\"ds-n\"><a href=\"#\" aria-current=\"page\">Ports</a><a href=\"#\">Network</a></nav>",
-   "css": ".ds-n{display:flex;gap:4px;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;}.ds-n a{color:var(--soft,#55605b);text-decoration:none;font-weight:550;padding:9px 12px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}.ds-n a:hover{color:var(--ink,#18201d);border-color:var(--field-line,#8b9791)}.ds-n a[aria-current]{color:var(--ink,#18201d);border-color:var(--accent,#0d6658)}.ds-n a:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:-2px}"
+   "css": ".ds-n{display:flex;gap:4px;font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;}.ds-n a{color:var(--soft,#55605b);text-decoration:none;font-weight:550;padding:11px 12px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}.ds-n a:hover{color:var(--ink,#18201d);border-color:var(--field-line,#8b9791)}.ds-n a[aria-current]{color:var(--ink,#18201d);border-color:var(--accent,#0d6658)}.ds-n a:focus-visible{outline:2px solid var(--accent,#0d6658);outline-offset:-2px}"
   },
   {
    "name": "Reading table",
@@ -607,7 +738,7 @@
    "refersTo": "panel",
    "description": "One row per port or part.",
    "html": "<div class=\"ds-t\"><div><b>Port 1</b><span class=\"ok\"><i></i>Connected</span><span class=\"n\">1.9 MB<small>2.0 kB/s</small></span></div><div><b>Port 2</b><span><i></i>Off</span><span class=\"n\">0 B</span></div></div>",
-   "css": ".ds-t{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;background:var(--panel,#fff);color:var(--ink,#18201d);border:1px solid var(--line,#d5dbd7);border-radius:8px}.ds-t>div{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:11px 20px;border-top:1px solid var(--line,#d5dbd7)}.ds-t>div:first-child{border-top:0}.ds-t b{font-weight:600}.ds-t i{display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:7px}.ds-t span{color:var(--idle,#7b8781)}.ds-t .ok{color:var(--ok,#17703d)}.ds-t .n{text-align:right;color:inherit}.ds-t small{display:block;font-size:.875rem;color:var(--soft,#55605b)}"
+   "css": ".ds-t{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;background:var(--panel,#fff);color:var(--ink,#18201d);border-radius:8px;box-shadow:var(--lift,0 1px 2px rgba(24,32,29,.08),0 4px 14px rgba(24,32,29,.07))}.ds-t>div{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:11px 20px;border-top:1px solid var(--rule,#edf0ee)}.ds-t>div:first-child{border-top:0}.ds-t b{font-weight:600}.ds-t i{display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:7px}.ds-t span{color:var(--idle,#68736e)}.ds-t .ok{color:var(--ok,#17703d)}.ds-t .n{text-align:right;color:inherit}.ds-t small{display:block;font-size:.875rem;color:var(--soft,#55605b)}"
   },
   {
    "name": "Notice",
@@ -615,7 +746,7 @@
    "refersTo": "notice-warn",
    "description": "Something will happen unless you act.",
    "html": "<div class=\"ds-w\"><p>New network settings are on trial.</p><button>Keep settings</button></div>",
-   "css": ".ds-w{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;border:1px solid;border-radius:8px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--warn-bg,#fdf1dc);color:var(--warn,#8a5300)}.ds-w p{margin:0;flex:1}.ds-w button{font:inherit;font-weight:550;border-radius:6px;padding:7px 14px;border:1px solid var(--field-line,#8b9791);background:var(--panel,#fff);color:var(--ink,#18201d)}"
+   "css": ".ds-w{font:15px/1.5 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;border-radius:8px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--warn-bg,#fdf1dc);color:var(--warn,#8a5300)}.ds-w p{margin:0;flex:1}.ds-w button{font:inherit;font-weight:600;border-radius:6px;padding:9px 18px;min-height:44px;border:0;background:var(--panel,#fff);color:var(--ink,#18201d)}"
   }
  ],
  "narrative": {
@@ -625,7 +756,9 @@
    "System type with tabular figures; numbers align and hold still.",
    "Light and dark follow the viewer's setting, with the same roles in both.",
    "Tables for readings, plain forms for settings, one column of controls at a time.",
-   "Colour and motion only when something is operable, current, or wrong."
+   "Colour and motion only when something is operable, current, or wrong.",
+   "Panels are lifted; inside them, tone does the work of lines.",
+   "Controls are sturdy and deliberate: 44px, clear shapes, a visible press."
   ],
   "rules": [
    {
@@ -647,6 +780,16 @@
     "name": "The Still Table Rule",
     "body": "Live values change in place. Column widths and row positions do not react to them.",
     "section": "layout"
+   },
+   {
+    "name": "The One Lift Rule",
+    "body": "There is a single shadow and a single raised level. Nothing is lifted off something already lifted.",
+    "section": "elevation & depth"
+   },
+   {
+    "name": "The Tone-Not-Line Rule",
+    "body": "Inside a panel, areas are told apart by tone. Lines are for the rule between rows and the foot of a field.",
+    "section": "elevation & depth"
    }
   ],
   "dos": [
@@ -660,7 +803,8 @@
    "**Don't** look like the vendor's old web UI: frames, grey forms.",
    "**Don't** look like a marketing dashboard: big number tiles, gradients, charts for show.",
    "**Don't** use green, amber or red for anything but state.",
-   "**Don't** nest panels.",
+   "**Don't** nest panels, or add a second shadow.",
+   "**Don't** box things inside a panel with borders.",
    "**Don't** animate anything but colour on hover."
   ]
  }

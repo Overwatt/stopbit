@@ -4,32 +4,40 @@ description: A bench instrument for four RS485 ports, read and operated in a bro
 colors:
   solder-mask: "#0d6658"
   solder-mask-deep: "#0a5247"
-  solder-mask-tint: "#e4efec"
+  solder-mask-press: "#073f37"
   on-mask: "#ffffff"
   bench: "#f3f5f3"
   panel: "#ffffff"
   ink: "#18201d"
   ink-soft: "#55605b"
   line: "#d5dbd7"
-  field: "#ffffff"
-  field-line: "#8b9791"
+  rule: "#edf0ee"
+  well: "#ebefec"
+  key: "#e2e8e5"
+  key-hover: "#d5ddd9"
+  key-press: "#c6d0cb"
+  field-line: "#76827c"
   ok: "#17703d"
   warn: "#8a5300"
   warn-ground: "#fdf1dc"
   bad: "#b3261e"
   bad-ground: "#fcebe9"
-  idle: "#7b8781"
+  idle: "#68736e"
   solder-mask-dark: "#4fb8a3"
   solder-mask-deep-dark: "#6ccab7"
-  solder-mask-tint-dark: "#1f2f2b"
+  solder-mask-press-dark: "#3d9a88"
   on-mask-dark: "#0b1a16"
   bench-dark: "#131816"
   panel-dark: "#1b211f"
   ink-dark: "#e6ebe8"
   ink-soft-dark: "#a3afa9"
   line-dark: "#313a36"
-  field-dark: "#141917"
-  field-line-dark: "#66736d"
+  rule-dark: "#262d2a"
+  well-dark: "#121715"
+  key-dark: "#2b3430"
+  key-hover-dark: "#36403c"
+  key-press-dark: "#222a27"
+  field-line-dark: "#74827b"
   ok-dark: "#62c98b"
   warn-dark: "#e7b45e"
   warn-ground-dark: "#32270f"
@@ -71,34 +79,41 @@ spacing:
   section: "36px"
 components:
   button:
-    backgroundColor: "{colors.panel}"
+    backgroundColor: "{colors.key}"
     textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    padding: "7px 14px"
+    padding: "9px 18px"
+    height: "44px"
   button-hover:
-    backgroundColor: "{colors.solder-mask-tint}"
+    backgroundColor: "{colors.key-hover}"
+  button-active:
+    backgroundColor: "{colors.key-press}"
   button-primary:
     backgroundColor: "{colors.solder-mask}"
     textColor: "{colors.on-mask}"
     rounded: "{rounded.control}"
-    padding: "7px 14px"
+    padding: "9px 18px"
+    height: "44px"
   button-primary-hover:
     backgroundColor: "{colors.solder-mask-deep}"
+  button-primary-active:
+    backgroundColor: "{colors.solder-mask-press}"
   button-danger:
+    backgroundColor: "{colors.bad-ground}"
     textColor: "{colors.bad}"
   field:
-    backgroundColor: "{colors.field}"
+    backgroundColor: "{colors.well}"
     textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    padding: "7px 9px"
-    height: "38px"
+    padding: "9px 12px"
+    height: "44px"
   panel:
     backgroundColor: "{colors.panel}"
     rounded: "{rounded.panel}"
     padding: "18px 20px"
   nav-link:
     textColor: "{colors.ink-soft}"
-    padding: "9px 12px"
+    padding: "11px 12px"
   nav-link-current:
     textColor: "{colors.ink}"
   notice-warn:
@@ -135,10 +150,8 @@ look like a marketing dashboard (big number tiles, gradients, charts for show).
 - Light and dark follow the viewer's setting, with the same roles in both.
 - Tables for readings, plain forms for settings, one column of controls at a time.
 - Colour and motion only when something is operable, current, or wrong.
-
-**Agreed direction, not built yet (2026-11-25):** panels lifted on a soft shadow without
-borders; inside them, tone instead of lines, with recessed fields and toned secondary
-buttons; controls sturdier and more deliberate than today's (44px instead of about 38px).
+- Panels are lifted; inside them, tone does the work of lines.
+- Controls are sturdy and deliberate: 44px, clear shapes, a visible press.
 
 ## Colors
 
@@ -146,18 +159,20 @@ Solder-mask teal and cool grey: one saturated colour on neutrals that lean sligh
 
 ### Primary
 - **Solder-mask teal** (#0d6658, dark #4fb8a3): the primary button, the current page's
-  underline, focus outlines, text selection, checkbox fill and the caret. Hover deepens it
-  (#0a5247; in dark it lightens, #6ccab7).
-- **Mask tint** (#e4efec, dark #1f2f2b): hover on secondary buttons, the file picker's
-  button.
+  underline, a hovered or focused field's edge, focus outlines, text selection, checkbox
+  fill and the caret. Hover deepens it (#0a5247; in dark it lightens, #6ccab7); pressing
+  goes further (#073f37, dark #3d9a88).
 
 ### Neutral
-- **Bench** (#f3f5f3, dark #131816): the page, and the ground of an open row editor.
+- **Bench** (#f3f5f3, dark #131816): the page.
 - **Panel** (#ffffff, dark #1b211f): header, panels, tables.
 - **Ink** (#18201d, dark #e6ebe8): readings, names, values.
 - **Soft ink** (#55605b, dark #a3afa9): labels, table heads, second lines, inactive tabs.
-- **Line** (#d5dbd7, dark #313a36): panel edges and row rules.
-- **Field line** (#8b9791, dark #66736d): edges of fields and buttons, 3:1 on panel.
+- **Well** (#ebefec, dark #121715): anything recessed. Fields, table heads, an open editor.
+- **Key** (#e2e8e5, dark #2b3430): secondary buttons, with a hover and a pressed step.
+- **Rule** (#edf0ee, dark #262d2a): the faint line between table rows.
+- **Line** (#d5dbd7, dark #313a36): the edge of a disabled button, only.
+- **Field line** (#76827c, dark #74827b): the 2px foot of a field, at least 3:1.
 
 ### State
 - **Running green** (#17703d, dark #62c98b): connected, listening, ready, saved.
@@ -165,8 +180,7 @@ Solder-mask teal and cool grey: one saturated colour on neutrals that lean sligh
   sign-in needed.
 - **Fault red** (#b3261e, dark #f2877e) on its own ground: errors, offline, destructive
   confirmation.
-- **Idle grey** (#7b8781, dark #8a968f): off. At 3.7:1 on a light panel it is below 4.5:1
-  for text. Known gap.
+- **Idle grey** (#68736e, dark #8a968f): off. Readable as text (4.5:1) in both themes.
 
 ### Named Rules
 **The State-Only Rule.** Green, amber and red appear only for state, never as decoration
@@ -203,9 +217,9 @@ sit in two equal columns 20px apart.
 Tables have fixed layouts with stated column widths. Form fields fill a grid of columns at
 least 150px wide, 16px apart across and 12px down.
 
-There is one breakpoint, 960px. Below it the columns stack, each table row becomes a
-two-column block with its headings repeated in soft ink, tap targets grow to 44px, and the
-row's button spans its cell.
+There is one breakpoint, 1100px, the width the full table needs. Below it the columns stack, each table row becomes a
+two-column block with its headings repeated in soft ink, and the row's button spans its cell.
+Tap targets are 44px at every width.
 
 ### Named Rules
 **The Still Table Rule.** Live values change in place. Column widths and row positions do
@@ -213,55 +227,72 @@ not react to them.
 
 ## Elevation & Depth
 
-Flat today. There are no shadows. Depth is a 1px line around each panel and the step from
-bench to panel. An open editor sinks back to the bench tone inside its table.
+Two levels and a recess. Panels and the header are lifted off the bench by one soft shadow
+and have no border. Inside a panel there are no boxes: fields, table heads and open editors
+sink to the well tone. In an open editor the relation flips, and its fields and buttons rise
+to the panel tone.
 
 Focus is the one ring: 2px of teal, 2px clear of the control.
 
+### Shadow Vocabulary
+- **Lift** (`box-shadow: 0 1px 2px rgba(24,32,29,.08), 0 4px 14px rgba(24,32,29,.07)`; dark
+  `0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.28)`): panels and the header. Nothing
+  else casts a shadow.
+
+### Named Rules
+**The One Lift Rule.** There is a single shadow and a single raised level. Nothing is lifted
+off something already lifted.
+**The Tone-Not-Line Rule.** Inside a panel, areas are told apart by tone. Lines are for the
+rule between rows and the foot of a field.
+
 ## Shapes
 
-Gently rounded rectangles: panels 8px, buttons and fields 6px, the file picker's inner
-button 4px. Edges are 1px. Circles appear only as state dots (9px). Tabs are text with a 2px
-underline, not boxes.
+Gently rounded rectangles: panels 8px, buttons 6px, the file picker's inner button 4px.
+Fields are 6px at the top and 2px at the foot, where they carry their 2px edge. Circles
+appear only as state dots (9px). Tabs are text with a 3px underline, not boxes.
 
 ## Components
 
 ### Buttons
-Quiet today; agreed to become sturdier.
-- **Shape:** 6px corners, 1px field-line edge, 7px by 14px, weight 550.
+Sturdy and deliberate, like switches on equipment.
+- **Shape:** at least 44px tall, 6px corners, 9px by 18px (9px by 12px in a table row), weight
+  600, no border.
 - **Primary:** teal with white ink (dark ink on light teal in dark mode). One per form.
-- **Hover:** mask tint, or deeper teal on the primary. 150ms colour change only.
-- **Danger:** red text and edge, used for the second press of a two-press confirm. The
+- **Secondary:** key tone; panel tone inside an open editor or a notice.
+- **Hover / Active:** one tone deeper, then another while pressed. 150ms colour change only.
+- **Danger:** fault red on its ground, for the second press of a two-press confirm. The
   button renames itself ("Restart" to "Confirm restart") for four seconds.
-- **Disabled:** no fill, soft ink, a message beside it saying what to do.
+- **Disabled:** no fill, soft ink, a 1px line, and a message beside it saying what to do.
 
 ### Cards / Containers
 - **Corner Style:** 8px.
 - **Background:** panel on bench. Never nested.
-- **Border:** 1px line. No shadow.
+- **Shadow Strategy:** the Lift. No border.
 - **Internal Padding:** 18px by 20px for forms; tables run edge to edge.
 
 ### Inputs / Fields
-- **Style:** label above in soft ink, 1px field-line edge, 6px corners, at least 38px tall.
-- **Focus:** the 2px teal ring; teal caret.
+Recessed, with a firm foot.
+- **Style:** label above in soft ink; well tone, no side edges, a 2px foot, at least 44px tall.
+- **Hover / Focus:** the foot turns teal; focus adds the 2px ring and a teal caret.
 - **Disabled:** 60% opacity.
-- **Checkbox:** native, 17px, teal, with a title and an optional second line stating the
+- **Checkbox:** native, 20px, teal, with a title and an optional second line stating the
   consequence.
 
 ### Navigation
-Four text tabs under the device name. Soft ink; ink and a field-line underline on hover; ink
-and a teal underline when current. Same on a phone, with taller targets.
+Four text tabs under the device name, at least 44px tall. Soft ink; ink and a grey underline
+on hover; ink and a 3px teal underline when current. Same on a phone.
 
 ### Reading table
-The signature component. One row per port or part: a bold name, then readings. Numbers are
+The signature component. A well-toned head, then one row per port or part: a bold name, then
+readings. Numbers are
 right-aligned with a second line in soft ink (the rate under a total). State is a dot and a
-word. A row's editor opens beneath it, on the bench tone, inside the table.
+word. A row's editor opens beneath it, in the well, inside the table.
 
 ### Reading list
 Term in soft ink, value in ink, two columns. Used for settings in effect, firmware, memory.
 
 ### Notice
-Full-width, 8px corners, amber or red ink and edge on its own ground, with its action on the
+Full-width, 8px corners, amber or red ink on its own ground, no edge, with its action on the
 right. For things that will happen unless the viewer acts, or that have stopped working.
 
 ## Do's and Don'ts
@@ -277,5 +308,6 @@ right. For things that will happen unless the viewer acts, or that have stopped 
 - **Don't** look like the vendor's old web UI: frames, grey forms.
 - **Don't** look like a marketing dashboard: big number tiles, gradients, charts for show.
 - **Don't** use green, amber or red for anything but state.
-- **Don't** nest panels.
+- **Don't** nest panels, or add a second shadow.
+- **Don't** box things inside a panel with borders.
 - **Don't** animate anything but colour on hover.
