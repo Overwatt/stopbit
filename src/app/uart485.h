@@ -24,5 +24,7 @@ size_t uart485_read(int p, uint8_t *buf, size_t n);
 uint32_t uart485_rx_idle_us(int p);             /* since the last received byte */
 size_t uart485_tx_room(int p);
 size_t uart485_write(int p, const uint8_t *buf, size_t n);
+/* Names the UART and its pins ("PA9"); each buffer holds 8. */
+const char *uart485_pins(int p, char *tx, char *rx, char *de);
 bool   uart485_tx_idle(int p);                  /* ring and shifter empty */
 #endif

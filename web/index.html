@@ -18,9 +18,15 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
 ::selection{background:var(--accent);color:var(--accent-ink)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-main,header .in{max-width:1080px;margin:0 auto;padding:0 20px}
+main,header .in,nav{max-width:1080px;margin:0 auto;padding:0 20px}
 header{background:var(--panel);border-bottom:1px solid var(--line)}
 header .in{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:center;padding-top:14px;padding-bottom:14px}
+header .in{padding-bottom:10px}
+nav{display:flex;gap:4px;margin:0 auto;padding:0 8px}
+nav a{color:var(--soft);text-decoration:none;font-weight:550;padding:9px 12px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+nav a:hover{color:var(--ink);border-color:var(--field-line)}
+nav a[aria-current]{color:var(--ink);border-color:var(--accent)}
+nav a:focus-visible{outline-offset:-2px}
 h1{font-size:1.25rem;line-height:1.3;margin:0;font-weight:650;overflow-wrap:anywhere}
 h2{font-size:1.0625rem;margin:36px 0 10px;font-weight:650}
 .meta{color:var(--soft);margin:0}
@@ -72,6 +78,8 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 20px;margin:0}
 dt{color:var(--soft)}dd{margin:0;overflow-wrap:anywhere}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
 .two h2{margin-top:36px}
+td .name+.sub{margin-top:1px}
+
 [hidden]{display:none!important}
 footer{height:48px}
 @media(max-width:760px){
@@ -87,6 +95,7 @@ footer{height:48px}
  tr.edit{display:block}tr.edit>td{display:block;padding:16px}
  label.wide{grid-column:1/-1}
  button{min-height:44px}
+ nav{padding:0 4px}nav a{padding:11px 12px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -103,20 +112,23 @@ footer{height:48px}
  <button id="signin" type="button" hidden>Sign in</button>
  <button id="signout" type="button" hidden>Sign out</button>
  <p class="msg bad" id="loginmsg" role="alert" hidden></p>
-</div></header>
+</div>
+<nav aria-label="Pages"><a href="#ports">Ports</a><a href="#network">Network</a><a href="#hardware">Hardware</a></nav></header>
 <main>
  <div id="offline" class="note bad" role="alert" hidden><p>The gateway is not answering. Retrying…</p></div>
  <div id="nopw" class="note warn" hidden><p>No web password is set, so nothing can be saved here yet. On the computer that builds the firmware, in the project folder, run <code id="pwcmd"></code> This page will then offer Sign in.</p></div>
  <div id="trial" class="note warn" role="status" hidden><p>New network settings are on trial. They revert in <b id="trialsec"></b> unless you keep them.</p><button id="keep" type="button">Keep settings</button></div>
 
+ <div id="p-ports">
  <h2>Serial ports</h2>
  <div class="panel"><table>
   <thead><tr><th>Port</th><th>Status</th><th>Line</th><th>Network</th><th class="n">From serial</th><th class="n">To serial</th><th class="n">Errors</th><th><span hidden>Edit</span></th></tr></thead>
   <tbody id="ports"><tr><td colspan="8" class="idle">Loading ports…</td></tr></tbody>
  </table></div>
+ </div>
 
- <div class="two">
- <section><h2>Network</h2><div class="panel pad"><form id="net">
+ <div id="p-network" hidden><div class="two">
+ <section><h2>Network</h2><div class="panel pad"><dl id="netinfo" style="margin-bottom:20px"></dl><form id="net">
   <div class="grid" style="margin-bottom:16px">
    <label class="wide">Address<select name="mode"><option value="dhcp">Automatic (DHCP)</option><option value="static">Fixed</option></select></label>
   </div>
@@ -128,17 +140,7 @@ footer{height:48px}
   </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
- </form></div>
- <h2>Device</h2><div class="panel pad">
-  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
-  <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
-  <dl id="info"></dl>
-  <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
-  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
-   <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
-   <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
-   <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
- </div></section>
+ </form></div></section>
 
  <section><h2>Home Assistant (MQTT)</h2><div class="panel pad"><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>The gateway then appears in Home Assistant by itself.</span></span></label></div>
@@ -153,7 +155,34 @@ footer{height:48px}
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
   <p class="hint">Status: <span id="mqst">off</span></p>
  </form></div></section>
- </div>
+ </div></div>
+
+ <div id="p-hardware" hidden>
+ <h2>Board</h2>
+ <div class="panel"><table>
+  <thead><tr><th>Part</th><th>Model</th><th>Now</th></tr></thead>
+  <tbody id="board"><tr><td colspan="3" class="idle">Reading the hardware…</td></tr></tbody>
+ </table></div>
+ <h2>Serial port wiring</h2>
+ <div class="panel"><table>
+  <thead><tr><th>Port</th><th>Serial unit</th><th>Transmit pin</th><th>Receive pin</th><th>Direction pin</th></tr></thead>
+  <tbody id="wiring"><tr><td colspan="5" class="idle">Reading the hardware…</td></tr></tbody>
+ </table></div>
+ <p class="hint">Processor pins. A high direction pin makes the port transmit.</p>
+ <div class="two">
+ <section><h2>Firmware</h2><div class="panel pad"><dl id="fwinfo"></dl></div>
+ <h2>Memory in use</h2><div class="panel pad"><dl id="meminfo"></dl></div></section>
+ <section><h2>Device</h2><div class="panel pad">
+  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
+  <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
+  <dl id="devinfo"></dl>
+  <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
+  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
+   <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
+   <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
+   <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
+ </div></section>
+ </div></div>
  <footer></footer>
 </main>
 <script>
@@ -329,14 +358,49 @@ async function tick(){clearTimeout(timer);
   failing=0;$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";
-  const rows=[["Address",s.ip+" ("+s.host+".local)"],["MAC",s.mac],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["Firmware",s.version+(s.slot>=0?", slot "+"AB"[s.slot]:"")],["Last start",RST(s.reset)+", "+dur(s.uptime_s)+" ago"]];
-  $("info").replaceChildren(...rows.flatMap(([a,b])=>[el("dt",{},a),el("dd",{},b)]));
+  fillDl($("netinfo"),[["Address",s.ip+" ("+s.host+".local)"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
   const q=s.mqtt,ms=$("mqst");ms.textContent=q.state+(q.error?": "+q.error:"");ms.className=q.state==="connected"?"ok":q.error?"bad":"";
-  paint()}
+  paint();if(page==="hardware")hardware()}
  catch(e){failing++;if(failing>1){$("offline").hidden=false}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
+/* ---- pages ---- */
+const PAGES=["ports","network","hardware"];let page="ports";
+function show(){const h=location.hash.slice(1);page=PAGES.includes(h)?h:"ports";
+ for(const p of PAGES)$("p-"+p).hidden=p!==page;
+ for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")==="#"+page?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
+ scrollTo(0,0);if(page==="hardware"){hwAt=0;hardware()}}
+addEventListener("hashchange",show);
+
+/* ---- hardware ---- */
+let hwAt=0;
+const sub=t=>el("span",{class:"sub"},t),kb=n=>Math.round(n/1024).toLocaleString()+" KB",num=n=>n.toLocaleString();
+function fillDl(dl,rows){if(dl.childElementCount!==rows.length*2)dl.replaceChildren(...rows.flatMap(()=>[el("dt"),el("dd")]));
+ rows.forEach(([a,...b],i)=>{put(dl.children[2*i],a);put(dl.children[2*i+1],...b)})}
+function fillRows(tb,heads,rows){if(tb.childElementCount!==rows.length||!tb.querySelector(".row"))tb.replaceChildren(...rows.map(r=>el("tr",{class:"row"},...r.map((_,i)=>el("td",i?{"data-h":heads[i]}:{})))));
+ rows.forEach((r,i)=>r.forEach((c,k)=>put(tb.children[i].children[k],...(Array.isArray(c)?c:[c]))))}
+const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id)?"Not answering":"Unknown",
+ REV={"0x1001":"Z","0x1003":"Y","0x2001":"X","0x2003":"V"};
+async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)return;hwAt=now;
+ let h;try{h=await getj("/api/hardware")}catch(e){hwAt=0;return}
+ const c=h.cpu,e=h.eth,nm=t=>el("span",{class:"name"},t),bad=f=>/^(Not|Unknown)/.test(f);
+ fillRows($("board"),["Part","Model","Now"],[
+  [nm("Processor"),[c.id==="0x450"?"STM32H750":"Unknown",sub("Chip ID "+c.id+", revision "+(REV[c.rev]||c.rev))],
+   [c.mhz+" MHz, "+(c.crystal?"from the crystal":"crystal not running"),c.temp_c==null?sub("Temperature not available"):sub(c.temp_c.toFixed(1)+" °C inside the chip, "+(c.mv/1000).toFixed(2)+" V supply")]],
+  [nm("Internal flash"),c.flash_kb+" KB, in the processor",["Holds the loader",h.loader?sub("Version "+h.loader):null]],
+  ...h.flash.map((id,i)=>[nm("Flash chip "+i),[el("span",{class:bad(FLASH(id))?"bad":""},FLASH(id)),sub("Chip ID "+id.slice(2))],i?["Firmware A and B, settings",sub("Plus the stock firmware's data")]:"Stock firmware, kept untouched"]),
+  [nm("Ethernet"),[e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown",sub("Chip ID "+e.phy_id.slice(2)+", address "+e.phy_addr)],
+   [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):sub("No errors")]],
+  [nm("RS485 drivers"),["4 × TI SN65HVD75",sub("From the chip markings")],"One per port; they have no ID to read"],
+  [nm("Watchdog"),["Separate chip on pin PC10",sub("Model not known")],"Resets the gateway if it stalls for about 1.6 s"]]);
+ fillRows($("wiring"),["Port","Serial unit","Transmit pin","Receive pin","Direction pin"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
+ const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?", on trial":"")};
+ fillDl($("fwinfo"),[["Running",st?st.version:""],["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Up for",st?dur(st.uptime_s):""],["Starts",num(h.boots)],["Failed starts",el("span",{class:h.crashes?"bad":""},h.crashes?num(h.crashes):"None")],["Recent starts",h.resets.map(RST).join(", ")||"None recorded",sub("Newest first")]]);
+ const M={AXI:"Program (AXI)",DTCM:"Data (DTCM)",D2:"Buffers (D2)"};
+ fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
+ fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}
+
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
-tick();
+show();tick();
 </script>
 </body>
 </html>

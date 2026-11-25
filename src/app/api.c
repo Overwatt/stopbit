@@ -3,6 +3,7 @@
 #include "cfg_store.h"
 #include "bridge.h"
 #include "cli.h"
+#include "hwinfo.h"
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
@@ -50,6 +51,7 @@ void api_init(void)
     if (!s_cfg.net.dhcp) run_net(&s_cfg.net);
     bridge_configure(s_cfg.port);
     mqtt_ha_configure(&s_cfg);
+    hwinfo_init();
 }
 
 void api_restart(void)
@@ -134,6 +136,7 @@ int api_get(const char *path, char *out, size_t max)
                          s_cfg.web_set ? "true" : "false", salt);
         return n > 0 && (size_t)n < max ? n : 0;
     }
+    if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
     if (strcmp(path, "/api/state")) return -1;
 
     char ip[16], mask[16], gw[16];

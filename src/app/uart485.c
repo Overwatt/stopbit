@@ -1,6 +1,7 @@
 #include "uart485.h"
 #include "board.h"
 #include "stm32h7xx_hal.h"
+#include <stdio.h>
 #include <string.h>
 
 #define RX_SZ 8192u             /* powers of two */
@@ -8,6 +9,7 @@
 #define D2 __attribute__((section(".d2_bss")))
 
 typedef struct {
+    const char *name;
     USART_TypeDef *u;
     IRQn_Type irq;
     GPIO_TypeDef *txp, *rxp, *dep;
@@ -15,11 +17,12 @@ typedef struct {
     uint8_t af;
 } hw_t;
 
-#define HW(n, irqn) { RS485_##n##_UART, irqn, RS485_##n##_TX_PORT, RS485_##n##_RX_PORT, \
+#define HW(n, un, irqn) { un, RS485_##n##_UART, irqn, RS485_##n##_TX_PORT, RS485_##n##_RX_PORT, \
                       RS485_##n##_DE_PORT, RS485_##n##_TX_PIN, RS485_##n##_RX_PIN, \
                       RS485_##n##_DE_PIN, RS485_##n##_AF }
 static const hw_t H[PORTS] = {
-    HW(1, USART1_IRQn), HW(2, USART2_IRQn), HW(3, USART3_IRQn), HW(4, UART4_IRQn),
+    HW(1, "USART1", USART1_IRQn), HW(2, "USART2", USART2_IRQn),
+    HW(3, "USART3", USART3_IRQn), HW(4, "UART4", UART4_IRQn),
 };
 
 static D2 uint8_t s_rx[PORTS][RX_SZ];
@@ -162,6 +165,20 @@ void uart485_open(int p, const port_cfg_t *c)
     u->CR3 |= USART_CR3_EIE;
     NVIC_SetPriority(H[p].irq, 5);
     NVIC_EnableIRQ(H[p].irq);
+}
+
+static void pin_name(char *b, GPIO_TypeDef *port, uint16_t pin)
+{
+    snprintf(b, 8, "P%c%d", (char)('A' + (((uint32_t)port - GPIOA_BASE) / 0x400u) % 26u),
+             __builtin_ctz(pin) & 15);
+}
+
+const char *uart485_pins(int p, char *tx, char *rx, char *de)
+{
+    pin_name(tx, H[p].txp, H[p].txn);
+    pin_name(rx, H[p].rxp, H[p].rxn);
+    pin_name(de, H[p].dep, H[p].den);
+    return H[p].name;
 }
 
 size_t uart485_rx_avail(int p) { return S[p].rh - S[p].rt; }

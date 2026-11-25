@@ -108,6 +108,7 @@ SECTIONS
     . = ALIGN(8);
     *(.d2_bss)
     . = ALIGN(8);
+    _ed2bss = .;
   } >RAM_D2
 
   /* Zero-initialised data. */
