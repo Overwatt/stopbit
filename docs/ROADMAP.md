@@ -38,8 +38,8 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
       and each RS485 port echoes on a scope / USB-RS485 adapter.
 
 ## M2 — Serial plumbing for real
-- [ ] Interrupt/DMA RX with per-port ring buffers (replace polling).
-- [ ] Runtime serial config per port (baud/parity/stop).
+- [x] Interrupt/DMA RX with per-port ring buffers (replace polling).
+- [x] Runtime serial config per port (baud/parity/stop).
 - [ ] `T R G` debug console: printf logging + a tiny CLI.
 
 ## M3 — Ethernet up
@@ -47,16 +47,17 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Own polled MAC driver + **LwIP** 2.2.1 (raw API).
 - [x] MPU region for non-cacheable DMA memory (D-cache itself still off).
 - [x] DHCP, mDNS, **ping** (~0.4 ms).
-- [ ] Static IP configuration.
+- [x] Static IP configuration.
 - [x] Network update: loader self-update, A/B app slots, rollback.
 
 ## M4 — The core product: transparent RS485 ↔ TCP bridge
-- [ ] Each RS485 port ↔ a TCP server socket (configurable port).
-- [ ] Bidirectional byte shuttling with backpressure.
-- [ ] TCP client + UDP modes.
+- [x] Each RS485 port ↔ a TCP server socket (configurable port).
+- [x] Bidirectional byte shuttling with backpressure.
+- [x] TCP client + UDP modes.
+- [ ] **Prove it through the real transceivers** (jumper or USB-RS485 adapter).
 
 ## M5 — "Better than stock" (pick what's fun)
-- [ ] Modern web UI + **REST/JSON API** (vs. their 2010 iframe UI).
+- [x] Modern web UI + **REST/JSON API** (vs. their 2010 iframe UI).
 - [ ] **MQTT** with Home Assistant auto-discovery.
 - [ ] Prometheus metrics / live per-port traffic + latency stats.
 - [ ] TLS, real auth (no telnet data-port backdoor).
