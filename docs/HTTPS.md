@@ -111,8 +111,9 @@ Checked 2026-11-25: with it, a key cannot list zones, read records, or change an
 name, type or action. Whoever has the board can still read the key from its flash and use
 it for that one record, which is enough to get certificates for that name.
 
-**Tested:** a full staging run, from the simulator, against the real services: 31 s. Not
-yet on the gateway. Let's Encrypt's lifetimes are getting shorter (64 days from
+**Tested:** full staging runs from the simulator (31 s) and on the gateway (41 s, 2026-11-25),
+with TigoBus live: nothing lost. The main loop paused up to 18 ms meanwhile, most likely
+while decrypting a 16 KB record in software. Let's Encrypt's lifetimes are getting shorter (64 days from
 2027-02-10, 45 from 2028-02-16); renewing at a third of the life follows them.
 
 ## Not built
