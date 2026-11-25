@@ -129,7 +129,18 @@ footer{height:48px}
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">Changes are tried for two minutes and revert unless you keep them.</p>
  </form></div>
- <h2>Home Assistant (MQTT)</h2><div class="panel pad"><form id="mqtt">
+ <h2>Device</h2><div class="panel pad">
+  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
+  <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
+  <dl id="info"></dl>
+  <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
+  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
+   <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
+   <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
+   <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
+ </div></section>
+
+ <section><h2>Home Assistant (MQTT)</h2><div class="panel pad"><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>The gateway then appears in Home Assistant by itself.</span></span></label></div>
   <div data-mqtt><div class="grid" style="margin-bottom:16px">
    <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
@@ -142,17 +153,6 @@ footer{height:48px}
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
   <p class="hint">Status: <span id="mqst">off</span></p>
  </form></div></section>
-
- <section><h2>Device</h2><div class="panel pad">
-  <form id="dev"><div class="grid" style="margin-bottom:16px"><label class="wide">Name<input name="name" maxlength="31" autocomplete="off"></label></div>
-  <div class="acts" style="margin-bottom:20px"><button class="primary">Save name</button><p class="msg" role="status"></p></div></form>
-  <dl id="info"></dl>
-  <div class="acts" style="margin-top:18px"><button id="restart" type="button">Restart</button><button id="chpw" type="button">Change password</button><p class="msg" id="devmsg" role="status"></p></div>
-  <form id="pwform" hidden style="margin-top:16px"><div class="grid" style="margin-bottom:14px">
-   <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
-   <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
-   <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
- </div></section>
  </div>
  <footer></footer>
 </main>
