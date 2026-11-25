@@ -392,7 +392,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<5000)ret
   [nm("Ethernet"),e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown ("+e.phy_id+")",
    [e.link?e.speed+" Mb/s "+(e.full_duplex?"full":"half")+" duplex":el("span",{class:"bad"},"No link"),sub(num(e.rx)+" frames in, "+num(e.tx)+" out"),e.rx_err||e.tx_drop?el("span",{class:"sub warn"},num(e.rx_err)+" receive errors, "+num(e.tx_drop)+" not sent"):null]],
   [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
-  [nm("Watchdog"),"External","1.6 s timeout"]]);
+  [nm("Watchdog"),"UM706SS","1.6 s timeout"]]);
  fillRows($("wiring"),["Port","UART","Transmit","Receive","Direction"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
  const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?", on trial":"")};

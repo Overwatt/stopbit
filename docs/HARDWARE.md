@@ -19,6 +19,7 @@ still have to recover. The authoritative, machine-readable pin map is
 | PHY | **IC Plus IP101GRI**, QFN | 10/100 **RMII Ethernet PHY** |
 | Magnetics | **OUYCORE FC1680C** | 10/100 LAN transformer (PHY ↔ RJ45) |
 | RS485 ×4 | **TI SN65HVD75**, SOIC-8 | 3.3 V half-duplex RS485 transceiver (DE pin3 / RE̅ pin2) |
+| Watchdog | **Union UM706SS** | supervisor and watchdog on PC10. Its datasheet says a floating WDI disables the watchdog; with PC10 set as an input that might make long SWD writes safe. Not tested here |
 | Xtal ×2 | 25.000 MHz | one = MCU HSE; one = IP101GRI reference (PHY makes 50 MHz RMII clock internally) |
 
 Internal flash is only 128 KB — the stock app lives in external flash and is
@@ -52,7 +53,7 @@ loaded by a small internal bootloader. See ROADMAP M0.
 | Function | Pins | Confidence |
 |---|---|---|
 | Ethernet RMII + MDIO | PA1 PA2 PA7 PB11-13 PC1 PC4 PC5 | ✅ working link, MDIO reads PHY |
-| **External watchdog (WDI)** | **PC10**, ~1.6 s | ✅ by experiment |
+| **External watchdog (WDI)** | **PC10**, UM706SS, 1.6 s (1.0 to 2.25 s) | ✅ by experiment; part from its marking |
 | Ext flash 0 | CLK PB2, CS PC11, IO PE7-10 | ✅ JEDEC C84015 |
 | Ext flash 1 | SCK PE2, MISO PE5, MOSI PE6, CS PE4 | ✅ JEDEC C84015 |
 | RS485 ports 1-4 | USART1 PA9/PA10, USART2 PD5/PD6, USART3 PD8/PD9, UART4 PD1/PD0 (TX/RX) | ✅ tested on each port with a USB-RS485 adapter |
