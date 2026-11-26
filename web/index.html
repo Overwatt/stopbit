@@ -8,12 +8,12 @@
 <style>
 :root{color-scheme:light dark;
 --shell:#0d4a68;--shell-soft:#bfe0ee;--ground:#dcebf1;--sheet:#fff;--ink:#0b2230;--soft:#2d5468;--rule:#c3d7e1;
---well:#eaf3f7;--foot:#5b7f91;--key:#dfebf1;--key-h:#cfe0e8;--key-p:#bed3de;
+--well:#eaf3f7;--band:#f1f7fa;--foot:#5b7f91;--key:#dfebf1;--key-h:#cfe0e8;--key-p:#bed3de;
 --accent:#0d4a68;--accent-ink:#fff;--accent-h:#0a3b53;--accent-p:#072c3f;--sea:#1683b8;
 --ok:#17703d;--warn:#7d4b00;--warn-bg:#fdf0d6;--bad:#a3211a;--bad-bg:#ffe1dc;--idle:#4e6f7f}
 @media(prefers-color-scheme:dark){:root{
 --shell:#0d3a50;--shell-soft:#a9cfdf;--ground:#05121a;--sheet:#173443;--ink:#e6f2f7;--soft:#a9c7d4;--rule:#2c5061;
---well:#102733;--foot:#86a9b9;--key:#254a5c;--key-h:#305a6e;--key-p:#1d3d4c;
+--well:#102733;--band:#132d3a;--foot:#86a9b9;--key:#254a5c;--key-h:#305a6e;--key-p:#1d3d4c;
 --accent:#5bb8e2;--accent-ink:#06212d;--accent-h:#7cc8eb;--accent-p:#46a3cd;--sea:#3f9fd0;
 --ok:#62c98b;--warn:#e7b45e;--warn-bg:#352a10;--bad:#ff9a8f;--bad-bg:#451c18;--idle:#8fb0be}}
 *{box-sizing:border-box}
@@ -51,7 +51,9 @@ aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:u
 .it:hover{background:color-mix(in srgb,var(--sheet) 55%,transparent)}.it.bad{background:var(--bad-bg);color:var(--bad)}.it.bad em{color:var(--bad)}.it.warn em{color:var(--warn)}
 .it[aria-current]{background:var(--sheet)}.it.bad[aria-current]{background:var(--bad-bg);box-shadow:inset 0 0 0 2px var(--bad)}
 .mk{width:14px;height:14px;display:block}.mk.ok{color:var(--ok)}.mk.warn{color:var(--warn)}.mk.bad{color:var(--bad)}.mk.idle{color:var(--idle)}
-main{background:var(--sheet);border-radius:16px 0 0 0;margin-top:26px;padding:34px 44px 56px;min-width:0}
+main{background:var(--sheet);border-radius:16px 0 0 0;margin-top:26px;padding:34px 44px 56px;min-width:0;position:relative;isolation:isolate;overflow:hidden}
+.top{position:relative;padding-bottom:2px;margin-bottom:30px}.top::before{content:"";position:absolute;z-index:-1;top:-34px;bottom:0;left:-44px;right:-100vw;background:var(--band)}
+.top .say{margin-bottom:20px}
 main>div{max-width:1000px}
 .head{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}.head h2{flex:1 1 150px}
 .back{display:none}#edit{margin-top:26px}
@@ -84,11 +86,11 @@ label.check{display:flex;gap:12px;align-items:flex-start;color:var(--ink);font-s
 .checks{display:grid;gap:12px}.acl{display:grid;grid-template-columns:minmax(0,260px) minmax(0,200px) auto;gap:8px 14px;align-items:end;justify-content:start}.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.msg{margin:0}
 code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
 [hidden]{display:none!important}
-@media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.top::before{top:-28px;left:-30px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:860px){
  header .in{padding:10px 16px;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
- aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
+ aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}.top::before{top:-18px;left:-16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
  .vd{min-height:88px}
  h2{font-size:2rem}.say{font-size:1.25rem;min-height:4.2em}.facts{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -126,11 +128,11 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <div class="app">
 <aside><div class="vd"><h1 id="verdict" aria-live="polite">Connecting…</h1><p id="vsub"></p></div><div id="list" role="navigation" aria-label="Stations"></div></aside>
 <main>
- <div id="p-port" hidden><a class="back" href="#status">All stations</a><div class="head"><h2 id="pname"></h2><button id="pedit" class="primary" type="button">Edit port</button></div>
-  <div id="report"><p class="say" id="psay"></p><div id="charts"></div><dl class="facts" id="pfacts"></dl><div id="away" hidden><h3>Turned away</h3><table class="stack"><thead><tr><th>Address</th><th>Times</th><th>Last</th></tr></thead><tbody id="awayt"></tbody></table><p class="hint">Refused by the access list. The last 8 addresses since start-up.</p></div>
+ <div id="p-port" hidden><div class="top"><a class="back" href="#status">All stations</a><div class="head"><h2 id="pname"></h2><button id="pedit" class="primary" type="button">Edit port</button></div><p class="say" id="psay"></p></div>
+  <div id="report"><div id="charts"></div><dl class="facts" id="pfacts"></dl><div id="away" hidden><h3>Turned away</h3><table class="stack"><thead><tr><th>Address</th><th>Times</th><th>Last</th></tr></thead><tbody id="awayt"></tbody></table><p class="hint">Refused by the access list. The last 8 addresses since start-up.</p></div>
   <details id="ptable"><summary>Traffic as a table</summary><table><thead><tr><th>Minutes ago</th><th>Heard</th><th>Sent</th><th>Errors</th></tr></thead><tbody id="ptrows"></tbody></table></details></div>
   <div id="edit" hidden></div></div>
- <div id="p-network" hidden><a class="back" href="#status">All stations</a><h2>Network</h2><p class="say" id="nsay"></p><div class="two">
+ <div id="p-network" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>Network</h2><p class="say" id="nsay"></p></div><div class="two">
   <section><h3>Now</h3><dl class="list" id="netinfo"></dl></section>
   <section><h3>Address</h3><form id="net">
   <div class="grid-f" style="margin-bottom:16px">
@@ -162,7 +164,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <section><form id="tlscert" hidden><label>Signing request<textarea id="tlscsr" rows="8" readonly spellcheck="false"></textarea></label>
   <label style="margin:16px 0">Certificate chain (PEM)<input type="file" name="file" accept=".pem,.crt,.cer" required></label>
   <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div></details></div>
- <div id="p-mqtt" hidden><a class="back" href="#status">All stations</a><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
+ <div id="p-mqtt" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>MQTT</h2><p class="say" id="msay"></p></div><div class="two"><section><h3>Broker</h3><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>Publishes the ports' state and traffic.</span></span></label></div>
   <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
    <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
@@ -175,7 +177,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label class="check" id="mqclear" hidden><input type="checkbox" name="clear"><span>Remove the saved password</span></label></div></div>
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
  </form></section><section><h3>Topics</h3><dl class="list" id="topics"></dl></section></div></div>
- <div id="p-hardware" hidden><a class="back" href="#status">All stations</a><h2>Hardware</h2><p class="say" id="hsay"></p>
+ <div id="p-hardware" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>Hardware</h2><p class="say" id="hsay"></p></div>
   <h3>Board</h3><table class="stack" id="board-t"><thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead><tbody id="board"><tr><td colspan="3">Reading the hardware…</td></tr></tbody></table>
   <h3>Serial port pins</h3><table class="stack"><thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead><tbody id="wiring"><tr><td colspan="5">Reading the hardware…</td></tr></tbody></table>
   <div class="two"><section><h3>Memory in use</h3><dl class="list" id="meminfo"></dl></section><section><h3>Device</h3>
@@ -188,7 +190,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label>Repeat password<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
 </section></div></div>
- <div id="p-firmware" hidden><a class="back" href="#status">All stations</a><h2>Firmware</h2><p class="say" id="fsay"></p><div class="two">
+ <div id="p-firmware" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>Firmware</h2><p class="say" id="fsay"></p></div><div class="two">
   <section><h3>Update</h3><form id="fw">
   <label style="margin-bottom:16px">Firmware file (app.bin)<input type="file" name="file" accept=".bin" required></label>
   <dl class="list" id="fwfile" style="margin-bottom:16px" hidden></dl>
@@ -552,7 +554,7 @@ function chartBox(){const cap=el("div",{class:"cap"},el("b"),el("span")),g=svg("
  return {box,set(title,d,e,s){D=d;E=e;step=s;const any=e&&e.some(x=>x),max=d&&d.length?Math.max(...d)/s:0;put(cap.children[0],title);put(cap.children[1],d&&d.length?"Peak "+rt(max)+(any?", triangles mark errors":""):"");g.setAttribute("aria-label",title+(d&&d.length?": "+rt(d[d.length-1]/s)+" now, at most "+rt(max)+".":". No readings yet."));draw()}}}
 
 /* ---- pages ---- */
-function showSheet(){const ed=page==="port"&&editing;$("report").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";$("pedit").className=ed?"":"primary";if(st&&cfg&&page==="port")report();authUI()}
+function showSheet(){const ed=page==="port"&&editing;$("report").hidden=$("psay").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";$("pedit").className=ed?"":"primary";if(st&&cfg&&page==="port")report();authUI()}
 function nav(){const cur=page==="port"?"#port"+(sel+1):"#"+route;for(const [h,a] of items)h===cur?a.setAttribute("aria-current","true"):a.removeAttribute("aria-current")}
 let picked=false;
 function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];

@@ -17,6 +17,7 @@ colors:
   soft: "#2d5468"
   rule: "#c3d7e1"
   well: "#eaf3f7"
+  band: "#f1f7fa"
   foot: "#5b7f91"
   key: "#dfebf1"
   key-h: "#cfe0e8"
@@ -40,6 +41,7 @@ colors:
   soft-dark: "#a9c7d4"
   rule-dark: "#2c5061"
   well-dark: "#102733"
+  band-dark: "#132d3a"
   foot-dark: "#86a9b9"
   key-dark: "#254a5c"
   key-h-dark: "#305a6e"
@@ -307,7 +309,9 @@ The list opens with the verdict and one line, in a block at least 152px tall. St
 50px rows, 4px apart, in two groups in a fixed order: Ports (1 to 4), then Config (MQTT,
 Network, Firmware, Hardware), each under a small soft label.
 
-In the sheet: the name with its one action at the right, the sentence (two lines reserved),
+In the sheet: the name with its one action at the right and the sentence (two lines reserved)
+sit in the band, a tone between sheet and ground (#f1f7fa, dark #132d3a) that runs to the
+sheet's top and side edges, 30px above what follows. Then
 charts, then readings four across, 24px by 20px apart. Sections sit 40px apart; pairs sit in
 two equal columns with 48px between. Fields fill columns at least 160px wide, 14px by 18px
 apart. Tables have fixed layouts.
@@ -323,7 +327,7 @@ severity: a fault fills its own row and is named in the verdict.
 
 ## Elevation & Depth
 
-Flat: no shadows, and nothing is lifted. Depth is tone, in order: shell, ground, sheet, well.
+Flat: no shadows, and nothing is lifted. Depth is tone, in order: shell, ground, band, sheet, well.
 The sheet lies on the ground; fields and charts are cut into the sheet. In dark the sheet is
 lighter than the ground and the well sits between them.
 
