@@ -42,7 +42,7 @@ t_dwt_t t_dwt;
 static uint64_t ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000000u + (uint64_t)t.tv_nsec; }
 uint32_t t_dwt_now(void) { return (uint32_t)(ns() * 2 / 5); }        /* 400 MHz */
 void NVIC_SystemReset(void) { fprintf(stderr, "a job ran off its stack\n"); abort(); }
-long long mbedtls_ms_time(void) { return (long long)(ns() / 1000000u); }
+mbedtls_ms_time_t mbedtls_ms_time(void) { return (mbedtls_ms_time_t)(ns() / 1000000u); }
 
 /* Certificates are checked against this: real time, moved by s_skew seconds. */
 static long s_skew;
