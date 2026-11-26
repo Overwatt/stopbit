@@ -6,12 +6,13 @@
 #define AXI_BSS __attribute__((section(".d3_bss")))     /* D3: AXI is for the TLS heap */
 #endif
 /* Interrupts use them too while a job runs. The simulator cannot say how much the
- * gateway needs; worker_stats() reports the most each has used since the start. */
+ * gateway needs; worker_stats() reports the most each has used since the start.
+ * Measured on the gateway (2026-11-25): HTTPS 2.7 KB, renewal 3.2 KB. */
 #ifndef WORKER_TLS_STACK
-#define WORKER_TLS_STACK   12288u
+#define WORKER_TLS_STACK   6144u
 #endif
 #ifndef WORKER_RENEW_STACK
-#define WORKER_RENEW_STACK 12288u
+#define WORKER_RENEW_STACK 8192u
 #endif
 #define FILL 0x5AFE57ACu
 static const uint32_t SIZE[WORKERS] = { WORKER_TLS_STACK, WORKER_RENEW_STACK };

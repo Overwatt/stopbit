@@ -157,14 +157,24 @@ bool extflash_erase(int dev, uint32_t addr, uint32_t len)
     return true;
 }
 
+/* A long write lets the rest run between pages, as an erase does: each takes ~0.8 ms,
+ * and a 4 KB record is 16 of them. Every long write follows an erase in the same place,
+ * so nothing runs where it did not already. */
 bool extflash_write(int dev, uint32_t addr, const void *src, uint32_t len)
 {
     const uint8_t *p = src;
+    bool breathe = len > 1024u && s_meanwhile;
     while (len) {
-        uint32_t n = 256u - (addr & 255u);
+        uint32_t n = 256u - (addr & 255u), t0 = HAL_GetTick();
         if (n > len) n = len;
         extflash_write_start(dev, addr, p, n);
-        if (!wait_idle(&BUS[dev], 50)) return false;
+        if (breathe) {
+            while (extflash_busy(dev)) {
+                wdt_feed();
+                s_meanwhile();
+                if (HAL_GetTick() - t0 > 50) return false;
+            }
+        } else if (!wait_idle(&BUS[dev], 50)) return false;
         addr += n; p += n; len -= n;
     }
     return true;
