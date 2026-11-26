@@ -82,6 +82,7 @@ void tcp_sent(struct tcp_pcb *p, tcp_sent_fn f) { p->sent = f; }
 void tcp_err(struct tcp_pcb *p, tcp_err_fn f) { p->err = f; }
 void tcp_poll(struct tcp_pcb *p, tcp_poll_fn f, u8_t n) { (void)n; p->poll = f; }
 void tcp_nagle_disable(struct tcp_pcb *p) { (void)p; }
+void hwinfo_step(const char *name) { (void)name; }   /* the gateway's loop figures; nothing to time here */
 u16_t tcp_sndbuf(struct tcp_pcb *p) { return (u16_t)(TCP_SND_BUF - p->out_n); }
 u16_t tcp_sndqueuelen(struct tcp_pcb *p) { return (u16_t)(p->out_n / TCP_MSS); }
 err_t tcp_write(struct tcp_pcb *p, const void *d, u16_t n, u8_t f)

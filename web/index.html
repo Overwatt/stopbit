@@ -434,6 +434,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
  const reads=[c.mhz+" MHz"];if(c.temp_c!=null)reads.push(c.temp_c.toFixed(1)+" °C",(c.mv/1000).toFixed(2)+" V");
  fillRows($("board"),["Part","Model","Status"],[
   [nm("Processor"),c.id==="0x450"?"STM32H750, revision "+(REV[c.rev]||c.rev):"Unknown ("+c.id+")",[reads.join(", "),c.crystal?null:el("span",{class:"sub warn"},"Crystal not running")]],
+  [nm("Crypto engine"),"AES, in the processor",h.aes?h.aes.engine?["Encrypts TLS records",sub(num(h.aes.hw)+" so far")]:[el("span",{class:"warn"},"Not in use"),sub(h.aes.why+"; software does it")]:[]],
   [nm("Internal flash"),c.flash_kb+" KB",h.loader?"Loader "+h.loader:[]],
   ...h.flash.map((id,i)=>{const t=FLASH(id);return [nm("Flash chip "+i),bad(t)?el("span",{class:"bad"},t+" ("+id+")"):t,i?"Firmware and settings":"Kept firmware"]}),
   [nm("Ethernet"),e.phy_id==="0x02430c54"?"IC Plus IP101G":"Unknown ("+e.phy_id+")",

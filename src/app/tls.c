@@ -1,6 +1,7 @@
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS     /* x509_crt.own_buffer, for the certificates we only pass on */
 #include "tls.h"
 #include "worker.h"
+#include "hwinfo.h"
 #include "events.h"
 #include "clock.h"
 #include "extflash.h"
@@ -429,6 +430,7 @@ static void cb_err(void *arg, err_t err)
 static void finish(struct tls *t)
 {
     void *h = t->http;
+    hwinfo_step("https close");
     t->http = NULL;
     if (h) http_tls_gone(h);
     drop_queue(t);
@@ -482,9 +484,12 @@ static void start_shake(void)
         struct tls *t = &s_t[(turn + k) % TLS_MAX];
         if (t->state != T_HELLO || !t->pcb || !(t->q || t->eof || t->ret == MBEDTLS_ERR_SSL_WANT_WRITE)) continue;
         if (!t->setup) {
+            hwinfo_step("https setup");
             mbedtls_ssl_init(&t->ssl);
             t->setup = true;
-            if (mbedtls_ssl_setup(&t->ssl, &s_conf)) { s_failed++; finish(t); continue; }     /* out of memory */
+            int r = mbedtls_ssl_setup(&t->ssl, &s_conf);
+            hwinfo_step("https");
+            if (r) { s_failed++; finish(t); continue; }     /* out of memory */
             mbedtls_ssl_set_bio(&t->ssl, t, bio_send, bio_recv, NULL);
             worker_stats_t w;
             worker_stats(WORKER_TLS, &w);
@@ -667,7 +672,9 @@ void tls_init(void)
 void tls_poll(void)
 {
     if (!s_ready) return;
+    hwinfo_step("https handshake");
     worker_poll(WORKER_TLS);
+    hwinfo_step("https");
     if (s_job != JOB_NONE && !worker_busy(WORKER_TLS)) {
         uint8_t j = s_job;
         s_job = JOB_NONE;
@@ -699,7 +706,10 @@ void tls_poll(void)
             start_shake();
         }
     }
-    for (int i = 0; i < TLS_MAX; i++) service(&s_t[i]);
+    for (int i = 0; i < TLS_MAX; i++) {
+        hwinfo_step("https");                  /* each connection its own part of the step */
+        service(&s_t[i]);
+    }
 }
 
 /* ---- settings -------------------------------------------------------------------- */
