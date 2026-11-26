@@ -93,6 +93,9 @@ typedef struct {
     const char *why;             /* upload refused; the rest is read and dropped */
     tls_t   *tls;                /* on port 443: pcb is NULL */
     bool     keep;               /* another request may follow */
+    int    (*gen)(uint32_t part, char *out, size_t max);   /* a reply made part by part */
+    uint32_t gen_part;
+    bool     chunked;            /* its parts go as HTTP/1.1 chunks; else it ends at the close */
 #endif
 } conn_t;
 
@@ -315,6 +318,7 @@ static void conn_free(conn_t *c)
     c->pcb = NULL;
 #ifdef APP_IMAGE
     c->tls = NULL;
+    c->gen = NULL;
 #endif
 }
 
@@ -330,6 +334,7 @@ static err_t conn_close(conn_t *c)
             c->state = ST_HDR;
             c->hdr_len = c->body_len = c->body_got = 0;
             c->resp_len = c->resp_off = c->fl_left = c->mem_left = 0;
+            c->gen = NULL;
             resp_own(c);
             c->why = NULL;
             c->keep = false;
@@ -353,13 +358,50 @@ static err_t conn_close(conn_t *c)
     return ERR_OK;
 }
 
+#ifdef APP_IMAGE
+#define GEN_HEAD 8               /* room before a part for its chunk-size line */
+/* The next part into resp, as a chunk; the last chunk once there are no more. A part
+ * that does not fit ends the reply unfinished (no last chunk): the client sees it failed. */
+static void refill(conn_t *c)
+{
+    for (;;) {
+        int n = c->gen(c->gen_part, c->resp + GEN_HEAD, c->resp_cap - GEN_HEAD - 2);
+        c->resp_off = c->resp_len = 0;
+        if (n < 0) {
+            c->gen = NULL;
+            if (n == -1 && c->chunked) { memcpy(c->resp, "0\r\n\r\n", 5); c->resp_len = 5; }
+            if (n != -1) c->keep = false;
+            return;
+        }
+        c->gen_part++;
+        if (!n) continue;
+        c->resp_off = GEN_HEAD;
+        c->resp_len = GEN_HEAD + (uint32_t)n;
+        if (!c->chunked) return;
+        char h[GEN_HEAD + 1];
+        int hl = snprintf(h, sizeof h, "%x\r\n", (unsigned)n);
+        c->resp_off -= (uint32_t)hl;
+        memcpy(c->resp + c->resp_off, h, (size_t)hl);
+        memcpy(c->resp + c->resp_len, "\r\n", 2);
+        c->resp_len += 2;
+        return;
+    }
+}
+#endif
+
 static err_t pump(conn_t *c)
 {
-    while (c->resp_off < c->resp_len) {
-        uint32_t n = c->resp_len - c->resp_off, room = out_room(c);
-        if (n > room) n = room;
-        if (!n || !out_put(c, c->resp + c->resp_off, n, TCP_WRITE_FLAG_COPY)) goto out;
-        c->resp_off += n;
+    for (;;) {
+        while (c->resp_off < c->resp_len) {
+            uint32_t n = c->resp_len - c->resp_off, room = out_room(c);
+            if (n > room) n = room;
+            if (!n || !out_put(c, c->resp + c->resp_off, n, TCP_WRITE_FLAG_COPY)) goto out;
+            c->resp_off += n;
+        }
+#ifdef APP_IMAGE
+        if (c->gen) { refill(c); continue; }     /* sent and copied: the buffer takes the next part */
+#endif
+        break;
     }
     if (c->resp != c->own) resp_own(c);      /* all with lwIP or TLS now */
     while (c->fl_left) {
@@ -496,6 +538,23 @@ static err_t do_flash(conn_t *c, const char *path)
 }
 
 #ifdef APP_IMAGE
+/* A reply made part by part, as the connection has room: chunks for HTTP/1.1, else one
+ * body that ends when the connection closes. */
+static err_t do_parts(conn_t *c, bool http11, const char *type, int (*gen)(uint32_t, char *, size_t))
+{
+    if (!resp_room(c, RESP_MAX)) return fail(c, "503 Service Unavailable", "busy; try again");
+    c->chunked = http11;
+    if (!http11) c->keep = false;
+    c->state = ST_SEND;
+    c->resp_off = 0;
+    c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
+        "HTTP/1.1 200 OK\r\nContent-Type: %s\r\n%sCache-Control: no-store\r\nConnection: %s\r\n\r\n",
+        type, http11 ? "Transfer-Encoding: chunked\r\n" : "", conn_hdr(c));
+    c->gen = gen;
+    c->gen_part = 0;
+    return pump(c);
+}
+
 static err_t do_page(conn_t *c)
 {
     c->mem = api_page(&c->mem_left);
@@ -643,6 +702,8 @@ static err_t on_request(conn_t *c)
     if (!strcmp(line, "GET")) {
 #ifdef APP_IMAGE
         if (!strcmp(path, "/")) return go_secure(c) ? redirect(c) : do_page(c);
+        if (!strcmp(path, "/metrics"))
+            return do_parts(c, end && !strncmp(end + 1, "HTTP/1.1", 8), "text/plain; version=0.0.4; charset=utf-8", api_metrics);
         if (!strncmp(path, "/api/", 5)) {
             char *js = s_scratch.js;
             int n = api_get(path, js, sizeof s_scratch.js);

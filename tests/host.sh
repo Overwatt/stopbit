@@ -21,6 +21,7 @@ t fwlib   -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' -DA
 t history -DD2_BSS= -Isrc/app tests/test_history.c src/app/history.c
 t knock   -Isrc/app tests/test_knock.c src/app/knock.c
 t modbus  -Isrc/app tests/test_modbus.c src/app/modbus.c
+t metrics -Isrc/app tests/test_metrics.c src/app/metrics.c
 t quiet   -Isrc/app tests/test_quiet.c
 t events  -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_events.c src/app/events.c src/app/cfg.c src/app/acl.c src/common/slots.c src/common/image.c src/common/sha256.c
 t store   -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_store.c src/app/cfg_store.c src/app/cfg.c src/app/acl.c src/common/sha256.c

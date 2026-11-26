@@ -69,6 +69,7 @@ typedef struct {
     bool heard, sent;
     uint32_t quiet_from, client_from;   /* last bytes / last client, or when it opened */
     quiet_t alert;
+    fwd_t    fwd;                /* how long packets heard waited to go out */
 } port_t;
 
 static port_t s_p[PORTS];
@@ -455,6 +456,7 @@ static void port_start(int i)
     port_t *p = &s_p[i];
     if (!p->cfg.enabled) return;
     p->quiet_from = p->client_from = HAL_GetTick();
+    memset(&p->fwd, 0, sizeof p->fwd);
     port_cfg_t u = p->cfg;
     if (u.mode == MODE_MODBUS) u.echo_cancel = 1;           /* its own request is not a reply */
     uart485_open(i, &u);
@@ -542,12 +544,24 @@ static uint32_t gap_us(const port_cfg_t *c)
     return us < 1750u ? 1750u : us;
 }
 
+static void forwarded(port_t *p, uint32_t us)
+{
+    static const uint32_t B[FWD_BUCKETS] = FWD_BOUNDS_US;
+    int b = 0;
+    while (b < FWD_BUCKETS && us > B[b]) b++;
+    p->fwd.n[b]++;
+    p->fwd.sum_us += us;
+    p->fwd.last_us = us;
+    if (us > p->fwd.max_us) p->fwd.max_us = us;
+}
+
 static void serial_to_net(int i)
 {
     static uint8_t buf[1400];
     port_t *p = &s_p[i];
     size_t a = uart485_rx_avail(i);
-    if (!a || (a < p->cfg.packet_len && uart485_rx_idle_us(i) < gap_us(&p->cfg))) return;
+    uint32_t idle = uart485_rx_idle_us(i);              /* since the packet's last byte */
+    if (!a || (a < p->cfg.packet_len && idle < gap_us(&p->cfg))) return;
     if (a > p->cfg.packet_len) a = p->cfg.packet_len;
     uint16_t n = (uint16_t)uart485_read(i, buf, a);
     traffic_add(i, false, buf, n, HAL_GetTick());
@@ -558,7 +572,7 @@ static void serial_to_net(int i)
         struct pbuf *q = p->udp_have_peer ? pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM) : NULL;
         if (q) {
             pbuf_take(q, buf, n);
-            if (udp_sendto(p->udp, q, &p->udp_peer, p->udp_peer_port) == ERR_OK) p->net_tx += n;
+            if (udp_sendto(p->udp, q, &p->udp_peer, p->udp_peer_port) == ERR_OK) { p->net_tx += n; forwarded(p, idle); }
             else p->net_lost += n;
             pbuf_free(q);
         } else if (p->udp_have_peer) {
@@ -577,7 +591,7 @@ static void serial_to_net(int i)
             p->net_lost += n;
         }
     }
-    if (sent) p->net_tx += n;
+    if (sent) { p->net_tx += n; forwarded(p, idle); }
 }
 
 static void net_to_serial(int i, bool may_close)
@@ -707,6 +721,18 @@ void bridge_info(int i, bridge_info_t *o)
     o->serial_rx = u->rx_bytes;
     o->serial_tx = u->tx_bytes;
     o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
+    o->fwd = p->fwd;
+    o->net_rx = p->net_rx;
+    o->net_tx = p->net_tx;
+    o->heard_ms = p->heard ? (int32_t)((HAL_GetTick() - p->heard_at) & 0x7FFFFFFF) : -1;
+    o->up = p->state == LS_LISTENING || p->state == LS_CONNECTED || p->state == LS_BOUND;
+}
+
+const mb_stats_t *bridge_modbus(int i, uint8_t *waiting)
+{
+    if (!is_mb(i) || s_p[i].state == LS_OFF) return NULL;
+    *waiting = s_mb[i].qn;
+    return &s_mb[i].s;
 }
 
 size_t bridge_json(char *out, size_t max)
@@ -750,6 +776,10 @@ size_t bridge_json(char *out, size_t max)
             ro = role(p, &p->udp_peer) != ACL_WRITE;
         }
         ADD("],\"read_only\":%u", ro);
+        uint32_t fn = 0;
+        for (int b = 0; b <= FWD_BUCKETS; b++) fn += p->fwd.n[b];
+        if (fn) ADD(",\"fwd_us\":[%lu,%lu,%lu]", (unsigned long)p->fwd.last_us,     /* last, average, longest */
+                    (unsigned long)(p->fwd.sum_us / fn), (unsigned long)p->fwd.max_us);
         if (is_mb(i)) {
             const mb_stats_t *m = &s_mb[i].s;
             ADD(",\"modbus\":{\"requests\":%lu,\"replies\":%lu,\"exceptions\":%lu,\"timeouts\":%lu,\"bad\":%lu,"

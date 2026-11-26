@@ -33,6 +33,7 @@ static const char *s_why = "not checked yet";
 static uint32_t s_cycles, s_hw, s_sw;
 
 uint32_t gcm_hw_cycles(void) { return s_cycles; }
+void gcm_hw_counts(uint32_t *hw, uint32_t *sw) { *hw = s_hw; *sw = s_sw; }
 
 /* ---- the engine ------------------------------------------------------------ */
 static bool wait_sr(uint32_t bit, bool set)

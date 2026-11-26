@@ -222,6 +222,7 @@ static bool s_need;
 void net_ip_str(char o[16]) { strcpy(o, "127.0.0.1"); }
 bool rng_fill(void *d, uint32_t n) { arc4random_buf(d, n); return true; }
 #include "web_page.h"
+#include "metrics.h"
 const uint8_t *api_page(uint32_t *n) { *n = sizeof WEB_PAGE; return WEB_PAGE; }
 const uint8_t *api_web_key(void) { static uint8_t k[32]; memset(k, 0x77, 32); return k; }
 const char *api_fw_need(void) { return s_need ? "listen_only" : NULL; }
@@ -270,6 +271,29 @@ int api_get(const char *p, char *o, size_t n)
       memset(o, 'x', k); o[0] = o[k - 1] = '"'; o[k] = 0; return (int)k;
   }
   return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
+/* GET /metrics: the real format (metrics.c) of made-up figures, two Modbus ports among them. */
+int api_metrics(uint32_t part, char *o, size_t n)
+{
+    static metrics_t m;
+    static const char *const NAME[PORTS] = { "TigoBus", "Meter \"A\"", "Port 3", "Port 4" };
+    memset(&m, 0, sizeof m);
+    m.version = "sim";
+    m.uptime_s = 1234; m.starts = 7; m.loop_recent_us = 1500; m.loop_max_us = 4200;
+    m.temp_ok = m.link = m.clock_synced = true; m.temp_dc = 421;
+    m.eth_rx = 100000; m.eth_tx = 90000; m.handshakes = 12; m.aes_hw = 3456;
+    for (int i = 0; i < PORTS; i++) {
+        m.port[i].name = NAME[i];
+        m.port[i].modbus = i == 1 || i == 2;
+        m.port[i].mode = m.port[i].modbus ? "modbus" : "server";
+        m.port[i].up = true; m.port[i].clients = (uint32_t)i;
+        m.port[i].line_rx = 1000000u * (uint32_t)(i + 1); m.port[i].net_tx = 999000u * (uint32_t)(i + 1);
+        m.port[i].heard_ms = 250 * i - 1;
+        for (int b = 0; b <= FWD_BUCKETS; b++) m.port[i].fwd.n[b] = (uint32_t)(1000 >> b);
+        m.port[i].fwd.sum_us = 4000000; m.port[i].mb.requests = 5000; m.port[i].mb.replies = 4990; m.port[i].mb.total_ms = 99800;
+        for (int b = 0; b <= MB_HIST; b++) m.port[i].mb.hist[b] = (uint32_t)(4000 >> b);
+    }
+    return metrics_part(&m, part, o, n);
+}
 void api_restart(void) { s_reboot = true; http_init(); for (;;) { extern jmp_buf s_loop; longjmp(s_loop, 1); } }
 void NVIC_SystemReset(void) { api_restart(); }
 jmp_buf s_loop;

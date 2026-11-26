@@ -14,6 +14,8 @@
 #include "net.h"
 #include "mqtt_ha.h"
 #include "mqtt_tls.h"
+#include "metrics.h"
+#include "gcm_hw.h"
 #include "eth_mac.h"
 #include "sha256.h"
 #include "slots.h"
@@ -486,6 +488,46 @@ void cli_wiretest(char *out, size_t max)
     for (int i = 0; i < PORTS; i++) uart485_close(i);
     if (!any) OUT("No port heard another. Expected if nothing is wired between ports.\n");
 #undef OUT
+}
+
+/* GET /metrics, a part at a time (http.c): the figures read afresh for each. */
+int api_metrics(uint32_t part, char *out, size_t max)
+{
+    static metrics_t m;
+    static const char *const MODE[] = { "server", "client", "udp", "modbus" };
+    memset(&m, 0, sizeof m);
+    m.version = g_fw_id.version;
+    m.uptime_s = HAL_GetTick() / 1000u;
+    m.starts = bkp_get(BKP_BOOTS);
+    m.failed_starts = bkp_get(BKP_CRASHES);
+    hwinfo_loop_us(&m.loop_recent_us, &m.loop_max_us);
+    m.temp_ok = hwinfo_temp(&m.temp_dc);
+    m.link = g_eth.link_up;
+    m.eth_rx = g_eth.rx_frames; m.eth_tx = g_eth.tx_frames; m.eth_rx_err = g_eth.rx_errors; m.eth_tx_drop = g_eth.tx_drops;
+    tls_counts(&m.handshakes, &m.handshakes_failed);
+    gcm_hw_counts(&m.aes_hw, &m.aes_sw);
+    m.mqtt = s_cfg.mqtt.enabled;
+    m.mqtt_connected = !strcmp(mqtt_ha_state(), "connected");
+    m.clock_synced = clock_synced();
+    for (int i = 0; i < PORTS; i++) {
+        bridge_info_t b;
+        volatile uart_stats_t *u = &g_uart[i];
+        bridge_info(i, &b);
+        m.port[i].name = s_cfg.port[i].name;
+        m.port[i].mode = s_cfg.port[i].mode < 4 ? MODE[s_cfg.port[i].mode] : "";
+        m.port[i].up = b.up;
+        m.port[i].clients = (uint32_t)b.clients;
+        m.port[i].line_rx = b.serial_rx; m.port[i].line_tx = b.serial_tx;
+        m.port[i].net_rx = b.net_rx; m.port[i].net_tx = b.net_tx;
+        m.port[i].turned_away = b.denied;
+        m.port[i].heard_ms = b.heard_ms;
+        m.port[i].fwd = b.fwd;
+        const uint32_t e[ERR_KINDS] = { u->parity, u->framing, u->noise, u->overrun, u->rx_lost, b.net_lost, b.refused };
+        memcpy(m.port[i].err, e, sizeof e);
+        const mb_stats_t *mb = bridge_modbus(i, &m.port[i].mb_waiting);
+        if ((m.port[i].modbus = mb != NULL)) m.port[i].mb = *mb;
+    }
+    return metrics_part(&m, part, out, max);
 }
 
 /* Each reply timed, for the loop figures: which request makes the main loop wait longest. */

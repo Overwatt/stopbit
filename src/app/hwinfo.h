@@ -12,4 +12,6 @@ void   hwinfo_loop(void);                    /* once per pass: how long since th
 void   hwinfo_step(const char *name);        /* the main loop starts this step: which takes longest? */
 void   hwinfo_request(const char *path, uint32_t cycles);   /* an API reply took this long to make */
 size_t hwinfo_json(char *out, size_t max);   /* length, or 0 if it does not fit */
+void   hwinfo_loop_us(uint32_t *recent, uint32_t *since_start);   /* longest pauses */
+bool   hwinfo_temp(int32_t *decic);          /* the processor's temperature, tenths of a degree */
 #endif

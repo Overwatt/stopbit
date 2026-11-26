@@ -14,6 +14,8 @@
 #define MB_QUEUE    8           /* waiting at once, across clients */
 #define MB_PDU      253         /* function and data */
 #define MB_TURN_MS  100u        /* after a broadcast, before the next request */
+#define MB_HIST     8           /* reply times: counts per bucket, the last for longer */
+#define MB_BOUNDS_MS { 10, 25, 50, 100, 250, 500, 1000, 2500 }
 
 typedef struct {
     uint32_t requests;          /* taken from clients */
@@ -27,6 +29,7 @@ typedef struct {
     uint32_t broadcasts;
     uint32_t last_ms, max_ms;   /* response time */
     uint64_t total_ms;          /* over `replies`, for the average */
+    uint32_t hist[MB_HIST + 1];
 } mb_stats_t;
 
 typedef struct {

@@ -184,6 +184,38 @@ devices), timeouts, bad frames, busy, refused, broadcasts, waiting, and reply ti
 average and longest; the port page shows them. After going back to firmware older than
 this, the port is taken as UDP, which Modbus clients do not use: nothing reaches the line.
 
+## Prometheus
+
+`GET /metrics` gives the gateway's figures in Prometheus's text format. Like
+`/api/state`, it needs no password and shows nothing that does not. Scrape it as usual:
+
+```yaml
+scrape_configs:
+  - job_name: n540
+    static_configs:
+      - targets: ["10.20.1.210"]      # or the gateway's HTTPS name, with scheme: https
+```
+
+| Family | What |
+|---|---|
+| `n540_build_info{version}`, `n540_uptime_seconds`, `n540_starts_total`, `n540_failed_starts_total` | the firmware, and how it has run |
+| `n540_loop_pause_seconds{window="recent"\|"since_start"}` | the main loop's longest pause |
+| `n540_temperature_celsius`, `n540_ethernet_*`, `n540_clock_synced`, `n540_mqtt_connected` | the board, the link, time, MQTT (when on) |
+| `n540_https_handshakes_total{result}`, `n540_aes_records_total{engine}` | HTTPS, and records done by the crypto engine or in software |
+| `n540_port_info{port,name,mode}` | each port's name and mode; the rest are labelled by `port` alone |
+| `n540_port_up`, `n540_port_clients`, `n540_port_heard_age_seconds` | open and ready, clients, quiet for |
+| `n540_port_line_bytes_total{dir="heard"\|"sent"}`, `n540_port_network_bytes_total{dir="in"\|"out"}` | traffic: Prometheus's `rate()` gives bytes a second |
+| `n540_port_errors_total{kind}` | parity, framing, noise, overrun, buffer_full, not_delivered, refused |
+| `n540_port_turned_away_total` | by the access list |
+| `n540_port_forward_seconds` (histogram) | from a packet's last byte on the line to its sending on the network, the silence that ends it included |
+| `n540_modbus_*_total`, `n540_modbus_waiting`, `n540_modbus_reply_seconds` (histogram) | Modbus gateway ports: requests, replies, device errors, timeouts, bad frames, busy, refused, broadcasts; reply time |
+
+It is about 10 KB, more than one reply buffer, so it goes out a part at a time as the
+connection has room: in chunks over HTTP/1.1 (the connection then serves the next
+request over HTTPS), or ended by closing the connection for HTTP/1.0. `/api/state` gives
+each port that has forwarded anything `fwd_us`: the last, average and longest
+forwarding delay in microseconds; the port page shows them.
+
 ## Home Assistant (MQTT)
 
 Off by default. In the web UI enter the broker and tick **Connect to an MQTT broker**

@@ -813,6 +813,8 @@ const char *tls_issued(uint32_t *from, uint32_t *to)
     return s_rec.b.name;
 }
 
+void tls_counts(uint32_t *ok, uint32_t *failed) { *ok = s_shakes; *failed = s_failed; }
+
 void tls_heap(size_t *now, size_t *peak)
 {
     size_t blocks;

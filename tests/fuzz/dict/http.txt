@@ -37,3 +37,4 @@ port1.baud=
 ..
 ?
 #/api/events
+/metrics

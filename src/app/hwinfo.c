@@ -165,6 +165,19 @@ void hwinfo_loop(void)
     if (us > s_loop_max) s_loop_max = us;
 }
 
+void hwinfo_loop_us(uint32_t *recent, uint32_t *since_start)
+{
+    *recent = s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1];
+    *since_start = s_loop_max;
+}
+
+bool hwinfo_temp(int32_t *decic)
+{
+    if (!measure()) return false;
+    *decic = s_decic;
+    return true;
+}
+
 /* ---- JSON ---------------------------------------------------------------- */
 size_t hwinfo_json(char *out, size_t max)
 {

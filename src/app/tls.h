@@ -27,6 +27,7 @@ void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n);
 
 /* TLS memory: in use now, and at most so far (bytes). */
 void tls_heap(size_t *now, size_t *peak);
+void tls_counts(uint32_t *ok, uint32_t *failed);   /* handshakes */
 
 /* ---- for acme.c ---- */
 /* The issued certificate's name and validity (unix seconds), or NULL if there is none. */

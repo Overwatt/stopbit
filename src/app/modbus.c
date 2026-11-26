@@ -197,6 +197,10 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
                 m->s.last_ms = ms;
                 if (ms > m->s.max_ms) m->s.max_ms = ms;
                 m->s.total_ms += ms;
+                static const uint32_t B[MB_HIST] = MB_BOUNDS_MS;
+                int b = 0;
+                while (b < MB_HIST && ms > B[b]) b++;
+                m->s.hist[b]++;
                 if (r->client >= 0 && m->cl[r->client].open) m->io.reply(m->io.ctx, r->client, a, 7u + plen);
                 done(m);
                 return;

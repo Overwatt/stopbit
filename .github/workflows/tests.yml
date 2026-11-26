@@ -37,6 +37,7 @@ jobs:
           head -5 sim.log
           python3 tests/test_tls.py 127.0.0.1:8541 8543
           python3 tests/test_install.py 127.0.0.1:8541
+          python3 tests/test_metrics_http.py 127.0.0.1:8541
       - name: MQTT over TLS, against Mosquitto
         run: CC=clang tests/mqtt_tls/run.sh
       - name: Fuzzing, briefly

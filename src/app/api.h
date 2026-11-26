@@ -21,6 +21,8 @@ bool api_set_line(char *line, char *err, size_t errlen);
 void api_restart(void) __attribute__((noreturn));
 /* Length of JSON written, 0 if it did not fit, -1 if no such path. */
 int  api_get(const char *path, char *out, size_t max);
+/* GET /metrics, part by part: length, -1 past the last, -2 if a part does not fit. */
+int  api_metrics(uint32_t part, char *out, size_t max);
 bool api_is_post(const char *path);
 /* Returns an HTTP status line tail; `out` gets the message or JSON. */
 const char *api_post(const char *path, api_req_t *rq, char *out, size_t max);

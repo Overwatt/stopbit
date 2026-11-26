@@ -63,6 +63,7 @@ int main(void)
     hear("01 03 02 00 2a 39 9b");
     assert(to(0, "12 34 00 00 00 05 01 03 02 00 2a"));
     assert(M.s.requests == 1 && M.s.replies == 1 && M.s.last_ms == 20);
+    assert(M.s.hist[1] == 1);                               /* 20 ms: the 10 < t <= 25 bucket */
 
     /* Split byte by byte, and two in one piece: each taken whole. */
     {
@@ -222,6 +223,7 @@ int main(void)
         An[0] = 0;
     }
 
+    { uint32_t h = 0; for (int b = 0; b <= MB_HIST; b++) h += M.s.hist[b]; assert(h == M.s.replies); }
     printf("modbus: ok, average %llu ms over %u replies\n", (unsigned long long)(M.s.total_ms / M.s.replies), (unsigned)M.s.replies);
     return 0;
 }

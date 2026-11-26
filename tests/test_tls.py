@@ -43,7 +43,22 @@ def answer(s):
         x = s.recv(4096)
         if not x: raise EOFError(b)
         b += x
-    h, b = b.split(b"\r\n\r\n", 1); n = int([l for l in h.split(b"\r\n") if l.lower().startswith(b"content-length")][0].split(b":")[1])
+    h, b = b.split(b"\r\n\r\n", 1)
+    if b"transfer-encoding: chunked" in h.lower():           # /metrics: chunks to the empty one
+        body = b""
+        while True:
+            while b"\r\n" not in b:
+                x = s.recv(4096)
+                if not x: raise EOFError
+                b += x
+            size, b = b.split(b"\r\n", 1); n = int(size, 16)
+            while len(b) < n + 2:
+                x = s.recv(4096)
+                if not x: raise EOFError
+                b += x
+            assert b[n:n + 2] == b"\r\n"; body += b[:n]; b = b[n + 2:]
+            if not n: return int(h.split()[1]), h.decode(), body
+    n = int([l for l in h.split(b"\r\n") if l.lower().startswith(b"content-length")][0].split(b":")[1])
     while len(b) < n:
         x = s.recv(4096)
         if not x: raise EOFError
@@ -88,6 +103,11 @@ for i in range(200):
 st, h, b = get(s, "/nothing"); assert st == 404 and "keep-alive" in h.lower()
 st, h, b = get(s, "/status", "Connection: close\r\n"); assert "Connection: close" in h
 assert s.recv(10) == b""; s.close(); ok("200 requests on one connection, then closed when asked")
+s = conn()
+for i in range(5):                                         # a reply in parts, then the next request
+    st, h, b = get(s, "/metrics"); assert st == 200 and "keep-alive" in h.lower() and b.endswith(b"\n") and b'n540_build_info{version="sim"} 1' in b, (st, b[-80:])
+    st, h, b = get(s, "/status"); assert st == 200 and json.loads(b)["mode"] == "app"
+s.close(); ok("/metrics in chunks, %d bytes, then the next request on the connection" % len(get(conn(), "/metrics")[2]))
 s = conn(); s.sendall(b"GET /status HTTP/1.0\r\n\r\n"); assert "close" in answer(s)[1]; s.close()
 s = conn(); s.sendall(b"".join(b"GET /status HTTP/1.1\r\nHost: x\r\n\r\n" for _ in range(3)))
 try:

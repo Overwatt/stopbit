@@ -155,8 +155,10 @@ int main(void)
     assert(!a->closed && b->closed && info(0).denied == 1 && !strcmp(info(0).denied_ip, "10.0.0.6"));
     say(a, "nope");
     assert(line(0, "") && a->unacked == 0 && info(0).ignored == 4);     /* taken, dropped, not held up */
+    uint32_t f0 = info(0).fwd.n[FWD_BUCKETS];
     heard(0, "bus data");
     assert(a->out_n == 8);                                              /* still hears the bus */
+    assert(info(0).fwd.n[FWD_BUCKETS] == f0 + 1 && info(0).fwd.last_us == 1000000);   /* sent 1 s after (the fake line's quiet) */
     for (int i = 0; i < 50; i++) say(a, "a long run of bytes that must never reach the line or stall it");
     assert(line(0, "") && a->unacked == 0 && !a->closed);
 
@@ -428,7 +430,7 @@ int main(void)
     for (int p = 0; p < PORTS; p++) { char t[96]; snprintf(t, sizeof t, "port%d.mode=modbus\nport%d.local_port=%d", p + 1, p + 1, 502 + p); set(t); for (int k = 0; k < 5; k++) from((u16_t)(502 + p), "255.255.255.255"); }
     n = bridge_json(j, sizeof j);
     printf("widest with Modbus %zu bytes, and its 11 figures as long as they get\n", n + PORTS * 11 * 9);
-    assert(n && n + PORTS * 11 * 9 < 4344 - 900);
+    assert(n && n + PORTS * 11 * 9 + PORTS * 40 < 4344 - 900);   /* and "fwd_us" at its longest */
     for (size_t k = 0; k < n; k++) assert(!bridge_json(j, k));
     puts("ok");
     return 0;

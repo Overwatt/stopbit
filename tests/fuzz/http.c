@@ -12,6 +12,7 @@
  *   3 client closes   4 acknowledge what was sent   5 time passes, the main loop runs
  *   6 reset by the client   7 pick another connection   8 open on 443   9 data on 443
  */
+#include "metrics.h"
 #include "http.h"
 #include "api.h"
 #include "tls.h"
@@ -90,6 +91,29 @@ static uint8_t s_web[32] = { 9, 9, 9 };
 const uint8_t *api_web_key(void) { return s_web; }
 const char *api_fw_need(void) { return "listen_only"; }
 bool api_is_post(const char *p) { return !strncmp(p, "/api/", 5) && strcmp(p, "/api/state"); }
+/* GET /metrics: the real format (metrics.c) of made-up figures, two Modbus ports among them. */
+int api_metrics(uint32_t part, char *o, size_t n)
+{
+    static metrics_t m;
+    static const char *const NAME[PORTS] = { "TigoBus", "Meter \"A\"", "Port 3", "Port 4" };
+    memset(&m, 0, sizeof m);
+    m.version = "sim";
+    m.uptime_s = 1234; m.starts = 7; m.loop_recent_us = 1500; m.loop_max_us = 4200;
+    m.temp_ok = m.link = m.clock_synced = true; m.temp_dc = 421;
+    m.eth_rx = 100000; m.eth_tx = 90000; m.handshakes = 12; m.aes_hw = 3456;
+    for (int i = 0; i < PORTS; i++) {
+        m.port[i].name = NAME[i];
+        m.port[i].modbus = i == 1 || i == 2;
+        m.port[i].mode = m.port[i].modbus ? "modbus" : "server";
+        m.port[i].up = true; m.port[i].clients = (uint32_t)i;
+        m.port[i].line_rx = 1000000u * (uint32_t)(i + 1); m.port[i].net_tx = 999000u * (uint32_t)(i + 1);
+        m.port[i].heard_ms = 250 * i - 1;
+        for (int b = 0; b <= FWD_BUCKETS; b++) m.port[i].fwd.n[b] = (uint32_t)(1000 >> b);
+        m.port[i].fwd.sum_us = 4000000; m.port[i].mb.requests = 5000; m.port[i].mb.replies = 4990; m.port[i].mb.total_ms = 99800;
+        for (int b = 0; b <= MB_HIST; b++) m.port[i].mb.hist[b] = (uint32_t)(4000 >> b);
+    }
+    return metrics_part(&m, part, o, n);
+}
 void api_restart(void) { _exit(0); }
 static cfg_t s_cfg;
 const char *api_post(const char *p, api_req_t *r, char *o, size_t n)
