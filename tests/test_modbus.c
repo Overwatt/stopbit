@@ -321,6 +321,10 @@ int main(void)
     poll(GAP); assert(on_linec("02 03 00 01 00 01"));
     poll(GAP); hearc("02 03 02 00 01");
     assert(Lk == 5 && Ltag[4] == 77);
+    /* Unit 0 (a broadcast, no reply) and units no device can have: refused, queue unchanged. */
+    assert(M.qn == 0);
+    assert(!modbus_local(&M, 0, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0) && M.qn == 0);
+    assert(!modbus_local(&M, 248, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0) && M.qn == 0);
     /* Full: refused. A bad length: refused. */
     for (int i = 0; i < MB_QUEUE; i++) assert(modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0));
     assert(!modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0));

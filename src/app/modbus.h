@@ -80,7 +80,8 @@ void modbus_close(modbus_t *m, int client);
 /* Bytes from a client, in any pieces. False: not Modbus TCP; close the connection. */
 bool modbus_from_client(modbus_t *m, int client, const uint8_t *d, size_t n, uint32_t now_ms);
 /* The gateway's own request: unit, PDU (function and data). Its reply or timeout goes to
- * io.local with `tag`. False if 8 wait already, or the PDU is empty or too long. */
+ * io.local with `tag`. False: queue full, bad length, or unit not 1-247 (0 is a broadcast,
+ * which has no reply). */
 bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, uint16_t timeout_ms, uint32_t tag);
 /* Bytes heard on the line. */
 void modbus_from_line(modbus_t *m, const uint8_t *d, size_t n);

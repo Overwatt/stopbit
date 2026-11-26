@@ -130,7 +130,7 @@ bool modbus_from_client(modbus_t *m, int c, const uint8_t *d, size_t n, uint32_t
 
 bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, uint16_t timeout_ms, uint32_t tag)
 {
-    if (!len || len > MB_PDU || m->qn == MB_QUEUE) return false;
+    if (!len || len > MB_PDU || unit == 0 || unit > 247 || m->qn == MB_QUEUE) return false;
     mb_req_t *r = &m->q[m->qn++];
     r->client = MB_LOCAL;
     r->unit = unit;
