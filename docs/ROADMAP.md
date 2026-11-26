@@ -68,6 +68,11 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] HTTPS, with a key made on the device ([HTTPS.md](HTTPS.md)).
 - [x] Let's Encrypt renewal on the device, through Route 53.
 - [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
+- [x] Device profiles, phase 1: the gateway polls RS485 Modbus devices from text
+      profiles and publishes them to MQTT with HA discovery (EG4 BMS; reading only).
+- [ ] Device profiles, phase 2: controls (number, select, switch, button over MQTT);
+      SRNE inverter and SmartGen HSC941 profiles; uploaded profiles.
+- [ ] Device profiles, phase 3: a JBD-protocol driver; Ecoworthy BMS.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.
 
 ## Known risks / open questions

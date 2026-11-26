@@ -191,6 +191,102 @@ devices), timeouts, bad frames, busy, refused, broadcasts, waiting, and reply ti
 average and longest; the port page shows them. After going back to firmware older than
 this, the port is taken as UDP, which Modbus clients do not use: nothing reaches the line.
 
+## Devices
+
+A device is a profile, a port and an address (1 to 247). The gateway polls it over RS485
+and publishes its values to MQTT with Home Assistant discovery, which replaces one ESP32
+per device. Phase 1 ships one profile, `eg4-bms` (EG4 LifePower4 / LL battery), and only
+reads. The profile format is in [profiles/README.md](../profiles/README.md).
+
+The port should be a Modbus gateway (`portN.mode=modbus`). With `local_port=0` it is
+polled only: no TCP listener, and the port's state reads "ready". Settings accept a device
+on a port that is not a Modbus gateway, so a port change or a restore never locks the
+settings; the Devices page then shows "Its port is off, or not a Modbus gateway", and the
+device is not polled. A profile's `line` (baud and frame) is checked against the port: on
+a mismatch the page shows "The profile wants 9600 8N1; the port is ..." and polling
+continues.
+
+```sh
+tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=0 \
+  dev1.profile=eg4-bms dev1.name=pack1 dev1.port=2 dev1.address=16
+```
+
+| Setting | Values |
+|---|---|
+| devN.profile | a built-in profile id (`eg4-bms`); N is 1 to 16. Empty removes the device |
+| devN.name | a to z, 0 to 9, `_` and `-`, up to 24; unique. In topics and Home Assistant ids |
+| devN.label | Home Assistant's name for the device, up to 32; empty: the name |
+| devN.port | 1 to 4 |
+| devN.address | 1 to 247; unique on its port |
+| devN.ids | `own` (the default) or `esphome` (below) |
+| devN.prefix | the ESP32's name, a to z, 0 to 9 and `_`; needed for `ids=esphome` |
+| devN.controls | 0 or 1. Does nothing in phase 1 |
+
+A device without a profile, name, port or address is refused, e.g. "Device 1: choose its
+profile". `ids=esphome` without a prefix is refused too.
+
+### Topics
+
+| Topic | Content |
+|---|---|
+| `BASE/dev/<name>/state` | one JSON object of the device's values, retained. After a change at most once a second, and at least once a minute |
+| `BASE/dev/<name>/status` | `online` or `offline`, retained |
+| `homeassistant/<sensor or binary_sensor>/HOST_<name>/<field>/config` | discovery, retained. Emptied when the device is removed or changed |
+
+An entity is available only while the gateway, the device and its value are all present.
+Each device is a Home Assistant device (the profile's maker and model), shown via the
+gateway.
+
+### Home Assistant names
+
+With own ids an entity is `n540_<name>_<field>`, e.g. `sensor.n540_pack1_total_voltage`,
+and its unique_id is `HOST_<name>_<field>`.
+
+To take over from an ESP32 running ESPHome, set `ids=esphome` and `prefix` to the ESP32's
+name, e.g. `eg4_bms`. The entities then get the ESP32's ids (`sensor.eg4_bms_total_voltage`)
+and a unique_id of `HOST_<name>_<prefix>_<field>`, so they are new entities, and Home
+Assistant's history for those ids carries on. Two entities cannot hold one id: remove the
+ESPHome device from Home Assistant first, then set `ids` and `prefix`.
+
+```sh
+tools/n540.py $H set dev1.ids=esphome dev1.prefix=eg4_bms
+```
+
+Known differences from the ESPHome EG4 component (also in the header of
+`profiles/eg4-bms.txt`):
+
+- Set bits in warnings, protection and error are joined by "; " (the component uses ";").
+- Status has no "Heating+" prefix; heating is its own binary sensor.
+- An unknown status reads "Unknown (N)", not "Unknown".
+- Not carried over: the state_of_charge icon, the component's online status, bitmask and
+  rejected-frame sensors (the gateway has its own online state).
+
+### Timing
+
+The profile sets `turnaround` (quiet time before each request on that port), `timeout`
+(wait for a reply) and `stale` (misses in a row before a block's values become
+unavailable). A device is offline while none of its blocks, other than `info` ones, has
+values: before its first reply, or once each has missed `stale` times.
+
+The Devices page lists each device with its values, `why` it last missed, and a form to
+add, edit or remove one. `GET /api/devices` gives the same as JSON. Line use is the share
+of the last full minute a port's line was busy with the gateway's own reads, in permille
+on the page and as a ratio (0 to 1) in `/metrics`:
+
+| Metric | |
+|---|---|
+| `n540_device_up{device}` | 1 while online |
+| `n540_device_polls_total{device}` | requests sent |
+| `n540_device_misses_total{device}` | requests without a valid reply |
+| `n540_port_line_use_ratio{port}` | line use |
+
+### Limits in phase 1
+
+- Reading only: no controls, and nothing is accepted over MQTT.
+- Built-in profiles only; no uploads yet.
+- Changing the base topic leaves a device's retained topics under the old base.
+- Turning MQTT off leaves the devices' entities in Home Assistant.
+
 ## Prometheus
 
 `GET /metrics` gives the gateway's figures in Prometheus's text format. Like
@@ -318,7 +414,7 @@ Saving erases flash, some 50 ms a sector. Data already on its way between ports 
 connections keeps moving meanwhile; new connections and replies wait.
 
 Access lists have their own two copies at `0x0F2000` / `0x0F3000`, so older firmware still
-reads the rest.
+reads the rest. Devices have their own two copies at `0x0EE000` / `0x0EF000`.
 
 
 Settings: two alternating checksummed copies at `0x0F0000` / `0x0F1000` of external
@@ -377,4 +473,8 @@ Hardware → Settings file: **Download settings** saves every setting as text, t
 gateway, firmware and when. Passwords and keys are not in it. **Restore** sends a file's
 lines back, signed like any change, so restored network settings go on trial for two
 minutes. Lines starting `#` are notes. `GET /api/settings` gives the file as `{"text": …}`.
+
+The file includes the devices (`devN.` lines). `tools/n540.py HOST save FILE` saves the same
+text. `load` and **Restore** send it in batches under 4000 bytes: other lines first, whole
+devices next, network lines last. A failed batch says which batches were applied.
 
