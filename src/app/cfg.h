@@ -14,7 +14,8 @@
 
 #define PORTS 4
 
-enum { MODE_SERVER, MODE_CLIENT, MODE_UDP };
+enum { MODE_SERVER, MODE_CLIENT, MODE_UDP, MODE_MODBUS };   /* older firmware takes an unknown mode as UDP */
+#define MB_TIMEOUT_MS 1000u        /* a Modbus gateway's wait for a reply, unless set */
 enum { PARITY_NONE, PARITY_EVEN, PARITY_ODD };
 
 typedef struct {
@@ -49,7 +50,10 @@ typedef struct {
     char    ntp[48];               /* time server; blank = the DHCP server's, then pool.ntp.org */
     char    topic[48];             /* MQTT base topic; blank = the host name */
     uint8_t mqtt_tls;              /* MQTT over TLS: the broker's certificate is checked (mqtt_tls.c) */
-    uint8_t spare[159];            /* for later settings */
+    uint8_t pad_;
+    uint16_t modbus_timeout[PORTS]; /* ms a Modbus gateway waits for a reply; 0 = MB_TIMEOUT_MS */
+    uint8_t modbus_broadcast;      /* bit per port: unit 0 goes to every device. Else refused */
+    uint8_t spare[149];            /* for later settings */
 } more_cfg_t;
 
 typedef struct {
@@ -68,6 +72,8 @@ typedef struct {
 
 /* Minutes without traffic or a client before a port alerts; 0 = never. */
 uint16_t cfg_quiet_min(const cfg_t *c, int port);
+/* How long a Modbus gateway on this port waits for a reply, ms. */
+unsigned cfg_modbus_timeout(const cfg_t *c, int port);
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);

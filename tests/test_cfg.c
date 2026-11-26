@@ -61,6 +61,20 @@ int main(void)
     OK("port2.access="); assert(!c.access[1].n);
     BAD("port2.loopback=1"); BAD("port3.listen_only=1\nport3.loopback=1"); BAD("port1.listen_only=2");
     OK("port2.listen_only=0\nport2.loopback=1"); OK("port2.loopback=0");
+    /* A Modbus gateway: TCP like a server, never listen-only, its own timeout. */
+    OK("port3.enabled=1\nport3.mode=modbus\nport3.local_port=502"); assert(c.port[2].mode == MODE_MODBUS && cfg_modbus_timeout(&c, 2) == MB_TIMEOUT_MS);
+    BAD("port3.listen_only=1"); BAD("port3.local_port=80"); BAD("port3.mode=gateway");
+    OK("port3.modbus_timeout=250"); assert(cfg_modbus_timeout(&c, 2) == 250 && cfg_modbus_timeout(&c, 3) == MB_TIMEOUT_MS);
+    BAD("port3.modbus_timeout=49"); BAD("port3.modbus_timeout=10001"); BAD("port3.modbus_timeout=");
+    OK("port3.modbus_timeout=1000"); assert(c.more.modbus_timeout[2] == 0);          /* the default stays 0 */
+    assert(!c.more.modbus_broadcast);
+    OK("port3.modbus_broadcast=1"); assert(c.more.modbus_broadcast == 4);
+    OK("port1.modbus_broadcast=1\nport3.modbus_broadcast=0"); assert(c.more.modbus_broadcast == 1);
+    BAD("port3.modbus_broadcast=2"); BAD("port3.modbus_broadcast=");
+    OK("port1.modbus_broadcast=0");
+    OK("port3.enabled=1\nport4.enabled=1\nport4.mode=udp\nport4.local_port=502");     /* UDP 502 beside TCP 502 */
+    BAD("port4.mode=server");                                                          /* TCP 502 twice */
+    OK("port3.enabled=0\nport4.enabled=0\nport3.mode=server\nport3.local_port=4003\nport4.mode=server\nport4.local_port=4004");
     OK("port1.baud=115200\r\nport1.enabled=1\n\nport1.parity=even\n");
     assert(c.port[0].baud == 115200 && c.port[0].parity == PARITY_EVEN && c.port[0].enabled);
     OK("port4.name=Pump \"A\" \\ x");

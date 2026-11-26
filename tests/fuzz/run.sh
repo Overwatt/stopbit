@@ -17,9 +17,10 @@ build() {   # name, then sources and flags
   $CC $SAN $COV -w -Itests/fuzz/key "$@" "$OUT/driver.o" -o "$OUT/fuzz_$n" || { echo "build $n failed"; return 1; }
 }
 bad=0
-for t in ${*:-cfg http hclient}; do
+for t in ${*:-cfg http hclient modbus}; do
   case $t in
   cfg) build cfg -Isrc/app tests/fuzz/cfg.c src/app/cfg.c src/app/acl.c ;;
+  modbus) build modbus -Isrc/app tests/fuzz/modbus.c src/app/modbus.c ;;
   http) build http -DAPP_IMAGE -DFLASH_REAL -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= -DCONN_MEM= \
           -Itests/fuzz -Itests/sim -Itests/stub -Isrc/app -Isrc/common -Isrc/http -Isrc/net \
           tests/fuzz/http.c src/http/http.c src/app/fwlib.c src/app/cfg.c src/app/acl.c src/app/events.c \
@@ -47,7 +48,7 @@ for t in ${*:-cfg http hclient}; do
   ASAN_OPTIONS=detect_leaks=0:abort_on_error=0:symbolize=1 "$OUT/fuzz_$t" "$OUT/$t/corpus" "$SECS" "$d" 8192 2> "$OUT/$t/progress.log" &
 done
 wait
-for t in ${*:-cfg http hclient}; do
+for t in ${*:-cfg http hclient modbus}; do
   [ -f "$OUT/$t/progress.log" ] || continue
   printf '%s: ' "$t"; tail -1 "$OUT/$t/progress.log"
   found=$(ls "$OUT/$t" | grep -E '^(crash|hang)-[0-9a-f]+$')

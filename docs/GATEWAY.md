@@ -134,7 +134,8 @@ while releasing would act; holding past 15 seconds cancels. Set a new password w
 ## Ports
 
 All four ship disabled. Each one is a TCP server (default 4001-4004, up to 4
-connections), a TCP client that reconnects, or UDP. **Data ports have no password.**
+connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below).
+**Data ports have no password.**
 
 | Setting | Values |
 |---|---|
@@ -147,6 +148,8 @@ connections), a TCP client that reconnects, or UDP. **Data ports have no passwor
 | quiet_min | alert when nothing is heard, or no client is connected (TCP), for this many minutes: 0 (never), 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720 or 1440. Shown on the page, in `port N`, and as a problem sensor in Home Assistant. Firmware older than this ignores it |
 | access | who may use the network side, up to 8: `10.0.0.5 read, 10.0.0.0/24 write`. Empty: anyone |
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
+| modbus_timeout | Modbus gateway: ms to wait for a device's reply, 50 to 10000 (1000) |
+| modbus_broadcast | Modbus gateway: 1 lets unit 0 reach every device; 0 (the default) refuses it |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
 loses packets (counted as "not delivered") without affecting the others. Bytes on their
@@ -155,6 +158,31 @@ the line has taken them; readers and listen-only ports need none. If all 6 are i
 another sender's data is offered again every quarter of a second until one is free:
 nothing is lost. The
 Hardware page shows how many have been in use at once.
+
+### Modbus TCP gateway
+
+`portN.mode=modbus` (502 is the usual port): Modbus TCP clients on the network, Modbus
+RTU devices on the line. Each request goes out as an RTU frame (the unit, the request,
+its CRC) and the device's reply goes back to the client that asked, with its transaction
+ID. Up to 4 clients share the line: one request on it at a time, the rest waiting in
+turn (up to 8). The gateway answers for itself only when the device cannot:
+
+| | Answer |
+|---|---|
+| No valid reply within `modbus_timeout` | exception 0x0B (target device failed to respond) |
+| 8 already waiting | 0x06 (busy) |
+| A write from an address that may only read | 0x01 (illegal function); reads (1-4) and device identification (43/14) go through |
+| Unit 0 without `modbus_broadcast`, or 248 to 255 | 0x0A (gateway path unavailable); nothing is sent |
+| Not Modbus TCP | the connection is closed |
+
+Unit 0 is a broadcast: every device on the line acts on it and none replies, so many
+programs' default of 0 would write to all of them; hence it is off unless turned on. A
+reply with a bad CRC, or from another unit, is ignored and the wait goes on. A Modbus
+port never listens only, and drops what it hears while sending (its own echo).
+`/api/state` gives each Modbus port `modbus`: requests, replies, exceptions (from
+devices), timeouts, bad frames, busy, refused, broadcasts, waiting, and reply time last,
+average and longest; the port page shows them. After going back to firmware older than
+this, the port is taken as UDP, which Modbus clients do not use: nothing reaches the line.
 
 ## Home Assistant (MQTT)
 

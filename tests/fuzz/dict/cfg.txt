@@ -24,6 +24,7 @@ port5.
 server
 client
 udp
+modbus
 .baud=
 .data_bits=
 .parity=
@@ -53,3 +54,5 @@ odd
 \r\n
 =
 mqtt.tls=1
+.modbus_timeout=
+.modbus_broadcast=

@@ -18,6 +18,7 @@
 #include "history.h"
 #include "quiet.h"
 #include "knock.h"
+#include "modbus.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -44,6 +45,7 @@ typedef struct {
     bool     up;                /* connected (client mode: SYN completed) */
     uint8_t  port;
     bool     may_write;
+    bool     kill;              /* not Modbus TCP: closed on the next poll */
 } client_t;
 
 enum { LS_OFF, LS_LISTENING, LS_CONNECTING, LS_CONNECTED, LS_WAITING, LS_BOUND, LS_ERROR };
@@ -78,6 +80,13 @@ static uint16_t s_quiet[PORTS];
 static acl_t s_acl[PORTS];
 static const char *const ALERT[] = { "", "silent", "no_client", "turned_away" };
 static bool s_dirty;
+/* A Modbus gateway's state, for ports in that mode (modbus.c). */
+static D2 modbus_t s_mb[PORTS];
+static uint16_t s_mb_timeout[PORTS];
+static uint8_t s_mb_broadcast;              /* bit per port */
+_Static_assert(MAX_CLIENTS == MB_CLIENTS, "a Modbus client per connection");
+static bool is_mb(int i);
+static void mb_gone(client_t *c);
 
 static size_t to_line(int i, const uint8_t *d, size_t n)
 {
@@ -142,6 +151,7 @@ void bridge_rings(uint32_t *used, uint32_t *peak, uint32_t *size, uint32_t *wait
 /* ---- TCP connections ----------------------------------------------------- */
 static void client_detach(client_t *c)
 {
+    mb_gone(c);
     tcp_arg(c->pcb, NULL);
     tcp_recv(c->pcb, NULL);
     tcp_err(c->pcb, NULL);
@@ -177,6 +187,14 @@ static err_t cb_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *q, err_t err)
     }
     if (!q) { c->fin = true; c->drained_at = HAL_GetTick(); return ERR_OK; }
     port_t *p = &s_p[c->port];
+    if (is_mb(c->port)) {                                        /* requests: small, queued in modbus.c */
+        p->net_rx += q->tot_len;
+        for (struct pbuf *b = q; b && !c->kill; b = b->next)
+            if (!modbus_from_client(&s_mb[c->port], (int)(c - p->cl), b->payload, b->len, HAL_GetTick())) c->kill = true;
+        tcp_recved(pcb, q->tot_len);
+        pbuf_free(q);
+        return ERR_OK;
+    }
     if (!c->ring && (!c->may_write || p->cfg.listen_only)) {     /* bound nowhere: taken and dropped */
         p->net_rx += q->tot_len;
         if (!c->may_write) p->ignored += q->tot_len;
@@ -205,6 +223,7 @@ static void cb_err(void *arg, err_t err)
     client_t *c = arg;
     (void)err;
     if (!c) return;
+    mb_gone(c);
     c->pcb = NULL;              /* lwIP already freed it */
     c->up = false;
     ring_give(c);
@@ -217,7 +236,7 @@ static void client_attach(port_t *p, client_t *c, struct tcp_pcb *pcb)
     ring_give(c);               /* none, as it was detached; to be sure */
     c->pcb = pcb;
     c->head = c->count = 0;
-    c->fin = false;
+    c->fin = c->kill = false;
     c->port = (uint8_t)(p - s_p);
     tcp_arg(pcb, c);
     tcp_recv(pcb, cb_recv);
@@ -244,6 +263,7 @@ static err_t cb_accept(void *arg, struct tcp_pcb *pcb, err_t err)
         client_attach(p, &p->cl[i], pcb);
         p->cl[i].may_write = r == ACL_WRITE;
         p->cl[i].up = true;
+        if (is_mb((int)(p - s_p))) modbus_open(&s_mb[p - s_p], i, r == ACL_WRITE);
         return ERR_OK;
     }
     p->refused++;
@@ -373,15 +393,74 @@ static void start_udp(port_t *p)
     else p->state = LS_BOUND;
 }
 
+/* ---- Modbus --------------------------------------------------------------- */
+static bool is_mb(int i) { return s_p[i].cfg.mode == MODE_MODBUS; }
+
+static size_t mb_line(void *ctx, const uint8_t *d, size_t n)
+{
+    int i = (int)((port_t *)ctx - s_p);
+    return uart485_tx_room(i) >= n ? to_line(i, d, n) : 0;
+}
+
+static void mb_reply(void *ctx, int k, const uint8_t *d, size_t n)
+{
+    port_t *p = ctx;
+    struct tcp_pcb *pcb = p->cl[k].pcb;
+    if (pcb && tcp_sndbuf(pcb) >= n && tcp_write(pcb, d, (u16_t)n, TCP_WRITE_FLAG_COPY) == ERR_OK) {
+        tcp_output(pcb);
+        p->net_tx += n;
+    } else {
+        p->net_lost += n;
+    }
+}
+
+static void mb_gone(client_t *c)
+{
+    if (c->pcb && is_mb(c->port)) modbus_close(&s_mb[c->port], (int)(c - s_p[c->port].cl));
+}
+
+static uint32_t gap_us(const port_cfg_t *c);
+
+static void mb_start(int i)
+{
+    const mb_io_t io = { mb_line, mb_reply, &s_p[i] };
+    modbus_init(&s_mb[i], &io, s_mb_timeout[i], gap_us(&s_p[i].cfg));
+    s_mb[i].broadcast = s_mb_broadcast >> i & 1;
+}
+
+/* Requests out, replies in. The line is read only once the request has gone out, so
+ * nothing of the reply is lost. Our own echo is dropped as it comes (echo_cancel), except
+ * in the loopback test, where it is the reply: function 6 is answered with a copy. */
+static void mb_pump(int i)
+{
+    port_t *p = &s_p[i];
+    modbus_t *m = &s_mb[i];
+    uint32_t now = HAL_GetTick();
+    modbus_poll(m, now, uart485_rx_idle_us(i), uart485_tx_idle(i));
+    size_t a = m->state == MB_SENDING ? 0 : uart485_rx_avail(i);
+    if (a) {
+        uint8_t b[256];
+        size_t n = uart485_read(i, b, a < sizeof b ? a : sizeof b);
+        traffic_add(i, false, b, n, now);
+        p->heard = true;
+        p->heard_at = p->quiet_from = now;
+        modbus_from_line(m, b, n);
+    }
+    modbus_poll(m, now, uart485_rx_idle_us(i), uart485_tx_idle(i));
+}
+
 /* ---- start / stop -------------------------------------------------------- */
 static void port_start(int i)
 {
     port_t *p = &s_p[i];
     if (!p->cfg.enabled) return;
     p->quiet_from = p->client_from = HAL_GetTick();
-    uart485_open(i, &p->cfg);
+    port_cfg_t u = p->cfg;
+    if (u.mode == MODE_MODBUS) u.echo_cancel = 1;           /* its own request is not a reply */
+    uart485_open(i, &u);
     switch (p->cfg.mode) {
     case MODE_SERVER: start_listen(p); break;
+    case MODE_MODBUS: mb_start(i); start_listen(p); break;
     case MODE_CLIENT: start_resolve(p); break;
     default:          start_udp(p);
     }
@@ -403,6 +482,7 @@ static void port_stop(int i)
 
 void bridge_init(void)
 {
+    memset(s_mb, 0, sizeof s_mb);       /* D2 SRAM is not zeroed at startup */
     uart485_init();
     history_init(HAL_GetTick());
     traffic_init();
@@ -414,6 +494,8 @@ void bridge_init(void)
 void bridge_configure(const cfg_t *c)
 {
     for (int i = 0; i < PORTS; i++) s_quiet[i] = cfg_quiet_min(c, i);
+    for (int i = 0; i < PORTS; i++) s_mb_timeout[i] = (uint16_t)cfg_modbus_timeout(c, i);
+    s_mb_broadcast = c->more.modbus_broadcast;
     memcpy(s_acl, c->access, sizeof s_acl);     /* for new arrivals at once, the rest in bridge_poll */
     memcpy(s_want, c->port, sizeof s_want);
     s_dirty = true;
@@ -430,6 +512,7 @@ static void apply_access(port_t *p)
         const ip_addr_t ip = c->pcb->remote_ip;
         acl_role_t r = role(p, &ip);
         c->may_write = r == ACL_WRITE;
+        if (is_mb((int)(p - s_p))) modbus_may_write(&s_mb[p - s_p], k, c->may_write);
         if (r != ACL_DENY) continue;
         deny(p, &ip);
         client_close(c);
@@ -546,6 +629,7 @@ void bridge_pump(void)
 {
     for (int i = 0; i < PORTS; i++) {
         if (s_p[i].state == LS_OFF) continue;
+        if (is_mb(i)) { mb_pump(i); continue; }
         serial_to_net(i);
         net_to_serial(i, false);
     }
@@ -565,6 +649,8 @@ void bridge_poll(void)
         for (int i = 0; i < PORTS; i++) {
             if (same_wiring(&s_p[i].cfg, &s_want[i])) {
                 s_p[i].cfg = s_want[i];
+                s_mb[i].timeout_ms = s_mb_timeout[i];
+                s_mb[i].broadcast = s_mb_broadcast >> i & 1;
                 apply_access(&s_p[i]);
                 continue;
             }
@@ -576,12 +662,18 @@ void bridge_poll(void)
     for (int i = 0; i < PORTS; i++) {
         port_t *p = &s_p[i];
         if (p->state == LS_OFF) continue;
-        serial_to_net(i);
-        net_to_serial(i, true);
+        if (is_mb(i)) {
+            mb_pump(i);
+            for (int k = 0; k < MAX_CLIENTS; k++)          /* not Modbus TCP, or the client is done */
+                if (p->cl[k].pcb && (p->cl[k].kill || p->cl[k].fin)) client_close(&p->cl[k]);
+        } else {
+            serial_to_net(i);
+            net_to_serial(i, true);
+        }
         watch(p, HAL_GetTick(), s_quiet[i]);
         if ((p->state == LS_WAITING || p->state == LS_ERROR) &&
             (int32_t)(HAL_GetTick() - p->retry_at) >= 0) {
-            if (p->cfg.mode == MODE_SERVER) start_listen(p);
+            if (p->cfg.mode == MODE_SERVER || p->cfg.mode == MODE_MODBUS) start_listen(p);
             else if (p->cfg.mode == MODE_UDP && !p->udp) start_udp(p);
             else start_resolve(p);
         }
@@ -657,7 +749,17 @@ size_t bridge_json(char *out, size_t max)
             ADD("\"%s:%u\"", ip, p->udp_peer_port);
             ro = role(p, &p->udp_peer) != ACL_WRITE;
         }
-        ADD("],\"read_only\":%u}", ro);
+        ADD("],\"read_only\":%u", ro);
+        if (is_mb(i)) {
+            const mb_stats_t *m = &s_mb[i].s;
+            ADD(",\"modbus\":{\"requests\":%lu,\"replies\":%lu,\"exceptions\":%lu,\"timeouts\":%lu,\"bad\":%lu,"
+                "\"busy\":%lu,\"refused\":%lu,\"broadcasts\":%lu,\"waiting\":%u,\"last_ms\":%lu,\"avg_ms\":%lu,\"max_ms\":%lu}",
+                (unsigned long)m->requests, (unsigned long)m->replies, (unsigned long)m->exceptions,
+                (unsigned long)m->timeouts, (unsigned long)m->bad, (unsigned long)m->busy, (unsigned long)m->refused,
+                (unsigned long)m->broadcasts, (unsigned)s_mb[i].qn, (unsigned long)m->last_ms,
+                (unsigned long)(m->replies ? m->total_ms / m->replies : 0), (unsigned long)m->max_ms);
+        }
+        ADD("}");
     }
     ADD("]");
     return n;

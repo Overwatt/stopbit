@@ -78,7 +78,7 @@ static void net_fmt(const port_cfg_t *c, char *b, size_t n)
     if (c->mode == MODE_CLIENT) snprintf(b, n, "TCP to %s:%u", c->remote_host[0] ? c->remote_host : "?", c->remote_port);
     else if (c->mode == MODE_UDP && c->remote_host[0])
         snprintf(b, n, "UDP %u to %s:%u", c->local_port, c->remote_host, c->remote_port);
-    else snprintf(b, n, "%s %u", c->mode == MODE_UDP ? "UDP" : "TCP server", c->local_port);
+    else snprintf(b, n, "%s %u", c->mode == MODE_UDP ? "UDP" : c->mode == MODE_MODBUS ? "Modbus TCP" : "TCP server", c->local_port);
 }
 
 static uint32_t errors(const cli_port_t *p)

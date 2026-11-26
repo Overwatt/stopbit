@@ -13,14 +13,14 @@ typedef struct {
     const char *const *names;       /* T_ENUM */
 } field_t;
 
-static const char *const MODES[]    = { "server", "client", "udp", NULL };
+static const char *const MODES[]    = { "server", "client", "udp", "modbus", NULL };
 static const char *const PARITIES[] = { "none", "even", "odd", NULL };
 
 #define F(k, t, lo, hi, n) { #k, t, offsetof(port_cfg_t, k), sizeof(((port_cfg_t *)0)->k), lo, hi, n }
 static const field_t PORT_F[] = {
     F(name,        T_STR,  0, 0, NULL),
     F(enabled,     T_BOOL, 0, 1, NULL),
-    F(mode,        T_ENUM, 0, 2, MODES),
+    F(mode,        T_ENUM, 0, 3, MODES),
     F(baud,        T_U32,  300, 2000000, NULL),
     F(data_bits,   T_U8,   7, 8, NULL),
     F(parity,      T_ENUM, 0, 2, PARITIES),
@@ -51,6 +51,8 @@ static const field_t MQTT_F[] = {
 static const uint16_t QUIET_MIN[16] = { 0, 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720, 1440 };
 
 uint16_t cfg_quiet_min(const cfg_t *c, int i) { return QUIET_MIN[c->quiet >> (4 * i) & 15]; }
+
+unsigned cfg_modbus_timeout(const cfg_t *c, int i) { return c->more.modbus_timeout[i] ? c->more.modbus_timeout[i] : MB_TIMEOUT_MS; }
 
 void cfg_defaults(cfg_t *c)
 {
@@ -179,6 +181,17 @@ static bool apply(cfg_t *c, const char *k, const char *v)
                 return set_field(&c->port[k[4] - '1'], &PORT_F[i], v);
         uint32_t min;
         if (!strcmp(k + 6, "access")) return acl_parse(&c->access[k[4] - '1'], v);
+        if (!strcmp(k + 6, "modbus_broadcast")) {
+            if (strcmp(v, "0") && strcmp(v, "1")) return false;
+            uint8_t bit = (uint8_t)(1u << (k[4] - '1'));
+            c->more.modbus_broadcast = (uint8_t)(*v == '1' ? c->more.modbus_broadcast | bit : c->more.modbus_broadcast & ~bit);
+            return true;
+        }
+        if (!strcmp(k + 6, "modbus_timeout")) {
+            if (!parse_u32(v, &min) || min < 50 || min > 10000) return false;
+            c->more.modbus_timeout[k[4] - '1'] = (uint16_t)(min == MB_TIMEOUT_MS ? 0 : min);   /* the default stays 0 */
+            return true;
+        }
         if (strcmp(k + 6, "quiet_min") || !parse_u32(v, &min)) return false;
         for (unsigned q = 0; q < 16; q++)
             if (QUIET_MIN[q] == min) {
@@ -275,6 +288,10 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             snprintf(err, errlen, "Port %d: 7N1 is not supported; add parity or a second stop bit", i + 1);
             return false;
         }
+        if (p->listen_only && p->mode == MODE_MODBUS) {
+            snprintf(err, errlen, "Port %d: a Modbus gateway sends requests, so turn off listen only", i + 1);
+            return false;
+        }
         if (p->listen_only && p->loopback) {
             snprintf(err, errlen, "Port %d: the loopback test transmits, so turn off listen only or loopback", i + 1);
             return false;
@@ -291,7 +308,7 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             snprintf(err, errlen, "Port %d: enter a local port", i + 1);
             return false;
         }
-        if (p->mode == MODE_SERVER && p->local_port == 80) {
+        if (p->mode != MODE_UDP && p->local_port == 80) {
             snprintf(err, errlen, "Port %d: TCP 80 is used by this web page", i + 1);
             return false;
         }
@@ -307,7 +324,8 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
         }
         for (int j = 0; j < i; j++) {
             const port_cfg_t *q = &c->port[j];
-            if (q->enabled && q->mode == p->mode && q->local_port == p->local_port) {
+            if (q->enabled && q->mode != MODE_CLIENT && (q->mode == MODE_UDP) == (p->mode == MODE_UDP) &&
+                q->local_port == p->local_port) {
                 snprintf(err, errlen, "Ports %d and %d both use local port %u", j + 1, i + 1, p->local_port);
                 return false;
             }
@@ -394,7 +412,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
         n += w - 1;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD(",\"quiet_min\":%u,\"access\":\"%s\"}", cfg_quiet_min(c, i), t);
+        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":%s}", cfg_quiet_min(c, i), t,
+            cfg_modbus_timeout(c, i), c->more.modbus_broadcast >> i & 1 ? "true" : "false");
     }
     ADD("]}\n");
     return n;
@@ -438,7 +457,8 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         n += w;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD("%s.quiet_min=%u\n%s.access=%s\n", pre, cfg_quiet_min(c, i), pre, t);
+        ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%u\n", pre, cfg_quiet_min(c, i), pre, t,
+            pre, cfg_modbus_timeout(c, i), pre, (unsigned)(c->more.modbus_broadcast >> i & 1));
     }
     return n;
 }

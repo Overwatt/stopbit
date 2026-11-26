@@ -37,7 +37,13 @@ answered). Before a frame goes out the line must have been quiet for 3.5 charact
 | A reply with a bad CRC, or for another unit or function | ignored; the wait goes on |
 | Malformed request (protocol not 0, length out of range) | the connection is closed |
 
-A broadcast (unit 0) goes out with no reply expected; the next request waits 100 ms.
+**Unit 0** is a broadcast: every device acts on it and none replies. Many Modbus TCP
+programs send 0 (or 255) unless told otherwise, so broadcasts are a per-port setting, off
+by default (`portN.modbus_broadcast`, changed 2026-11-26 after review). Off, unit 0 is
+answered 0x0A (gateway path unavailable) and nothing is sent; on, it goes out with no reply
+expected and the next request waits 100 ms. Units 248 to 255, which no device can have,
+are always answered 0x0A.
+
 A client that disconnects loses its waiting requests; one already on the line finishes
 and its reply is dropped.
 
@@ -50,9 +56,9 @@ bad CRCs, busy answers, refused functions; response time last, average and longe
 `/api/state` (`ports[].modbus`) and on the port page. Item 4 (traffic and latency
 figures, Prometheus) builds on them.
 
-**Setting.** `portN.mode=modbus`; `portN.modbus_timeout` in ms, kept in the extra
-settings record (`more_cfg_t`, from `spare`). The web form offers the mode, 502 when it
-is chosen, and the timeout.
+**Setting.** `portN.mode=modbus`; `portN.modbus_timeout` in ms and
+`portN.modbus_broadcast`, kept in the extra settings record (`more_cfg_t`, from
+`spare`). The web form offers the mode, 502 when it is chosen, the timeout and broadcasts.
 
 ## Code
 
@@ -68,6 +74,10 @@ is chosen, and the timeout.
   segment; replies to the right client with the right transaction ID; several clients
   in turn; timeout, bad CRC, wrong unit, exception from the device, busy, broadcast;
   read-only clients; disconnect while waiting or on the line; settings.
-- **Simulator:** a Modbus TCP client in Python against the simulator, with a simulated
-  RTU device on the port.
+- **Through the bridge** (`tests/test_bridge.c`): connections and access lists as lwIP
+  gives them, with a fake line. **Fuzzed** (`tests/fuzz/modbus.c`): client and line bytes
+  in any pieces and order. (Instead of the simulator, which has no bridge or serial line.)
+- **On the gateway before a device is wired:** an unwired port in loopback test, where the
+  request's own copy is heard: function 6 is answered with a copy, so it comes back as
+  the reply, and anything else times out.
 - **Gateway:** once a device is wired; TigoBus on port 1 untouched.

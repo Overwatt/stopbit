@@ -112,12 +112,33 @@ static err_t give(struct tcp_pcb *p, struct pbuf **q, const char *s)  /* *q: kep
     if (e == ERR_OK) *q = NULL;
     return e;
 }
+/* Bytes as hex: "01 03 00 00". */
+static size_t hex(const char *t, uint8_t *o) { size_t n = 0; unsigned v; int k; while (sscanf(t, " %2x%n", &v, &k) == 1) { o[n++] = (uint8_t)v; t += k; } return n; }
+static void sayb(struct tcp_pcb *p, const char *h)
+{
+    uint8_t b[600]; size_t n = hex(h, b);
+    struct pbuf *q = pbuf_alloc(0, (u16_t)n, 0);
+    memcpy(q->payload, b, n); p->unacked += (int)n;
+    assert(p->rx(p->arg, p, q, ERR_OK) == ERR_OK);
+    bridge_poll();
+}
+static void heardb(int p, const char *h) { Rn[p] = hex(h, R[p]); bridge_poll(); }
+static bool same(const uint8_t *b, size_t n, const char *h)
+{
+    uint8_t w[600]; size_t wn = hex(h, w);
+    if (n == wn && !memcmp(b, w, n)) return true;
+    printf("got:  "); for (size_t i = 0; i < n; i++) printf("%02x ", b[i]); printf("\nwant: %s\n", h);
+    return false;
+}
+static bool lineb(int p, const char *h) { bool r = same(L[p], Ln[p], h); Ln[p] = 0; return r; }
+static bool outb(struct tcp_pcb *p, const char *h) { bool r = same(p->out, (size_t)p->out_n, h); p->out_n = 0; return r; }
 static uint32_t rings(uint32_t *peak, uint32_t *waits) { uint32_t u, pk, n, w; bridge_rings(&u, &pk, &n, &w); if (peak) *peak = pk; if (waits) *waits = w; return u; }
 static struct udp_pcb *udp(void) { for (int i = 0; i < 4; i++) if (U[i].used) return &U[i]; return NULL; }
 
 int main(void)
 {
     char j[4344];
+    size_t n;
     cfg_defaults(&C);
     bridge_init();
 
@@ -357,12 +378,57 @@ int main(void)
     assert(line(0, "") && d->unacked == 0 && rings(NULL, NULL) == 0 && !d->closed);
     set("port1.enabled=0\nport3.enabled=0\nport4.enabled=0\nport1.access=");
 
+    /* A Modbus gateway on port 2: requests one at a time, each reply to whoever asked. */
+    cfg_defaults(&C);
+    set("port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport2.access=10.0.0.1 write, 10.0.0.2 read");
+    assert(listener(502) && opened[1]);
+    struct tcp_pcb *mw = from(502, "10.0.0.1"), *mr = from(502, "10.0.0.2"), *mx = from(502, "10.0.0.3");
+    assert(!mw->aborted && !mr->aborted && mx->aborted);
+    sayb(mw, "00 01 00 00 00 06 01 03 00 00 00 01");
+    assert(lineb(1, "01 03 00 00 00 01 84 0a") && mw->unacked == 0);
+    heardb(1, "01 03 02 00 2a 39 9b");
+    assert(outb(mw, "00 01 00 00 00 05 01 03 02 00 2a"));
+    sayb(mw, "00 0a 00 00 00 06 00 06 00 01 00 03");                    /* unit 0: no broadcasts here */
+    assert(outb(mw, "00 0a 00 00 00 03 00 86 0a") && lineb(1, ""));
+    sayb(mr, "00 02 00 00 00 06 01 06 00 01 00 03");                    /* a reader may not write */
+    assert(outb(mr, "00 02 00 00 00 03 01 86 01") && lineb(1, ""));
+    sayb(mw, "00 03 00 00 00 06 01 03 00 00 00 01");                    /* both at once: in turn */
+    sayb(mr, "00 04 00 00 00 06 01 03 00 00 00 01");
+    assert(lineb(1, "01 03 00 00 00 01 84 0a"));
+    heardb(1, "01 03 02 00 2a 39 9b");
+    assert(outb(mw, "00 03 00 00 00 05 01 03 02 00 2a") && mr->out_n == 0);
+    bridge_poll();
+    assert(lineb(1, "01 03 00 00 00 01 84 0a"));
+    heardb(1, "01 03 02 00 2b f8 5b");
+    assert(outb(mr, "00 04 00 00 00 05 01 03 02 00 2b") && mw->out_n == 0);
+    set("port2.access=10.0.0.1 read, 10.0.0.2 read");                   /* demoted: writes refused now */
+    sayb(mw, "00 05 00 00 00 06 01 06 00 01 00 03");
+    assert(outb(mw, "00 05 00 00 00 03 01 86 01") && lineb(1, ""));
+    n = bridge_json(j, sizeof j);
+    assert(n && strstr(j, "\"modbus\":{\"requests\":6,\"replies\":3,") && strstr(j, "\"refused\":3,"));
+    set("port2.modbus_broadcast=1");                                    /* allowed: out, unanswered */
+    sayb(mr, "00 0b 00 00 00 06 00 03 00 00 00 01");
+    assert(lineb(1, "00 03 00 00 00 01 85 db") && mr->out_n == 0);
+    t_now += 100;
+    bridge_poll();
+    set("port2.modbus_broadcast=0");
+    sayb(mw, "00 06 00 01 00 06 01 03 00 00 00 01");                    /* not Modbus TCP: closed */
+    assert(mw->closed && !mr->closed);
+    mr->rx(mr->arg, mr, NULL, ERR_OK);                                   /* the client closes */
+    bridge_poll();
+    assert(mr->closed);
+    set("port2.listen_only=0\nport2.enabled=0\nport2.access=");
+
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");
     for (int p = 0; p < PORTS; p++) { memset((void *)&g_uart[p], 0xFF, sizeof g_uart[p]); char t[64]; snprintf(t, sizeof t, "port%d.enabled=1", p + 1); set(t); for (int k = 0; k < 5; k++) from((u16_t)(4001 + p), "255.255.255.255"); }
-    size_t n = bridge_json(j, sizeof j);
+    n = bridge_json(j, sizeof j);
     printf("widest port state %zu bytes\n", n);
     assert(n && n < 4344 - 900);
+    for (int p = 0; p < PORTS; p++) { char t[96]; snprintf(t, sizeof t, "port%d.mode=modbus\nport%d.local_port=%d", p + 1, p + 1, 502 + p); set(t); for (int k = 0; k < 5; k++) from((u16_t)(502 + p), "255.255.255.255"); }
+    n = bridge_json(j, sizeof j);
+    printf("widest with Modbus %zu bytes, and its 11 figures as long as they get\n", n + PORTS * 11 * 9);
+    assert(n && n + PORTS * 11 * 9 < 4344 - 900);
     for (size_t k = 0; k < n; k++) assert(!bridge_json(j, k));
     puts("ok");
     return 0;
