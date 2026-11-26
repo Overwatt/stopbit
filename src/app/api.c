@@ -181,7 +181,7 @@ static bool on_trial(void)
     return !kept;
 }
 
-int api_get(const char *path, char *out, size_t max)
+static int get_one(const char *path, char *out, size_t max)
 {
     if (!strcmp(path, "/api/config")) {
         cfg_t c = s_cfg;
@@ -486,6 +486,15 @@ void cli_wiretest(char *out, size_t max)
     for (int i = 0; i < PORTS; i++) uart485_close(i);
     if (!any) OUT("No port heard another. Expected if nothing is wired between ports.\n");
 #undef OUT
+}
+
+/* Each reply timed, for the loop figures: which request makes the main loop wait longest. */
+int api_get(const char *path, char *out, size_t max)
+{
+    uint32_t t = DWT->CYCCNT;
+    int n = get_one(path, out, max);
+    if (n >= 0) hwinfo_request(path, DWT->CYCCNT - t);
+    return n;
 }
 
 bool api_is_post(const char *path)

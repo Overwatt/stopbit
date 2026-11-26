@@ -13,6 +13,7 @@
 #include "board.h"
 #include "board_init.h"
 #include "hwinfo.h"
+#include "gcm_hw.h"
 #include "tls.h"
 #include "acme.h"
 #include "clock.h"
@@ -104,6 +105,7 @@ int main(void)
     CRUMB(4); api_init();
     extflash_meanwhile(meanwhile);
     CRUMB(5); http_init();
+    CRUMB(9); gcm_hw_init();         /* before anything can make a TLS record */
     CRUMB(6); tls_init();
     CRUMB(7); acme_init();
     CRUMB(8); clock_init();

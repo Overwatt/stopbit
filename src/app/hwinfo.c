@@ -123,6 +123,23 @@ static void step_end(uint32_t now)
     s_step_gcm = g;
 }
 
+/* And which API reply took longest to make: since the start, and in the same window. */
+typedef struct { uint32_t us; char path[28]; } req_t;
+static req_t s_req_max, s_reqs[2];
+
+void hwinfo_request(const char *path, uint32_t cycles)
+{
+    uint32_t us = cycles / (SystemCoreClock / 1000000u);
+    if (us <= s_reqs[0].us && us <= s_req_max.us) return;
+    req_t r = { us, "" };
+    for (unsigned i = 0; path[i] && i < sizeof r.path - 1; i++) {    /* it goes into JSON as it is */
+        char ch = path[i];
+        r.path[i] = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '/' || ch == '?' || ch == '=' ? ch : '_';
+    }
+    if (us > s_reqs[0].us) s_reqs[0] = r;
+    if (us > s_req_max.us) s_req_max = r;
+}
+
 void hwinfo_step(const char *name)
 {
     step_end(DWT->CYCCNT);
@@ -141,6 +158,8 @@ void hwinfo_loop(void)
         s_loop[0] = 0;
         s_steps[1] = s_steps[0];
         s_steps[0] = (step_t){ 0, NULL, 0 };
+        s_reqs[1] = s_reqs[0];
+        s_reqs[0] = (req_t){ 0, "" };
     }
     if (us > s_loop[0]) s_loop[0] = us;
     if (us > s_loop_max) s_loop_max = us;
@@ -196,9 +215,15 @@ size_t hwinfo_json(char *out, size_t max)
 
     const step_t *r = s_steps[0].us > s_steps[1].us ? &s_steps[0] : &s_steps[1];
     OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"recent_gcm_us\":%lu,"
-        "\"max_us\":%lu,\"max\":\"%s\",\"max_gcm_us\":%lu}}",
+        "\"max_us\":%lu,\"max\":\"%s\",\"max_gcm_us\":%lu}",
         U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max),
         U(r->us), r->in ? r->in : "", U(r->gcm_us), U(s_step_max.us), s_step_max.in ? s_step_max.in : "", U(s_step_max.gcm_us));
+    const req_t *q = s_reqs[0].us > s_reqs[1].us ? &s_reqs[0] : &s_reqs[1];
+    OUT(",\"request\":{\"recent_us\":%lu,\"recent\":\"%s\",\"max_us\":%lu,\"max\":\"%s\"}},\"aes\":",
+        U(q->us), q->path, U(s_req_max.us), s_req_max.path);
+    size_t a = gcm_hw_json(out + n, max - n);
+    if (!a) return 0;
+    n += a;
     const fw_id_t *ld = (const fw_id_t *)(FLASH_BASE + FW_ID_OFFSET);
     OUT(",\"loader\":\"%.23s\",\"slot\":%d,\"slots\":[", ld->magic == FW_ID_MAGIC_LOADER ? ld->version : "", run);
     for (int i = 0; i < SLOT_COUNT; i++)
