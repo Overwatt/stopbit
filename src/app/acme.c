@@ -2,6 +2,7 @@
 #include "hclient.h"
 #include "tls.h"
 #include "clock.h"
+#include "events.h"
 #include "worker.h"
 #include "extflash.h"
 #include "sha256.h"
@@ -488,6 +489,7 @@ static void run(void *arg)
             save(&b);
         }
     }
+    events_add(EV_RENEWAL, 0, why ? 2u : s_staging ? 1u : 0u, why);   /* the reason only: notes are short */
     s_step = "";
     s_running = false;
 }

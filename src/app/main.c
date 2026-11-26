@@ -16,6 +16,8 @@
 #include "tls.h"
 #include "acme.h"
 #include "clock.h"
+#include "events.h"
+#include "fw_id.h"
 #include "bridge.h"
 #include "api.h"
 
@@ -80,6 +82,16 @@ int main(void)
 #define CRUMB(n) bkp_set(BKP_CRUMB, (n))
 #define STEP(n, name) do { CRUMB(n); hwinfo_step(name); } while (0)
     extflash_init();
+    events_init();
+    {
+        uint32_t f = bkp_get(BKP_FAULT), pc = bkp_get(BKP_FAULT + 1);
+        static const char *const NAME[] = { "", "", "", "hard fault", "memory fault", "bus fault", "usage fault" };
+        if ((f & 0xFFFF0000u) == FAULT_MAGIC && (f & 0xFFFFu) < 7 && bkp_get(BKP_FAULT_SEEN) != (f ^ pc)) {
+            events_add(EV_FAULT, 0, pc, NAME[f & 0xFFFFu]);
+            bkp_set(BKP_FAULT_SEEN, f ^ pc);
+        }
+        events_add(EV_START, 0, g_reset_cause, g_fw_id.version);
+    }
 #if defined(TEST_HANG)                     /* rollback test: watchdog reset */
     for (;;) { }
 #elif defined(TEST_NONET)                  /* rollback test: alive, unreachable */
@@ -104,6 +116,7 @@ int main(void)
         STEP(15, "bridge"); bridge_poll();
         STEP(16, "api"); api_poll();
         STEP(17, "supervise"); supervise(); clock_poll();
+        STEP(18, "events"); events_poll();
         hwinfo_step("led"); led_poll();
     }
 }

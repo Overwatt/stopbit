@@ -12,6 +12,7 @@
 #include "worker.h"
 #include "acme.h"
 #include "clock.h"
+#include "events.h"
 #include "sha256.h"
 #include "system.h"
 #include "stm32h7xx_hal.h"
@@ -260,6 +261,8 @@ int api_get(const char *p, char *o, size_t n)
   if (!strcmp(p, "/api/acme")) return (int)acme_json(o, n);
   if (!strcmp(p, "/api/tls/csr")) return (int)tls_csr(o, n);
   if (!strcmp(p, "/api/pbufs")) return snprintf(o, n, "%d", s_pbufs);
+  if (!strcmp(p, "/api/events") || !strncmp(p, "/api/events?before=", 19))
+      return (int)events_json(p[11] ? (uint32_t)strtoul(p + 19, NULL, 10) : 0, 30, o, n);
   if (!strncmp(p, "/api/big?n=", 11)) {          /* a reply of n bytes, for the tests */
       size_t k = strtoul(p + 11, NULL, 10);
       if (k < 2 || k >= n) return 0;
@@ -290,7 +293,7 @@ static void boot(void)
     bkp_set(BKP_BOOTS, bkp_get(BKP_BOOTS) + 1);
     f_nno = 0;
     f_no[f_nno++] = (range_t){ 1, 0x0C8000, 0x0F4000 };
-    f_no[f_nno++] = (range_t){ 1, 0x0FA000, 0x100000 };
+    f_no[f_nno++] = (range_t){ 1, 0x0FA000, 0x0FC000 };          /* the event log is above */
     f_no[f_nno++] = (range_t){ 0, 0x1F4000, 0x200000 };
     f_no[f_nno++] = (range_t){ 1, slots_addr(run) + SLOT_HDR, slots_addr(run) + 0x80000 };
     slots_get(run, &in[run]);
@@ -349,6 +352,8 @@ int main(int argc, char **argv)
     memset(s_closed_at, 0, sizeof s_closed_at);   /* a restart forgets them, as lwIP does */
     fwlib_cancel();
     boot();
+    events_init();
+    events_add(EV_START, 0, 0, "sim");
     http_init();
     tls_init();
     acme_init();
@@ -360,6 +365,7 @@ int main(int argc, char **argv)
         http_poll();
         tls_poll();
         acme_poll();
+        events_poll();
         for (int i = 0; i < 40; i++) if (P[i].used) serve(&P[i]);
         usleep(50);
     }

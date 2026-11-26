@@ -3,6 +3,7 @@
 #include "bridge.h"
 #include "net.h"
 #include "fw_id.h"
+#include "events.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/apps/mqtt.h"
 #include "lwip/apps/mqtt_priv.h"
@@ -144,8 +145,10 @@ static void cb_data(void *arg, const u8_t *data, u16_t len, u8_t flags)
 }
 
 /* ---- connection ---------------------------------------------------------- */
+static uint8_t s_told;                  /* the log knows: 1 up, 2 down */
 static void retry(const char *why)
 {
+    if (s_told != 2) { events_add(EV_MQTT_DOWN, 0, 0, why); s_told = 2; }
     s_err = why;
     s_backoff = s_backoff ? s_backoff * 2 : 2000;
     if (s_backoff > 60000) s_backoff = 60000;
@@ -158,6 +161,7 @@ static void cb_conn(mqtt_client_t *c, void *arg, mqtt_connection_status_t st)
     (void)c;
     if ((uint32_t)arg != s_gen) return;         /* from a connection we dropped */
     if (st == MQTT_CONNECT_ACCEPTED) {
+        if (s_told != 1) { events_add(EV_MQTT_UP, 0, 0, s_run.host); s_told = 1; }
         s_state = M_UP;
         s_err = "";
         s_backoff = 0;
@@ -399,7 +403,7 @@ void mqtt_ha_poll(const cfg_t *c)
     }
     if (s_restart) {
         s_restart = false;
-        if (s_run.control) api_restart();
+        if (s_run.control) { events_add(EV_RESTART, 0, 0, "mqtt"); api_restart(); }
     }
 
     if (s_state == M_REMOVING) {

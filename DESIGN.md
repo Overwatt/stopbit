@@ -307,7 +307,7 @@ the right and bottom edges and starts 26px below whatever is above it. Sheet con
 
 The list opens with the verdict and one line, in a block at least 152px tall. Stations are
 50px rows, 4px apart, in two groups in a fixed order: Ports (1 to 4), then Config (MQTT,
-Network, Firmware, Hardware), each under a small soft label.
+Network, Firmware, Hardware, Events), each under a small soft label.
 
 In the sheet: the name with its one action at the right and the sentence (two lines reserved)
 sit in the band, a tone between sheet and ground (#f1f7fa, dark #132d3a) that runs to the

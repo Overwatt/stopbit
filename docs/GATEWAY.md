@@ -254,3 +254,20 @@ with an FTDI USB-RS485 adapter through its TCP server: random data both ways and
 request/reply rounds at 9600 8N1, 19200 8E1, 38400 8O1, 115200 8N1 and 8N2, 460800 and
 1000000 8N1, with no errors. Not tested: several ports busy at once, long or terminated
 buses, and how fast the gateway turns the bus around (the adapter's 16 ms latency hides it).
+
+## Events
+
+The Events page lists what happened, newest first, each with its time in your own time
+zone: starts (and why: power-on, a restart, the watchdog), faults, firmware kept, settings
+saved (and what), network trials kept or reverted, MQTT connecting and dropping, port
+alerts raised and cleared, addresses turned away (once per address per ten minutes),
+renewals, certificates installed, the clock being set, failed sign-ins (counted, at most
+one entry a minute), restarts and who asked, and the reload button.
+
+The log is kept in external flash (chip 1, from `0x0FC000`) through restarts and power cuts:
+the last 200 or so, each record checked, so one cut short is skipped. Writing is rationed,
+40 at once and then one every 90 seconds, so a flood cannot wipe it; what is not kept is
+counted, and the count is kept. `GET /api/events` gives the newest 30,
+`/api/events?before=SEQ` the 30 before that: `[seq, unix time or 0, seconds since that
+start, start number, kind, port, number, note]`.
+

@@ -18,7 +18,7 @@ for t in ${*:-cfg http hclient}; do
   cfg) build cfg -Isrc/app tests/fuzz/cfg.c src/app/cfg.c src/app/acl.c ;;
   http) build http -DAPP_IMAGE -DFLASH_REAL -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= -DCONN_MEM= \
           -Itests/fuzz -Itests/sim -Itests/stub -Isrc/app -Isrc/common -Isrc/http -Isrc/net \
-          tests/fuzz/http.c src/http/http.c src/app/fwlib.c src/app/cfg.c src/app/acl.c \
+          tests/fuzz/http.c src/http/http.c src/app/fwlib.c src/app/cfg.c src/app/acl.c src/app/events.c \
           src/common/slots.c src/common/image.c src/common/sha256.c tests/sim/id.c ;;
   hclient) build hclient -Itests/fuzz -Itests/sim -Itests/stub -Isrc/app -Isrc/common \
           -Ibuild/_deps/mbedtls4-src/include -Ibuild/_deps/mbedtls4-src/tf-psa-crypto/include \

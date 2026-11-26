@@ -19,6 +19,7 @@
 #include "lwip/udp.h"
 #include "lwip/dns.h"
 #include "lwip/ip.h"
+#include "events.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -90,8 +91,13 @@ static acl_role_t role(const port_t *p, const ip_addr_t *ip)
 
 static void deny(port_t *p, const ip_addr_t *ip)
 {
+    uint32_t a = ip4_addr_get_u32(ip_2_ip4(ip)), now = HAL_GetTick();
+    bool known = false;
+    for (int k = 0; k < KNOCK_N; k++)
+        known |= p->knocks.k[k].count && p->knocks.k[k].ip == a && now - p->knocks.k[k].at < 600000u;
     p->denied++;
-    knock_add(&p->knocks, ip4_addr_get_u32(ip_2_ip4(ip)), HAL_GetTick());
+    knock_add(&p->knocks, a, now);
+    if (!known) events_add(EV_TURNED_AWAY, (int)(p - s_p) + 1, a, NULL);
 }
 
 /* ---- TCP connections ----------------------------------------------------- */
@@ -476,11 +482,13 @@ static void watch(port_t *p, uint32_t now, uint16_t limit)
     knock_clamp(&p->knocks, now);
     p->heard_at = quiet_clamp(now, p->heard_at);
     p->sent_at = quiet_clamp(now, p->sent_at);
+    quiet_t was = p->alert;
     p->alert = quiet_eval(now, limit, p->quiet_from, p->client_from);
     /* Nobody connected, and someone unlisted keeps trying: most likely the usual
      * client at a new address. Known at once, whatever the limit. */
     bool alone = p->cfg.mode == MODE_UDP ? !p->udp_have_peer : !client;
     if (alone && p->alert != QUIET_SILENT && knock_persistent(&p->knocks, now)) p->alert = QUIET_TURNED_AWAY;
+    if (p->alert != was) events_add(EV_ALERT, (int)(p - s_p) + 1, 0, ALERT[p->alert]);
 }
 
 void bridge_pump(void)

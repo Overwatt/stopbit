@@ -49,6 +49,7 @@
 #include "fwlib.h"
 #include "tls.h"
 #include "acme.h"
+#include "events.h"
 #define MAX_CONN   8
 #define RESP_MAX   4600            /* the longest reply: borrowed from s_replies */
 #define OWN_MAX    640             /* each connection's own: short replies, headers before data */
@@ -145,6 +146,7 @@ static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
 #ifdef APP_IMAGE
 static conn_t  *s_fw;            /* connection waiting on fwlib */
+static const char *s_why = "web";  /* why the next restart, for the event log */
 #else
 #define UPLOAD      ((uint8_t *)STAGE_ADDR)
 #endif
@@ -249,7 +251,11 @@ static bool authorised(conn_t *c, const char *method, const char *path)
         hmac_sha256(key, msg, (size_t)n, NULL, 0, want);
         ok = ct_equal(got, want, 32);
     }
-    if (!ok) { s_fails++; s_fail_at = HAL_GetTick(); }
+    if (!ok) {
+        static uint32_t bad, told_at;           /* the log gets a count, at most once a minute */
+        s_fails++; s_fail_at = HAL_GetTick();
+        if (++bad && (!told_at || HAL_GetTick() - told_at > 60000)) { events_add(EV_AUTH_FAIL, 0, bad, NULL); bad = 0; told_at = HAL_GetTick() | 1; }
+    }
     c->key = key;
     strcpy(c->nonce, s_nonce);
 #endif
@@ -587,7 +593,7 @@ static err_t body_done(conn_t *c)
     }
     if (!why && c->action == ACT_CONFIRM) {
         why = slots_confirm(RUNNING_SLOT) ? NULL : "confirm failed";
-        if (!why) fwlib_mark_kept(RUNNING_SLOT);
+        if (!why) { fwlib_mark_kept(RUNNING_SLOT); events_add(EV_FW_KEPT, 0, 0, g_fw_id.version); }
     }
 #else
     s_stage_size = c->body_len;
@@ -925,6 +931,7 @@ static void fw_poll(void)
         return;
     }
     bkp_set(BKP_CRASHES, 0);
+    s_why = "new firmware";
     snprintf(ok, sizeof ok, "ok slot=%d\n", fwlib_slot());
     if (c) {
         c->action = ACT_REBOOT;
@@ -956,6 +963,7 @@ void http_poll(void)
         __attribute__((fallthrough));
     default:
 #ifdef APP_IMAGE
+        events_add(EV_RESTART, 0, 0, s_action == ACT_LOADER ? "loader" : s_why);
         s_action = ACT_NONE;                    /* api_restart() still polls the network */
         api_restart();
 #endif

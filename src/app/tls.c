@@ -1,6 +1,7 @@
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS     /* x509_crt.own_buffer, for the certificates we only pass on */
 #include "tls.h"
 #include "worker.h"
+#include "events.h"
 #include "clock.h"
 #include "extflash.h"
 #include "sha256.h"
@@ -748,6 +749,7 @@ static const char *take_cert(const uint8_t *der, size_t len)
     memcpy(b->chain, der, len);
     b->chain_len = (uint32_t)len;
     if (!save()) return "Could not write to flash";
+    events_add(EV_CERT, 0, 0, b->name);
     activate_soon();
     return NULL;
 }

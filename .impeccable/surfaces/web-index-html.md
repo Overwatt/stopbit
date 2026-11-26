@@ -19,7 +19,7 @@ OWN-WORLD: marine area forecasts. Deep sea-blue shell (#0d4a68), pale sea ground
 
 STORY: the list answers "is it healthy" before anything is clicked; the report says what is happening on a port and what went wrong; settings are one press from the report; every other page is reachable from the list.
 
-FIRST VIEWPORT: header bar with name, address, sign-in. Left 400px: verdict heading, one line, then Ports (1 to 4) and Config (MQTT, Network, Firmware, Hardware), each station with a mark and a reading, in a fixed order; a fault is filled and named in the verdict. Right: the sheet, port name at 40px with Edit port at its right, a 24px sentence, a ten-minute traffic chart, eight readings.
+FIRST VIEWPORT: header bar with name, address, sign-in. Left 400px: verdict heading, one line, then Ports (1 to 4) and Config (MQTT, Network, Firmware, Hardware, Events), each station with a mark and a reading, in a fixed order; a fault is filled and named in the verdict. Right: the sheet, port name at 40px with Edit port at its right, a 24px sentence, a ten-minute traffic chart, eight readings.
 
 FORM: Station Reports, grounded candidate 4 of 7, chosen by the owner from a requested safer hand. seed:2d38dd5062d28640
 

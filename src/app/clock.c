@@ -1,5 +1,6 @@
 #include "clock.h"
 #include "slots.h"
+#include "events.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
 #include <string.h>
@@ -14,8 +15,15 @@ static bool s_known, s_synced;           /* synced: by a time server, not carrie
 static char s_server[48];                /* from the settings */
 #define CHECK 0xC10C5EEDu                /* the copy in the backup registers is whole */
 
+static const char *from(void);
 void clock_set(uint32_t unix_s)
 {
+    if (!s_synced) {
+        const char *f = from();
+        s_known = s_synced = true;      /* so the event has the time */
+        s_base = unix_s; s_at = HAL_GetTick();
+        events_add(EV_CLOCK, 0, 0, f[0] ? f : s_server[0] ? s_server : "a time server");
+    }
     s_base = unix_s;
     s_at = HAL_GetTick();
     s_known = s_synced = true;

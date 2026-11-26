@@ -1,5 +1,6 @@
 #include "api.h"
 #include "clock.h"
+#include "events.h"
 #include "cfg.h"
 #include "cfg_store.h"
 #include "bridge.h"
@@ -20,6 +21,7 @@
 #include "web_page.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define SAVE_MS 3000u            /* batch settings that arrive one by one */
@@ -36,10 +38,28 @@ static bool      s_restart;
 static uint32_t  s_restart_at;
 static uint32_t  s_save_at;
 
+/* For the event log: what a change touched. The password has its own event. */
+static void note(const cfg_t *was, const cfg_t *now)
+{
+    char what[44] = "";
+    uint32_t ports = 0;
+#define WHAT(x) snprintf(what + strlen(what), sizeof what - strlen(what), "%s%s", what[0] ? "," : "", x)
+    if (strcmp(was->device_name, now->device_name)) WHAT("name");
+    if (memcmp(&was->net, &now->net, sizeof was->net)) WHAT("network");
+    if (strcmp(was->more.ntp, now->more.ntp)) WHAT("time server");
+    if (memcmp(&was->mqtt, &now->mqtt, sizeof was->mqtt) || strcmp(was->more.topic, now->more.topic)) WHAT("mqtt");
+#undef WHAT
+    for (int i = 0; i < PORTS; i++)
+        if (memcmp(&was->port[i], &now->port[i], sizeof was->port[i]) || memcmp(&was->access[i], &now->access[i], sizeof was->access[i]) ||
+            cfg_quiet_min(was, i) != cfg_quiet_min(now, i)) ports |= 1u << i;
+    if (what[0] || ports) events_add(EV_SETTINGS, 0, ports, what);
+}
+
 /* Saves `c` and makes it current. On failure nothing changes. */
 static bool commit(const cfg_t *c)
 {
     if (!cfg_save(c)) return false;
+    note(&s_cfg, c);
     s_cfg = *c;
     s_unsaved = false;
     return true;
@@ -68,6 +88,7 @@ void api_restart(void)
         wdt_feed();
         net_poll();
     }
+    events_flush();
     bkp_set(BKP_CRASHES, 0);             /* deliberate, not a crash */
     NVIC_SystemReset();
 }
@@ -78,6 +99,7 @@ static void reset_access(void)
     static cfg_t c;
     c = s_cfg;
     cfg_reset_access(&c);
+    events_add(EV_BUTTON, 0, 0, NULL);
     if (commit(&c)) api_restart();
 }
 
@@ -87,6 +109,7 @@ bool api_set_line(char *line, char *err, size_t errlen)
     c = s_cfg;
     if (!cfg_parse(&c, line, err, errlen) || !cfg_validate(&c, err, errlen)) return false;
     if (!memcmp(&c, &s_cfg, sizeof c)) return true;
+    note(&s_cfg, &c);
     s_cfg = c;
     s_unsaved = true;
     s_save_at = HAL_GetTick() + SAVE_MS;
@@ -101,7 +124,7 @@ void api_poll(void)
     uint32_t now = HAL_GetTick();
     if (hwinfo_button()) reset_access();
     mqtt_ha_poll(&s_cfg);
-    if (s_restart && (int32_t)(now - s_restart_at) >= 0) api_restart();
+    if (s_restart && (int32_t)(now - s_restart_at) >= 0) { events_add(EV_RESTART, 0, 0, "console"); api_restart(); }
     if (s_unsaved && (int32_t)(now - s_save_at) >= 0) {
         s_save_at = now + 30000;        /* if it fails, try again later */
         commit(&s_cfg);
@@ -112,6 +135,7 @@ void api_poll(void)
     }
     if (s_pending && (int32_t)(now - s_deadline) >= 0) {
         s_pending = false;
+        events_add(EV_NET_REVERTED, 0, 0, NULL);
         run_net(&s_cfg.net);
     }
 }
@@ -178,6 +202,8 @@ int api_get(const char *path, char *out, size_t max)
     if (!strcmp(path, "/api/tls/csr")) return (int)tls_csr(out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
+    if (!strcmp(path, "/api/events") || !strncmp(path, "/api/events?before=", 19))
+        return (int)events_json(path[11] ? (uint32_t)strtoul(path + 19, NULL, 10) : 0, 30, out, max);
     if (strcmp(path, "/api/state")) return -1;
 
     char ip[16], mask[16], gw[16];
@@ -273,6 +299,7 @@ static const char *change(cfg_t *cp, char *body, char *out, size_t max)
     if (net_changed) {
         s_trial = want;
         s_pending = memcmp(&want, &s_cfg.net, sizeof want) != 0;
+        if (s_pending) events_add(EV_NET_TRIAL, 0, 0, NULL);
         s_deadline = HAL_GetTick() + KEEP_MS;
         s_net_dirty = true;
         s_net_at = HAL_GetTick() + 500;  /* let this reply out first */
@@ -316,6 +343,7 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
         snprintf(out, max, "Could not write the password to flash; it is unchanged");
         return "500 Internal Server Error";
     }
+    events_add(EV_PASSWORD, 0, 0, NULL);
     snprintf(out, max, "{}");
     return "200 OK";
 }
@@ -341,6 +369,7 @@ bool cli_keep(char *err, size_t errlen)
         return false;
     }
     s_pending = false;
+    events_add(EV_NET_KEPT, 0, 0, NULL);
     return true;
 }
 

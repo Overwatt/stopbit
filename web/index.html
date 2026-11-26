@@ -100,6 +100,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  .chart{padding:14px 12px 8px}.chart svg{height:170px}
  thead{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}table.stack,table.stack tbody{display:block}
  table.stack tr.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}table.stack tr.row td{border:0;padding:0}table.stack td[data-h]::before{content:attr(data-h);display:block;color:var(--soft);font-size:.8125rem}table.stack td:first-child{grid-column:1/-1}table.stack td:empty{display:none}
+ table.log td[data-h]::before{display:none}table.log td{grid-column:1/-1}
  label.wide{grid-column:1/-1}.acl{grid-template-columns:minmax(0,1fr) auto}.acl label:first-child{grid-column:1/-1}
 }
 .stale .chart .ln{opacity:.45}.stale .chart .ar{opacity:.06}.stale .it em{font-style:italic}
@@ -204,6 +205,10 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <h3>Kept firmware</h3><table class="stack"><thead><tr><th>Version</th><th>Installed</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody id="kept"><tr><td colspan="5">Reading…</td></tr></tbody></table>
   <p class="msg" id="keptmsg" role="status"></p>
   <p class="hint">Older firmware ignores settings it does not recognise, such as access lists.</p></div>
+  <div id="p-events" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>Events</h2><p class="say" id="esay"></p></div>
+  <table class="stack log"><colgroup><col style="width:230px"><col></colgroup><thead><tr><th>When</th><th>What happened</th></tr></thead><tbody id="evrows"><tr><td colspan="2">Reading…</td></tr></tbody></table>
+  <div class="acts" style="margin-top:18px"><button id="evmore" type="button" hidden>Older</button></div>
+  <p class="hint">Kept in the gateway through restarts and power cuts: the last 200 or so.</p></div>
 </main></div>
 <script>
 "use strict";
@@ -386,7 +391,7 @@ async function tick(){clearTimeout(timer);
   const c=s.clock,utc=c.now.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC");
   fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[]), /* the rest is in the sentence or the form */
    ["Clock",c.src==="none"?el("span",{class:"warn"},"Not set yet"):utc,c.src==="ntp"?sub("Synced "+ago(c.ago*1000).toLowerCase()+(c.from?" from "+c.from:"")):c.src==="restart"?sub("Carried over the restart; waiting for the time server"):null]]);
-  paint();hardware();https()}
+  paint();hardware();https();events()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not responding")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
 /* ---- hardware ---- */
@@ -441,7 +446,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
 
 /* ---- stations ---- */
 let sel=0,editing=false,hist=null,histFor=-1,histAt=0,samples=[];
-const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"mqtt",hardware:"hardware",firmware:"firmware"};
+const PAGES={status:"port",port1:"port",port2:"port",port3:"port",port4:"port",network:"network",mqtt:"mqtt",hardware:"hardware",firmware:"firmware",events:"events"};
 let route="status",page="port";
 const pn=i=>cfg&&cfg.ports[i].name||"Port "+(i+1),ago=ms=>ms<0?"Never":ms<2000?"Now":dur(Math.round(ms/1000))+" ago",
  rt=x=>nb(x<1e3?Math.round(x)+" B/s":x<1e6?(x/1e3).toFixed(1)+" kB/s":(x/1e6).toFixed(2)+" MB/s"),plural=(n,w)=>n.toLocaleString()+" "+w+(n===1?"":"s");
@@ -478,7 +483,7 @@ function buildList(){$("list").replaceChildren();items.length=0;
  /* items keep their numbers (setItem); on the page the ports come first, then the rest */
  const G={ports:el("div",{role:"group","aria-labelledby":"g-ports"}),config:el("div",{role:"group","aria-labelledby":"g-config"})};
  const add=(href,label,g)=>{const a=el("a",{class:"it",href},el("span"),el("b",{},label),el("em"));items.push([href,a]);G[g].append(a);return a};
- add("#mqtt","MQTT","config");for(let i=0;i<4;i++)add("#port"+(i+1),"","ports");add("#network","Network","config");add("#firmware","Firmware","config");add("#hardware","Hardware","config");
+ add("#mqtt","MQTT","config");for(let i=0;i<4;i++)add("#port"+(i+1),"","ports");add("#network","Network","config");add("#firmware","Firmware","config");add("#hardware","Hardware","config");add("#events","Events","config");
  $("list").append(el("h2",{class:"gh",id:"g-ports"},"Ports"),G.ports,el("h2",{class:"gh",id:"g-config"},"Config"),G.config);nav()}
 function setItem(k,cls,name,text){const a=items[k][1];a.className="it"+(cls==="bad"||cls==="warn"?" "+cls:"");if(a.dataset.m!==cls){a.dataset.m=cls;a.children[0].replaceChildren(mark(cls))}
  if(a.children[1].textContent!==name)a.children[1].textContent=name;if(a.children[2].textContent!==text)a.children[2].textContent=text}
@@ -487,6 +492,7 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  st.ports.forEach((_,i)=>{const [c,t]=portState(i);setItem(1+i,c,(i+1)+" "+pn(i),t)});
  setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
  const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
+ setItem(8,!evs?"idle":evBad(evs[0])?"warn":"ok","Events",!evs?"Reading":evs.length?evWhen(evs[0],true):"None yet");
  const hf=hwFaults();setItem(7,!hw?"idle":hf.length?(hf.some(x=>x[0]==="bad")?"bad":"warn"):"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
  const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All normal");v.title=first?first[1]:"";
  const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"All ports are off":"No port is connected";
@@ -570,11 +576,56 @@ let picked=false;
 function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];
  if(/^port/.test(route)){sel=+route.slice(4)-1;picked=true}else if(!picked&&cfg){sel=Math.max(0,cfg.ports.findIndex(p=>p.enabled))}
  editing=false;document.body.dataset.view=route==="status"?"list":"sheet";
- for(const p of ["port","network","mqtt","hardware","firmware"])$("p-"+p).hidden=p!==page||!cfg;
+ for(const p of ["port","network","mqtt","hardware","firmware","events"])$("p-"+p).hidden=p!==page||!cfg;
  nav();showSheet();scrollTo(0,0);
- hwAt=tlsAt=0;hardware();https()}
+ hwAt=tlsAt=evAt=0;evOlder=[];hardware();https();events()}
 addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
+
+/* ---- events ---- */
+/* [seq, unix time or 0, seconds since its start, start number, kind, port, a, note] */
+let evs=null,evMore=false,evAt=0,evOlder=[];
+const ipOf=a=>[a&255,a>>>8&255,a>>>16&255,a>>>24].join("."),
+ ALERTS={silent:"quiet for longer than allowed","no_client":"no client for longer than allowed","turned_away":"someone unlisted keeps trying"},
+ WHO={web:"asked for on this page",mqtt:"asked for over MQTT",console:"asked for at the console","new firmware":"for new firmware",loader:"into the loader"};
+function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
+ switch(k){
+ case 1:return "Started "+s+(a&0x800000?" at power-on":a&0x1000000?" after a restart":a&0x400000?" after the watchdog or the reset pin":"");
+ case 2:return "Stopped by a "+s+" at 0x"+(a>>>0).toString(16);
+ case 3:return "Kept firmware "+s;
+ case 4:{const L=s?s.split(","):[];for(let i=0;i<4;i++)if(a>>i&1)L.push(pn(i));return "Settings saved: "+L.join(", ")}
+ case 5:return "New network settings on trial";
+ case 6:return "Network settings kept";
+ case 7:return "Network settings reverted after two minutes";
+ case 8:return "MQTT connected to "+s;
+ case 9:return "MQTT not connected: "+s;
+ case 10:return port+": "+(s?ALERTS[s]||s:"alert cleared");
+ case 11:return port+" turned away "+ipOf(a);
+ case 12:return a===0?"Certificate renewed":a===1?"Renewal test passed":"Renewal failed: "+s;
+ case 13:return "Certificate installed for "+s;
+ case 14:return "Clock set by "+s;
+ case 15:return "Reload button: network back to DHCP, web password cleared";
+ case 16:return plural(a,"failed sign-in");
+ case 17:return "Web password changed";
+ case 18:return "Restart "+(WHO[s]||s);
+ case 19:return plural(a,"event")+" not kept: too many at once";
+ default:return "Event "+k}}
+const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2);
+/* The viewer's own time; before the clock was known, time since that start. */
+function evWhen(e,short){if(!e[1])return "Start "+e[3]+" + "+dur(e[2]);const d=new Date(e[1]*1000),ago=Date.now()/1000-e[1];
+ if(short)return ago<90?"Now":dur(Math.round(ago))+" ago";
+ return d.toLocaleString(undefined,{day:"numeric",month:"short",year:d.getFullYear()===new Date().getFullYear()?undefined:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+async function events(force){const now=performance.now();if(!force&&evAt&&now-evAt<(page==="events"?5000:30000))return;evAt=now;
+ let j;try{j=await getj("/api/events")}catch(e){evAt=0;return}
+ evs=j.events;if(!evOlder.length)evMore=j.more;drawEvents()}
+function drawEvents(){if(!evs)return;const all=evs.concat(evOlder.filter(o=>!evs.some(e=>e[0]===o[0])));
+ fillRows($("evrows"),["When","What happened"],all.map(e=>[evWhen(e),evBad(e)?el("span",{class:"warn"},evText(e)):evText(e)]));
+ if(!all.length)$("evrows").replaceChildren(el("tr",{},el("td",{colSpan:2},"Nothing yet.")));
+ $("evmore").hidden=!evMore;
+ const day=all.filter(e=>e[1]&&Date.now()/1000-e[1]<86400),starts=day.filter(e=>e[4]===1).length,bad=day.filter(evBad).length;
+ put($("esay"),all.length?plural(starts,"start")+" and "+(bad?plural(bad,"problem"):"no problems")+" in the last day.":"Nothing logged yet.")}
+$("evmore").onclick=async()=>{const all=evs.concat(evOlder),last=all[all.length-1];if(!last)return;
+ try{const j=await getj("/api/events?before="+last[0]);evOlder=evOlder.concat(j.events);evMore=j.more;drawEvents()}catch(e){}};
 
 /* ---- HTTPS ---- */
 let tlsAt=0,tls=null,tlsArm=0,tlsRows=[[],[]],acmeRows=[],byhandSet=false;

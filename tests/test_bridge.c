@@ -4,6 +4,7 @@
 #include "bridge.h"
 #include "uart485.h"
 #include "knock.h"
+#include "events.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include <arpa/inet.h>
@@ -29,6 +30,16 @@ uint32_t uart485_rx_idle_us(int p) { (void)p; return 1000000; }
 size_t uart485_tx_room(int p) { (void)p; return 4096; }
 size_t uart485_write(int p, const uint8_t *b, size_t n) { memcpy(L[p] + Ln[p], b, n); Ln[p] += n; return n; }
 bool uart485_tx_idle(int p) { (void)p; return true; }
+
+/* ---- the event log: counted ---- */
+static int ev_away, ev_alert;
+static char ev_last_alert[16];
+void events_add(ev_kind_t k, int port, uint32_t a, const char *s)
+{
+    (void)port; (void)a;
+    if (k == EV_TURNED_AWAY) ev_away++;
+    if (k == EV_ALERT) { ev_alert++; snprintf(ev_last_alert, sizeof ev_last_alert, "%s", s ? s : ""); }
+}
 
 /* ---- network side ---- */
 static struct tcp_pcb T[256]; static struct udp_pcb U[4];
@@ -209,14 +220,17 @@ int main(void)
     bridge_init();
     set("port1.enabled=1\nport1.access=10.0.0.5 read");
     a = from(4001, "10.0.0.5");
+    ev_away = ev_alert = 0;
     for (int i = 0; i < 50; i++) { t_now += 1000; from(4001, "10.0.0.66"); }
     bridge_poll();
+    assert(ev_away == 1);                                               /* fifty tries, logged once */
     assert(!info(0).alert[0]);                                          /* the usual client is there: no alarm */
     set("port1.access=10.0.0.6 read");                                  /* as if it had moved: it is dropped, */
     assert(a->closed);
     for (int i = 0; i < 2; i++) { t_now += 1000; from(4001, "10.0.0.5"); }  /* and keeps trying */
     bridge_poll();
     assert(!strcmp(info(0).alert, "turned_away"));
+    assert(ev_away == 2 && ev_alert == 1 && !strcmp(ev_last_alert, "turned_away"));   /* a new address; the alert, once */
     assert(bridge_access_json(0, j, sizeof j) && strstr(j, "{\"denied\":53,\"turned_away\":[{\"ip\":\"10.0.0.5\",\"count\":3,\"ms\":0},{\"ip\":\"10.0.0.66\",\"count\":50,\"ms\":2000}]}"));
     assert(bridge_access_json(1, j, sizeof j) && !strcmp(j, "{\"denied\":0,\"turned_away\":[]}\n"));
     for (size_t k = 0; k < 60; k++) assert(!bridge_access_json(0, j, k));
