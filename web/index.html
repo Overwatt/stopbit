@@ -279,7 +279,7 @@ function authUI(){const open=!$("login").hidden&&!key&&pwset;
 const lock=()=>pwset?"Sign in to save.":"Set a web password first; see the top of the page.";
 
 /* ---- port settings ---- */
-const MODES={server:"TCP server",client:"TCP client",udp:"UDP",modbus:"Modbus TCP gateway"};
+const MODES={server:"TCP server",client:"TCP client",udp:"UDP",modbus:"Modbus gateway"};
 const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
 function where(p){if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
  return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
@@ -327,6 +327,8 @@ function editor(p,i){
   f.querySelector("[data-f=local_port]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server"||v==="modbus";
   f.querySelector("[data-f=modbus_timeout]").hidden=f.querySelector("[data-f=modbus_broadcast]").hidden=v!=="modbus";
+  for(const n of ["listen_only","echo_cancel"])f.elements[n].closest("label").hidden=v==="modbus";   /* refused; always on */
+  f.querySelector("[data-f=packet_len]").hidden=v==="modbus";                                         /* a reply ends at the silence */
   const lp=f.elements.local_port;if(v==="modbus"&&lp.value===String(4001+i))lp.value="502";else if(v!=="modbus"&&lp.value==="502"&&p.mode!=="modbus")lp.value=String(p.local_port);
   hint.textContent=v==="server"?"Up to 4 simultaneous connections. Data ports have no password.":v==="client"?"Connects to the remote host and reconnects automatically.":v==="modbus"?"Up to 4 Modbus TCP clients take turns on the line; each request waits for its reply or the timeout. Addresses that may only read can only use read functions.":"Leave the remote host empty to reply to the most recent sender."};m.onchange();
  save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
@@ -547,7 +549,7 @@ function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i))
  facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)+(p.access?", listed addresses only":"")],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.map((x,k)=>x+(s.read_only>>k&1?" (read)":"")).join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
   ["Heard in all",bytes(s.serial_rx)],["Sent in all",bytes(s.serial_tx),p.listen_only?"Listen only":s.sent_ms>=0?ago(s.sent_ms):null],["Noise",s.noise?nz<.01?"Under 0.01%":nz.toFixed(2)+"%":"None",s.noise?s.noise.toLocaleString()+" flagged":null],["Errors, 10 min",s.err_10m?s.err_10m.toLocaleString():"None",e.length?"Since start: "+e.map(x=>x[1].toLocaleString()+" "+x[0]).join(", "):null],
   ...(s.modbus?(m=>[["Modbus requests",m.requests.toLocaleString(),[m.timeouts&&m.timeouts.toLocaleString()+" unanswered",m.busy&&m.busy.toLocaleString()+" turned away busy",m.refused&&m.refused.toLocaleString()+" not allowed",m.waiting&&m.waiting+" waiting"].filter(Boolean).join(", ")||null],
-   ["Reply time",m.replies?m.avg_ms+" ms on average":"No replies yet",m.replies?"Longest "+m.max_ms+" ms"+(m.exceptions?", "+plural(m.exceptions,"error reply"):""):null]])(s.modbus):[])]);
+   ["Reply time",m.replies?m.avg_ms+" ms on average":"No replies yet",m.replies?"Longest "+m.max_ms+" ms"+(m.exceptions?", "+m.exceptions.toLocaleString()+(m.exceptions===1?" error reply":" error replies"):""):null]])(s.modbus):[])]);
  const now=performance.now();if(histFor!==i||now-histAt>5000){histAt=now;const was=histFor;histFor=i;if(was!==i){hist=null;$("away").hidden=true;drawCharts()}
   getj("/api/access/"+(i+1)).then(a=>{if(sel!==i)return;$("away").hidden=!a.turned_away.length;fillRows($("awayt"),["Address","Times","Last"],a.turned_away.map(k=>[el("span",{class:"name"},k.ip),k.count.toLocaleString(),ago(k.ms)]))}).catch(()=>{});
   getj("/api/history/"+(i+1)).then(h=>{if(sel===i){hist=h;drawCharts()}}).catch(()=>{})}}
