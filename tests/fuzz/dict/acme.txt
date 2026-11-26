@@ -1,0 +1,25 @@
+"status":"valid"
+"status":"invalid"
+"status":"pending"
+"authorizations":["
+"finalize":"
+"challenges":[
+"dns-01"
+"url":"
+"token":"
+"certificate":"
+"detail":"
+badNonce
+https://acme-v02.api.letsencrypt.org/acme/
+<Id>/change/
+</Id>
+INSYNC
+<Message>
+</Message>
+-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----
+\\"
+[
+]
+{
+}

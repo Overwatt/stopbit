@@ -25,6 +25,12 @@ for t in ${*:-cfg http hclient}; do
           -Ibuild/_deps/mbedtls4-src/tf-psa-crypto/drivers/builtin/include \
           '-DMBEDTLS_CONFIG_FILE="mbedtls_cfg.h"' '-DTF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h"' \
           tests/fuzz/hclient.c src/app/hclient.c ;;
+  acme) M=build/_deps/mbedtls4-src; P=$M/tf-psa-crypto; SO=${TMPDIR:-/tmp}/n540sim4.o
+        [ -f "$SO/done" ] || { echo "acme: run tests/sim/run.sh once first, for the crypto objects"; continue; }
+        build acme -DAPP_IMAGE -DCLOCK_HOST -DWDT_H '-Dwdt_feed()=(void)0' \
+          '-DMBEDTLS_CONFIG_FILE="mbedtls_cfg.h"' '-DTF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h"' \
+          -Itests/fuzz -Itests/sim -Itests/stub -Isrc/app -Isrc/common -I$M/include -I$P/include -I$P/drivers/builtin/include \
+          tests/fuzz/acme.c src/app/clock.c src/app/cfg.c src/app/acl.c src/common/slots.c src/common/image.c src/common/sha256.c "$SO"/*.o ;;
   esac
   mkdir -p "$OUT/$t/corpus"
   cp tests/fuzz/seeds/$t/* "$OUT/$t/corpus/" 2>/dev/null
