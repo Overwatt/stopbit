@@ -20,6 +20,7 @@
 #include "events.h"
 #include "fw_id.h"
 #include "bridge.h"
+#include "devmqtt.h"
 #include "device.h"
 #include "api.h"
 
@@ -104,6 +105,7 @@ int main(void)
     CRUMB(2); SCB_EnableDCache();    /* nothing else here uses DMA */
     CRUMB(3); bridge_init();
     device_init();                   /* before any configure: api_init applies the settings */
+    devmqtt_init();
     CRUMB(4); api_init();
     extflash_meanwhile(meanwhile);
     CRUMB(5); http_init();

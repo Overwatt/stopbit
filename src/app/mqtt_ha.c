@@ -1,3 +1,4 @@
+#include "devmqtt.h"
 #include "mqtt_ha.h"
 #include "api.h"
 #include "bridge.h"
@@ -172,6 +173,7 @@ static void cb_conn(mqtt_client_t *c, void *arg, mqtt_connection_status_t st)
         s_disc = s_run.no_announce && s_withdrawn ? NENT : 0;
         s_online = s_sub = false;
         s_dev_hash = 0;
+        devmqtt_restart();
         memset(s_port_hash, 0, sizeof s_port_hash);
         memset(s_port_at, 0, sizeof s_port_at);
         return;
@@ -259,6 +261,7 @@ void mqtt_ha_configure(const cfg_t *c)
         }
         memcpy(s_base, base, sizeof s_base);
         s_sub = false;
+        devmqtt_restart();
     }
     bool tls = c->more.mqtt_tls;
     bool same_conn = m->port == s_run.port && !strcmp(m->host, s_run.host) && tls == s_tls &&
@@ -268,6 +271,7 @@ void mqtt_ha_configure(const cfg_t *c)
         if (m->no_announce != s_run.no_announce) s_withdrawn = false;
         s_disc = m->no_announce && s_withdrawn ? NENT : 0;      /* announce again */
         s_sub = false;
+        devmqtt_restart();
         memcpy(s_name, c->device_name, sizeof s_name);
     }
     if (s_run.enabled && !m->enabled && (s_state == M_UP || s_state == M_MOVING)) {
@@ -460,4 +464,5 @@ void mqtt_ha_poll(const cfg_t *c)
         if (mqtt_subscribe(&s_c, topic, 0, NULL, NULL) != ERR_OK) return;
         s_sub = true;
     }
+    if (!devmqtt_poll(pub, s_base, g_hostname, !s_run.no_announce, HAL_GetTick())) return;
 }
