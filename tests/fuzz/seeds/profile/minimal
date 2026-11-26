@@ -1,0 +1,27 @@
+# a test device
+profile test-dev 1
+name "Test device"
+maker "ACME"
+line 19200 8E1
+stale 3
+timeout 500ms
+turnaround 50ms
+block live hold 0x0000 18 10s
+block more input 100 4 2m
+block flags coil 0 16 1h info
+sensor volts "Total voltage" live 0x0000 u16 *0.01 V dc=voltage sc=measurement prec=2
+sensor amps "Current" live 1 s16 *0.01 +-5 A
+sensor cell1..16 "Cell #" live 2 u16 *0.001 V nodata 0xFFFF
+sensor big "Energy" more 100 u32le kWh sc=total_increasing diag
+binary heat "Heating" live 0x11 bit 15
+binary busy "Busy" more 102 u16 == 5 dc=running
+binary coil3 "Coil 3" flags 3 coil
+text state "Status" live 0x11 enum mask=0x000F 0=Standby 1=Charging 8="Charging limited"
+text warn "Warnings" more 103 bits 0="Pack OV" 13="Float stopped" diag
+text model "Model" more 100 ascii 4
+calc power "Power" mul volts amps W dc=power
+calc low "Lowest cell" argmin cell1..16 within 0.001..4.999
+calc ok "Charging allowed" nobits warn 0x2001
+reject live if zero
+reject live if zero volts amps
+reject more if big > 100

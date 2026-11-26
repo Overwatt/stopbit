@@ -41,7 +41,7 @@ jobs:
       - name: MQTT over TLS, against Mosquitto
         run: CC=clang tests/mqtt_tls/run.sh
       - name: Fuzzing, briefly
-        run: CC=clang FUZZ_OUT=fuzz tests/fuzz/run.sh 30 cfg http hclient acme modbus
+        run: CC=clang FUZZ_OUT=fuzz tests/fuzz/run.sh 30 cfg http hclient acme modbus profile
       - name: Simulator log
         if: failure()
         run: tail -100 sim.log
