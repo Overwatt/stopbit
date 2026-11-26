@@ -439,20 +439,30 @@ def main(a):
         print(f"{len(text.splitlines())} settings saved to {a[2]}")
     elif cmd == "load":
         lines = [l for l in open(a[2]).read().splitlines() if l.strip() and not l.startswith("#")]
-        units, devs = [[l] for l in lines if not DEV_LINE.match(l)], {}
+        units, devs, net = [[l] for l in lines if not DEV_LINE.match(l) and not l.startswith("net.")], {}, []
         for l in lines:                                         # a device's lines stay together
             m = DEV_LINE.match(l)
             if m:
                 devs.setdefault(m.group(1), []).append(l)
-        units += devs.values()                                  # the rest first, then whole devices
-        batch, pending = [], False
-        for u in units + [None]:
-            if batch and (u is None or len("\n".join(batch + u)) > 4000):
-                r = json.loads(d.auth("POST", "/api/config", "\n".join(batch).encode()))
-                pending = pending or r["net_pending"]
+            elif l.startswith("net."):
+                net.append(l)
+        units += list(devs.values()) + ([net] if net else [])   # the rest, whole devices, then net.* (it takes effect soon after)
+        batches, batch = [], []
+        for u in units:
+            if batch and len("\n".join(batch + u)) > 4000:
+                batches.append(batch)
                 batch = []
-            if u is not None:
-                batch += u
+            batch += u
+        if batch:
+            batches.append(batch)
+        pending = False
+        for k, b in enumerate(batches):
+            try:
+                r = json.loads(d.auth("POST", "/api/config", "\n".join(b).encode()))
+            except BaseException as e:
+                raise SystemExit(f"batch {k + 1} of {len(batches)} failed; batches 1 to {k} were applied: {e}" if k else
+                                 f"batch 1 of {len(batches)} failed; nothing was applied: {e}")
+            pending = pending or r["net_pending"]
         print("network settings are on trial: run keep within 2 minutes or they revert" if pending else "loaded")
     elif cmd == "connect":
         connect(d, int(a[2]))

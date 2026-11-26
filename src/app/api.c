@@ -482,9 +482,12 @@ void cli_wiretest(char *out, size_t max)
 /* GET /api/devices and /api/settings, part by part (http.c's do_parts). */
 int api_devices(uint32_t part, char *out, size_t max)
 {
+    static uint32_t seen;                               /* the devices there were at part 0 */
     size_t n = 0;
 #define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); if (w_ < 0 || (size_t)w_ >= max - n) return -2; n += (size_t)w_; } while (0)
     if (part == 0) {
+        seen = 0;
+        for (int i = 0; i < DEVS; i++) if (device_get(i)) seen |= 1u << i;
         OUT("{\"profiles\":[");
         for (int i = 0; profiles_id(i); i++) OUT("%s\"%s\"", i ? "," : "", profiles_id(i));
         OUT("],\"line_use\":[%u,%u,%u,%u],\"devices\":[", device_line_use(0), device_line_use(1), device_line_use(2), device_line_use(3));
@@ -492,10 +495,9 @@ int api_devices(uint32_t part, char *out, size_t max)
     }
     if (part <= DEVS) {
         int i = (int)part - 1;
-        if (!device_get(i)) return 0;
-        bool first = true;
-        for (int k = 0; k < i; k++) first = first && !device_get(k);
-        if (!first) OUT(",");
+        if (!(seen >> i & 1)) return 0;
+        if (!device_get(i)) return -2;                  /* removed since part 0: fail, not malformed JSON */
+        if (seen & ((1u << i) - 1)) OUT(",");
         size_t w = device_json(i, out + n, max - n);
         return w ? (int)(n + w) : -2;
     }

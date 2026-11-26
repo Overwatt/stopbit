@@ -607,6 +607,10 @@ addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
 
 /* ---- settings file ---- */
+/* Batches under 4000 bytes: other settings first, then whole devices (a device's lines never split), net.* last (they take effect soon after their reply). */
+function restoreBatches(lines){const P=[],V={},N=[];for(const l of lines){const k=/^dev(\d+)\./.exec(l);if(k)(V[k[1]]=V[k[1]]||[]).push(l);else if(/^net\./.test(l))N.push(l);else P.push([l])}
+ const out=[];let B=[];for(const u of [...P,...Object.values(V),N]){if(!u.length)continue;if(B.length&&(B.join("\n")+"\n"+u.join("\n")).length>4000){out.push(B);B=[]}B.push(...u)}
+ if(B.length)out.push(B);return out}
 $("cfgsave").onclick=async()=>{const m=$("restore").querySelector(".msg");
  try{const t=(await getj("/api/settings")).text,d=new Date(),day=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   const a=el("a",{href:URL.createObjectURL(new Blob([t],{type:"text/plain"})),download:(cfg.device.name||st.host).toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-settings-"+day+".txt"});
@@ -615,9 +619,8 @@ $("restore").onsubmit=async ev=>{ev.preventDefault();const m=$("restore").queryS
  if(f.size>16000)return say(m,"That file is too large to be a settings file.","bad");
  const t=(await f.text()).split(/\r?\n/).filter(l=>l.trim()&&!l.startsWith("#")).join("\n");
  if(!/^[a-z0-9]+\.[a-z_.0-9]+=/m.test(t))return say(m,"That is not a settings file.","bad");
- say(m,"Restoring…");try{const L=t.split("\n"),P=[],V={};for(const l of L){const k=/^dev(\d+)\./.exec(l);if(k)(V[k[1]]=V[k[1]]||[]).push(l);else P.push([l])}
-  let r={net_pending:false},B=[];
-  for(const u of [...P,...Object.values(V),null]){if(B.length&&(u===null||(B.join("\n")+"\n"+u.join("\n")).length>4000)){const x=JSON.parse(await post("/api/config",B.join("\n")));r.net_pending=r.net_pending||x.net_pending;B=[]}if(u!==null)B.push(...u)}
+ say(m,"Restoring…");try{const B=restoreBatches(t.split("\n"));let r={net_pending:false};
+  for(let k=0;k<B.length;k++){let x;try{x=JSON.parse(await post("/api/config",B[k].join("\n")))}catch(e){throw new Error((B.length>1?"Batch "+(k+1)+" of "+B.length+" failed"+(k?"; batches 1 to "+k+" were applied":"; nothing was applied")+": ":"")+e.message)}r.net_pending=r.net_pending||x.net_pending}
   cfg=await getj("/api/config");fillForms();
   say(m,r.net_pending?"Restored. The network settings are on trial: keep them within two minutes.":"Restored.","ok");tick()}catch(e){say(m,e.message,"bad")}};
 
@@ -678,16 +681,17 @@ function drawDevices(){if(!devs||page!=="devices")return;const D=devs.devices,on
   d.model?d.maker+" "+d.model:d.profile,"Port "+d.port+", address "+d.address,
   d.error?el("span",{class:"bad"},d.error):d.online?el("span",{class:"ok"},"Online"):el("span",{class:"warn"},"Offline"),d.ago_ms<0?"Never":ago(d.ago_ms)]));
  const d=D.find(x=>x.n===devSel);$("devone").hidden=!d||!!devEd;
- if(d&&!devEd){put($("devname"),d.label||d.name);put($("devwhy"),plural(d.polls,"read")+", "+plural(d.misses,"miss")+(d.why?". Last: "+d.why:"")+".");
+ if(d&&!devEd){put($("devname"),d.label||d.name);put($("devwhy"),plural(d.polls,"read")+", "+d.misses.toLocaleString()+(d.misses===1?" miss":" misses")+(d.why?". Last: "+d.why:"")+".");
   fillRows($("devvals"),["Value","Now"],(d.values||[]).map(v=>[v[1],devVal(v[2],v[3])]))}
- $("devform").hidden=!devEd;if(devEd)$("devform").replaceChildren(devForm(devEd));authUI()}
+ $("devform").hidden=!devEd;authUI()}   /* the form is built when opened, so a refresh does not wipe what is typed */
+function devOpen(d){devEd=d;if(d)$("devform").replaceChildren(devForm(d));drawDevices()}
 function devForm(d){const mb=cfg.ports.map((p,i)=>[i+1,p]).filter(([,p])=>p.mode==="modbus");
  const f=el("form",{},el("h3",{},d.n?"Edit "+(d.label||d.name):"Add a device"),
   el("div",{class:"grid-f"},
-   el("label",{},"Profile",el("select",{name:"profile"},...devs.profiles.map(p=>el("option",{value:p,selected:p===d.profile},p)))),
+   el("label",{},"Profile",el("select",{name:"profile"},...(d.profile&&!devs.profiles.includes(d.profile)?[el("option",{value:d.profile,selected:true},d.profile+" (unknown profile)")]:[]),...devs.profiles.map(p=>el("option",{value:p,selected:p===d.profile},p)))),
    el("label",{},"Name",el("input",{name:"name",value:d.name||"",maxLength:24,required:true,pattern:"[a-z0-9_\\-]+",title:"a-z, 0-9, _ and -"})),
    el("label",{},"Label in Home Assistant",el("input",{name:"label",value:d.label||"",maxLength:32})),
-   el("label",{},"Port",el("select",{name:"port"},...mb.map(([n,p])=>el("option",{value:n,selected:n===d.port},n+" "+(p.name||"Port "+n))))),
+   el("label",{},"Port",el("select",{name:"port"},...(d.port&&!mb.some(([n])=>n===d.port)?[el("option",{value:d.port,selected:true},d.port+" "+(cfg.ports[d.port-1].name||"Port "+d.port)+" (not a Modbus gateway)")]:[]),...mb.map(([n,p])=>el("option",{value:n,selected:n===d.port},n+" "+(p.name||"Port "+n))))),
    el("label",{},"Address",el("input",{name:"address",type:"number",min:1,max:247,value:d.address||1,required:true})),
    el("label",{},"Home Assistant IDs",el("select",{name:"ids"},el("option",{value:"own",selected:d.ids!=="esphome"},"The gateway's own"),el("option",{value:"esphome",selected:d.ids==="esphome"},"The ESP32's (ESPHome)"))),
    el("label",{},"ESPHome prefix",el("input",{name:"prefix",value:d.prefix||"",maxLength:24,pattern:"[a-z0-9_]*"}))),
@@ -698,8 +702,8 @@ function devForm(d){const mb=cfg.ports.map((p,i)=>[i+1,p]).filter(([,p])=>p.mode
   const L=["profile","name","label","port","address","ids","prefix"].map(k=>"dev"+n+"."+k+"="+e[k].value.trim());
   say(m,"Saving…");try{await post("/api/config",L.join("\n"));devEd=null;devSel=n;await devices(true)}catch(x){say(m,x.message,"bad")}};
  return f}
-$("devadd").onclick=()=>{devEd={};drawDevices()};
-$("devedit").onclick=()=>{devEd=devs.devices.find(x=>x.n===devSel)||null;drawDevices()};
+$("devadd").onclick=()=>devOpen({});
+$("devedit").onclick=()=>devOpen(devs.devices.find(x=>x.n===devSel)||null);
 $("devdel").onclick=async()=>{const d=devs.devices.find(x=>x.n===devSel);if(!d)return;
  try{await post("/api/config","dev"+d.n+".profile=");devSel=0;await devices(true)}catch(e){say($("devwhy"),e.message,"bad")}};
 
