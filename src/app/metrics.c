@@ -191,7 +191,7 @@ int metrics_part(const metrics_t *m, uint32_t part, char *out, size_t max)
     default: {
         /* Modbus gateway ports only, and only if there are any. */
         static const struct { const char *name, *help; size_t off; } MB[] = {
-            { "n540_modbus_requests_total",      "Requests taken from Modbus TCP clients.",               offsetof(mb_stats_t, requests) },
+            { "n540_modbus_requests_total",      "Requests taken from Modbus TCP clients, and the gateway's own reads of its devices.", offsetof(mb_stats_t, requests) },
             { "n540_modbus_replies_total",       "Replies from devices, error replies included.",          offsetof(mb_stats_t, replies) },
             { "n540_modbus_device_errors_total", "Error replies (exceptions) from devices.",               offsetof(mb_stats_t, exceptions) },
             { "n540_modbus_timeouts_total",      "Requests no device answered in time.",                   offsetof(mb_stats_t, timeouts) },

@@ -67,7 +67,7 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [ ] Real auth on the data ports (WireGuard would make the addresses trustworthy).
 - [x] HTTPS, with a key made on the device ([HTTPS.md](HTTPS.md)).
 - [x] Let's Encrypt renewal on the device, through Route 53.
-- [ ] Modbus TCP ↔ RTU gateway with multi-master queuing.
+- [x] Modbus TCP ↔ RTU gateway with multi-master queuing.
 - [x] Device profiles, phase 1: the gateway polls RS485 Modbus devices from text
       profiles and publishes them to MQTT with HA discovery (EG4 BMS; reading only).
 - [ ] Device profiles, phase 2: controls (number, select, switch, button over MQTT);

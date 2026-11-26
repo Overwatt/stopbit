@@ -36,7 +36,9 @@ the gateway and is reached through signed requests, so there is no telnet port.
 | `watch 1`, `connect 1` | follow traffic live; talk to a TCP-server port |
 | `save FILE`, `load FILE` | all settings except passwords |
 
-`watch` polls twice a second and can miss packets on a busy line.
+`watch` polls twice a second and can miss packets on a busy line. `get` shows every setting
+but the devices' (`devN.*`): those are in `save FILE` (`tools/n540.py $H save FILE`), on the
+Devices page, and in `GET /api/settings`.
 
 ## Web pages
 
@@ -183,13 +185,16 @@ quantity asked for; a write (5, 6, 15, 16) repeats the address and value, or the
 and quantity. So a device that answers after `modbus_timeout`, heard during the next
 request, is not taken for its reply unless that request was the very same one (then the
 values are one request late, not another register's). Set `modbus_timeout` above the
-device's slowest answer: requests counted as unanswered on the port page mean it is
-too short. A Modbus
-port never listens only, and drops what it hears while sending (its own echo).
+device's slowest answer. The port's counts include the gateway's own polls of its
+[devices](#devices), which wait for their profile's `timeout` instead: unanswered requests
+mean `modbus_timeout` is too short only if they are not those polls (a device's show as
+misses on the Devices page). A Modbus port never listens only, and drops what it hears
+while sending (its own echo).
 `/api/state` gives each Modbus port `modbus`: requests, replies, exceptions (from
 devices), timeouts, bad frames, busy, refused, broadcasts, waiting, and reply time last,
-average and longest; the port page shows them. After going back to firmware older than
-this, the port is taken as UDP, which Modbus clients do not use: nothing reaches the line.
+average and longest, the devices' polls included; the port page shows them. After going
+back to firmware older than this, the port is taken as UDP, which Modbus clients do not
+use: nothing reaches the line.
 
 ## Devices
 
@@ -274,8 +279,9 @@ values: before its first reply, or once each has missed `stale` times.
 
 The Devices page lists each device with its values, `why` it last missed, and a form to
 add, edit or remove one. `GET /api/devices` gives the same as JSON. Line use is the share
-of the last full minute a port's line was busy with the gateway's own reads, in permille
-on the page and as a ratio (0 to 1) in `/metrics`:
+of the last full minute a port's line was busy with the gateway's own reads: a percentage
+on the page, permille (0 to 1000) in `/api/devices` (`line_use`), and a ratio (0 to 1) in
+`/metrics`:
 
 | Metric | |
 |---|---|
@@ -315,7 +321,7 @@ scrape_configs:
 | `n540_port_errors_total{kind}` | parity, framing, noise, overrun, buffer_full, not_delivered, refused |
 | `n540_port_turned_away_total` | by the access list |
 | `n540_port_forward_seconds` (histogram) | from a packet's last byte on the line to its sending on the network, the silence that ends it included |
-| `n540_modbus_*_total`, `n540_modbus_waiting`, `n540_modbus_reply_seconds` (histogram) | Modbus gateway ports: requests, replies, device errors, timeouts, bad frames, busy, refused, broadcasts; reply time |
+| `n540_modbus_*_total`, `n540_modbus_waiting`, `n540_modbus_reply_seconds` (histogram) | Modbus gateway ports: requests, replies, device errors, timeouts, bad frames, busy, refused, broadcasts; reply time. The gateway's own device polls included |
 
 It is about 10 KB, more than one reply buffer, so it goes out a part at a time as the
 connection has room: in chunks over HTTP/1.1 (the connection then serves the next

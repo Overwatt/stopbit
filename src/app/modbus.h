@@ -19,10 +19,10 @@
 #define MB_LOCAL    MB_CLIENTS  /* the gateway's own requests (device.c): replies go to io.local */
 
 typedef struct {
-    uint32_t requests;          /* taken from clients */
-    uint32_t replies;           /* from devices, exceptions included */
+    uint32_t requests;          /* taken from clients, and the gateway's own (modbus_local) */
+    uint32_t replies;           /* from devices, exceptions included; to either */
     uint32_t exceptions;        /* of those, exceptions */
-    uint32_t timeouts;          /* no valid reply in time: answered 0x0B */
+    uint32_t timeouts;          /* no valid reply in time: a client is answered 0x0B */
     uint32_t bad;               /* frames heard with a bad CRC, or for another unit or function */
     uint32_t busy;              /* queue full: answered 0x06 */
     uint32_t refused;           /* a function the client may not use (0x01), or a unit no device can

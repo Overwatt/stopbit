@@ -71,11 +71,12 @@ reject live1 if pack_voltage == 0
   unavailable; `within` leaves out values outside the range (a missing cell reads 0).
 - **Limits:** 16 KB of text, 16 blocks, 160 fields and controls, names 40 characters. A model
   that differs (SRNE HSI1500S) gets a profile of its own.
-- A profile id may be built in and uploaded; the uploaded one is used. Deleting it brings
-  back the built-in one.
+- Uploads come in phase 2. Then a profile id may be built in and uploaded: the uploaded
+  one is used, and deleting it brings back the built-in one.
 
 ## Phase 1 notes
 
+- Built-in profiles only (below): profiles cannot be uploaded until phase 2.
 - Controls (`number`, `select`, `switch`, `button`) are refused until phase 2.
 - `reject B if zero f1 f2 ...`: the block's reply is not used when every listed field is 0
   (for example `reject live2 if zero remaining_capacity state_of_health full_capacity`).
