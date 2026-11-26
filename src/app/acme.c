@@ -182,7 +182,7 @@ static const char *get_nonce(job_t *j)
 {
     const char *why = hc_request("HEAD", j->host, "/acme/new-nonce", NULL, "", 0, j->buf, BUF, &j->r);
     if (why) return why;
-    if (!j->r.nonce[0]) return "Let's Encrypt gave no nonce";
+    if (!j->r.nonce[0]) return "Let's Encrypt returned no nonce";
     snprintf(j->nonce, sizeof j->nonce, "%s", j->r.nonce);
     return NULL;
 }
@@ -194,7 +194,7 @@ static const char *post(job_t *j, const char *url, const char *payload, bool use
     uint8_t h[32], sig[64];
     size_t n;
     const char *path = path_of(url, j->host), *why;
-    if (!path) return "Let's Encrypt pointed somewhere else";
+    if (!path) return "Let's Encrypt redirected to an unexpected address";
     for (int tries = 0; tries < 3; tries++) {
         if (!j->nonce[0] && (why = get_nonce(j))) return why;
         snprintf(prot, sizeof prot, "{\"alg\":\"ES256\",%s%s%s,\"nonce\":\"%s\",\"url\":\"%s\"}",
@@ -223,7 +223,7 @@ static const char *post(job_t *j, const char *url, const char *payload, bool use
         }
         return NULL;
     }
-    return "Let's Encrypt kept refusing the nonce";
+    return "Let's Encrypt repeatedly rejected the nonce";
 }
 
 /* ---- Route 53, signed with AWS Signature Version 4 -------------------------------- */
@@ -263,7 +263,7 @@ static const char *r53(job_t *j, const char *method, const char *path, const cha
     }
     if (change_id) {
         char *p = strstr(j->r.body, "<Id>/change/"), *e = p ? strstr(p, "</Id>") : NULL;
-        if (!p || !e || e - p - 12 >= 40) return "Route 53 gave no change ID";
+        if (!p || !e || e - p - 12 >= 40) return "Route 53 returned no change ID";
         memcpy(change_id, p + 12, (size_t)(e - p - 12));
         change_id[e - p - 12] = 0;
     }
@@ -287,7 +287,7 @@ static const char *txt_record(job_t *j, bool add)
         if (strstr(j->r.body, "INSYNC")) return NULL;
         wait_s(3);
     }
-    return "Route 53 took too long";
+    return "Route 53 did not respond in time";
 }
 
 /* ---- the steps -------------------------------------------------------------------------- */
@@ -326,7 +326,7 @@ static const char *account(job_t *j)
     snprintf(url, sizeof url, "https://%s/acme/new-acct", j->host);
     const char *why = post(j, url, "{\"termsOfServiceAgreed\":true}", true);
     if (why) return why;
-    if (!j->r.location[0]) return "Let's Encrypt gave no account";
+    if (!j->r.location[0]) return "Let's Encrypt returned no account";
     snprintf(j->kid, sizeof j->kid, "%s", j->r.location);
     return NULL;
 }
@@ -340,7 +340,7 @@ static const char *order(job_t *j)
     if ((why = post(j, url, pl, false))) return why;
     snprintf(j->order, sizeof j->order, "%s", j->r.location);
     if (!j->order[0] || !jstr(j->r.body, "authorizations", j->authz, sizeof j->authz, NULL) ||
-        !jstr(j->r.body, "finalize", j->finalize, sizeof j->finalize, NULL)) return "Let's Encrypt's order is not understood";
+        !jstr(j->r.body, "finalize", j->finalize, sizeof j->finalize, NULL)) return "Let's Encrypt's order could not be read";
     if ((why = post(j, j->authz, NULL, false))) return why;
     jstr(j->r.body, "status", status, sizeof status, NULL);
     if (!strcmp(status, "valid")) { j->chal[0] = 0; return NULL; }           /* proved recently */
@@ -349,7 +349,7 @@ static const char *order(job_t *j)
     const char *o = d;
     while (o > j->r.body && *o != '{') o--;                                   /* the challenge's own object */
     if (!jstr(o, "url", j->chal, sizeof j->chal, &at) || !jstr(o, "token", j->token, sizeof j->token, NULL))
-        return "Let's Encrypt's challenge is not understood";
+        return "Let's Encrypt's challenge could not be read";
     char ka[160];
     uint8_t h[32];
     snprintf(ka, sizeof ka, "%s.%s", j->token, j->thumb);
@@ -376,7 +376,7 @@ static const char *poll_status(job_t *j, const char *url, const char *want, int 
         }
         wait_s(3);
     }
-    return "Let's Encrypt took too long";
+    return "Let's Encrypt did not respond in time";
 }
 
 /* PEM chain in j->buf to concatenated DER in place. */
@@ -428,7 +428,7 @@ static const char *renew(job_t *j)
             txt_record(j, false);                                             /* it may have got there */
             return why;
         }
-        step("Waiting for Let's Encrypt to check it");
+        step("Waiting for Let's Encrypt to verify the record");
         why = post(j, j->chal, "{}", false);
         if (!why) why = poll_status(j, j->authz, "valid", 40);
         const char *gone = txt_record(j, false);                              /* tidy up, either way */
@@ -437,7 +437,7 @@ static const char *renew(job_t *j)
     }
     char req[80];
     int n = snprintf(req, sizeof req, "request %s", j->name);
-    if (step("Making a new key") || (why = tls_do(req, (size_t)n))) return why;
+    if (step("Generating a new key") || (why = tls_do(req, (size_t)n))) return why;
     uint8_t *der = (uint8_t *)j->body;
     size_t dl = tls_csr_der(der, 1200);
     if (!dl) return "no signing request";
@@ -447,10 +447,10 @@ static const char *renew(job_t *j)
     snprintf(pl, 1800, "{\"csr\":\"%s\"}", csr64);
     static char plc[1800];
     snprintf(plc, sizeof plc, "%s", pl);
-    if (step("Finishing the order") || (why = post(j, j->finalize, plc, false))) return why;
+    if (step("Completing the order") || (why = post(j, j->finalize, plc, false))) return why;
     if ((why = poll_status(j, j->order, "valid", 40))) return why;
-    if (!jstr(j->r.body, "certificate", j->cert, sizeof j->cert, NULL)) return "Let's Encrypt gave no certificate";
-    if (step("Fetching the certificate") || (why = post(j, j->cert, NULL, false))) return why;
+    if (!jstr(j->r.body, "certificate", j->cert, sizeof j->cert, NULL)) return "Let's Encrypt returned no certificate";
+    if (step("Downloading the certificate") || (why = post(j, j->cert, NULL, false))) return why;
     size_t len = pem_to_der(j->r.body, j->r.len);
     if (!len || len > 4096) return "the certificate is not understood";
     memmove(j->buf + 5, j->r.body, len);
@@ -538,7 +538,7 @@ const char *acme_command(char *body, const uint8_t *secret, size_t slen)
     static body_t b;
     if (!strcmp(body, "renew") || !strcmp(body, "test")) {
         if (!s_rec.b.has_secret || !s_rec.b.zone[0]) return "Enter the Route 53 details first";
-        if (!clock_known()) return "The time is not known yet; try again in a minute";
+        if (!clock_known()) return "The clock is not set yet; try again in a minute";
         if (!start(!strcmp(body, "test"))) return "Already renewing";
         return NULL;
     }

@@ -758,7 +758,7 @@ const char *tls_command(const uint8_t *body, size_t len)
     size_t n = 0;
     if (s_job != JOB_NONE && s_job != JOB_SHAKE) return "Still preparing; try again in a moment";
     if (s_next != JOB_NONE || s_soon) return "Still preparing; try again in a moment";
-    if (worker_busy(WORKER_TLS)) return "Busy; try again";        /* certificates are shared with a handshake */
+    if (worker_busy(WORKER_TLS)) return "Busy; try again shortly";        /* certificates are shared with a handshake */
     if (len > 5 && !memcmp(body, "cert\n", 5)) return setup() ? take_cert(body + 5, len - 5) : s_err;
     while (n < len && n + 1 < sizeof cmd && body[n] >= 0x20 && body[n] < 0x7f) { cmd[n] = (char)body[n]; n++; }
     cmd[n] = 0;

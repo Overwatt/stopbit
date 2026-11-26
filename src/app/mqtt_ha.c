@@ -176,7 +176,7 @@ static const char *why(mqtt_connection_status_t st)
     case MQTT_CONNECT_REFUSED_SERVER:           return "Broker is unavailable";
     case MQTT_CONNECT_REFUSED_USERNAME_PASS:    return "Wrong user name or password";
     case MQTT_CONNECT_REFUSED_NOT_AUTHORIZED_:  return "Broker did not authorise this user";
-    case MQTT_CONNECT_TIMEOUT:                  return "Broker did not answer";
+    case MQTT_CONNECT_TIMEOUT:                  return "Broker did not respond";
     default:                                    return "Could not connect, or the connection was lost";
     }
 }

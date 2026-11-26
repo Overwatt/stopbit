@@ -292,7 +292,9 @@ with no internet.
 ### Named Rules
 **The Steady Figures Rule.** Figures are tabular everywhere.
 **The Plain Sentence Rule.** A report is short declarative sentences, facts only: who it is
-connected to, what it hears, what went wrong.
+connected to, what it hears, what went wrong. The register is plain and a little formal: no
+idioms ("all good", "by itself"), "responding" not "answering", "reverts" not "goes back".
+The product's own terms stay: heard, sent, turned away, station.
 
 ## Layout
 
@@ -386,7 +388,7 @@ long ones are cut with an ellipsis.
   the verdict says so with how long ago the last answer came. Old readings never look live.
 
 ### Verdict
-"All good", or the worst fault by name, as a link to its station. One line under it says what
+"All normal", or the worst fault by name, as a link to its station. One line under it says what
 else is wrong.
 
 ### Traffic chart

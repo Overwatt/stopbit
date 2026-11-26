@@ -190,7 +190,7 @@ An empty list allows anyone.
   everything.
 - The list covers whoever is at the other end, in every mode: clients of a TCP server, the
   far end of a TCP client, senders and receivers of UDP.
-- Whoever is turned away is shown for ten minutes in the station list (amber, "All good"
+- Whoever is turned away is shown for ten minutes in the station list (amber, "All normal"
   stays), and the last 8 addresses are on the port's report and in `GET /api/access/N`, in
   memory only. Home Assistant gets a count per port, with the last address as an attribute.
 - **No client, and one unlisted address has tried 3 times or more in the last ten minutes:**
