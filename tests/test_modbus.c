@@ -41,6 +41,10 @@ static bool ask(int c, const char *req) { uint8_t b[600]; size_t n = hex(req, b)
 static void poll(uint32_t quiet) { modbus_poll(&M, now, quiet, true); }
 /* The device answers: heard, then the line goes quiet. */
 static void hear(const char *frame) { uint8_t b[600]; size_t n = hex(frame, b); modbus_from_line(&M, b, n); poll(0); poll(GAP); }
+/* The same, with the CRC worked out: for frames whose CRC is not the point. */
+static size_t crc_on(const char *f, uint8_t *b) { size_t n = hex(f, b); uint16_t c = modbus_crc(b, n); b[n++] = (uint8_t)c; b[n++] = (uint8_t)(c >> 8); return n; }
+static void hearc(const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); modbus_from_line(&M, b, n); poll(0); poll(GAP); }
+static bool on_linec(const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); bool ok = Ln == n && !memcmp(L, b, n); if (!ok) on_line(f); Ln = 0; return ok; }
 
 int main(void)
 {
@@ -207,13 +211,13 @@ int main(void)
     {
         uint8_t b[7 + MB_PDU];
         memset(b, 0, sizeof b);
-        b[5] = 1 + MB_PDU; b[6] = 1; b[7] = 0x10;
+        b[5] = 1 + MB_PDU; b[6] = 1; b[7] = 0x41;                 /* user-defined: no fit to check */
         assert(modbus_from_client(&M, 0, b, sizeof b, now));
         poll(GAP);
         assert(Ln == 1 + MB_PDU + 2);
         Ln = 0;
         poll(GAP);
-        uint8_t r[1 + MB_PDU + 2] = { 1, 0x10 };
+        uint8_t r[1 + MB_PDU + 2] = { 1, 0x41 };
         uint16_t c = modbus_crc(r, 1 + MB_PDU);
         r[1 + MB_PDU] = (uint8_t)c; r[2 + MB_PDU] = (uint8_t)(c >> 8);
         modbus_from_line(&M, r, sizeof r);
@@ -224,6 +228,55 @@ int main(void)
     }
 
     { uint32_t h = 0; for (int b = 0; b <= MB_HIST; b++) h += M.s.hist[b]; assert(h == M.s.replies); }
+    /* A device that answers after the timeout: its late reply, heard during the next
+     * request, does not fit that request and is ignored. */
+    M.broadcast = false;
+    uint32_t bad0 = M.s.bad;
+    assert(ask(0, "00 40 00 00 00 06 01 03 00 00 00 01"));            /* one register */
+    poll(GAP); assert(on_linec("01 03 00 00 00 01")); poll(GAP);
+    now += 1000; poll(GAP);
+    assert(to(0, "00 40 00 00 00 03 01 83 0b"));
+    assert(ask(0, "00 41 00 00 00 06 01 03 00 64 00 0a"));            /* the next: ten from 100 */
+    poll(GAP); assert(on_linec("01 03 00 64 00 0a")); poll(GAP);
+    hearc("01 03 02 00 2a");                                           /* the first one's, late */
+    assert(An[0] == 0 && M.s.bad == bad0 + 1);
+    hearc("01 03 14 00 01 00 02 00 03 00 04 00 05 00 06 00 07 00 08 00 09 00 0a");
+    assert(to(0, "00 41 00 00 00 17 01 03 14 00 01 00 02 00 03 00 04 00 05 00 06 00 07 00 08 00 09 00 0a"));
+    /* A count that does not match its own length. */
+    assert(ask(0, "00 42 00 00 00 06 01 03 00 00 00 02"));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("01 03 04 00 01");
+    assert(An[0] == 0 && M.s.bad == bad0 + 2);
+    hearc("01 03 04 00 01 00 02");
+    assert(to(0, "00 42 00 00 00 07 01 03 04 00 01 00 02"));
+    /* Coils: a bit each, so 10 of them in 2 bytes. */
+    assert(ask(0, "00 43 00 00 00 06 01 01 00 00 00 0a"));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("01 01 01 ff");
+    assert(An[0] == 0 && M.s.bad == bad0 + 3);
+    hearc("01 01 02 ff 03");
+    assert(to(0, "00 43 00 00 00 05 01 01 02 ff 03"));
+    /* A write: its address and value come back, or it is not the reply. */
+    assert(ask(0, "00 44 00 00 00 06 01 06 00 01 00 03"));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("01 06 00 02 00 03");
+    hearc("01 06 00 01 00 04");
+    assert(An[0] == 0 && M.s.bad == bad0 + 5);
+    hearc("01 06 00 01 00 03");
+    assert(to(0, "00 44 00 00 00 06 01 06 00 01 00 03"));
+    /* Several registers: the start and quantity come back. */
+    assert(ask(0, "00 45 00 00 00 0b 01 10 00 10 00 02 04 00 0a 00 0b"));
+    poll(GAP); assert(on_linec("01 10 00 10 00 02 04 00 0a 00 0b")); poll(GAP);
+    hearc("01 10 00 10 00 01");
+    assert(An[0] == 0 && M.s.bad == bad0 + 6);
+    hearc("01 10 00 10 00 02");
+    assert(to(0, "00 45 00 00 00 06 01 10 00 10 00 02"));
+    /* What cannot be told apart: a late reply to the very same request. It passes. */
+    assert(ask(0, "00 46 00 00 00 06 01 03 00 00 00 01"));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("01 03 02 00 2a");
+    assert(to(0, "00 46 00 00 00 05 01 03 02 00 2a"));
+
     printf("modbus: ok, average %llu ms over %u replies\n", (unsigned long long)(M.s.total_ms / M.s.replies), (unsigned)M.s.replies);
     return 0;
 }

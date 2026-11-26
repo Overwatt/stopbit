@@ -135,6 +135,27 @@ void modbus_from_line(modbus_t *m, const uint8_t *d, size_t n)
     }
 }
 
+/* Does what came back fit what was asked? A device that answers after the timeout can be
+ * heard during the next request; for the common functions its reply is told apart by
+ * more than unit and function. A read: as many bytes as the quantity asked for. A write:
+ * the address and value, or the address and quantity, repeated. Only an answer to the
+ * very same request still passes: the same values, one request late. */
+static bool fits(const mb_req_t *r, const uint8_t *rx, uint16_t n)
+{
+    const uint8_t *q = r->pdu;
+    uint32_t qty = r->len >= 5 ? (uint32_t)(q[3] << 8 | q[4]) : 0;
+    switch (q[0]) {
+    case 1: case 2:                                     /* coils, inputs: a bit each */
+        return r->len != 5 || (n == 5u + rx[2] && rx[2] == (qty + 7) / 8);
+    case 3: case 4:                                     /* registers: two bytes each */
+        return r->len != 5 || (n == 5u + rx[2] && rx[2] == 2 * qty);
+    case 5: case 6: case 15: case 16:                   /* the request's first four bytes, back */
+        return r->len < 5 || (n == 8 && !memcmp(rx + 2, q + 1, 4));
+    default:
+        return true;
+    }
+}
+
 /* The frame heard is the reply to q[0]? */
 static bool is_reply(const modbus_t *m)
 {
@@ -142,7 +163,9 @@ static bool is_reply(const modbus_t *m)
     if (m->rx_over || m->rxn < 4) return false;
     uint16_t crc = (uint16_t)(m->rx[m->rxn - 2] | m->rx[m->rxn - 1] << 8);
     if (modbus_crc(m->rx, m->rxn - 2u) != crc) return false;
-    return m->rx[0] == r->unit && (m->rx[1] & 0x7F) == r->pdu[0] && (m->rx[1] == r->pdu[0] || m->rxn == 5);
+    if (m->rx[0] != r->unit || (m->rx[1] & 0x7F) != r->pdu[0]) return false;
+    if (m->rx[1] & 0x80) return m->rxn == 5;            /* an exception: its code alone */
+    return fits(r, m->rx, m->rxn);
 }
 
 static void done(modbus_t *m)

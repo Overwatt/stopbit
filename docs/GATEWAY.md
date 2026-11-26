@@ -177,7 +177,14 @@ turn (up to 8). The gateway answers for itself only when the device cannot:
 
 Unit 0 is a broadcast: every device on the line acts on it and none replies, so many
 programs' default of 0 would write to all of them; hence it is off unless turned on. A
-reply with a bad CRC, or from another unit, is ignored and the wait goes on. A Modbus
+reply with a bad CRC, from another unit, or that does not fit the request is ignored and
+the wait goes on. Fitting: a read (functions 1 to 4) returns as many bytes as the
+quantity asked for; a write (5, 6, 15, 16) repeats the address and value, or the address
+and quantity. So a device that answers after `modbus_timeout`, heard during the next
+request, is not taken for its reply unless that request was the very same one (then the
+values are one request late, not another register's). Set `modbus_timeout` above the
+device's slowest answer: requests counted as unanswered on the port page mean it is
+too short. A Modbus
 port never listens only, and drops what it hears while sending (its own echo).
 `/api/state` gives each Modbus port `modbus`: requests, replies, exceptions (from
 devices), timeouts, bad frames, busy, refused, broadcasts, waiting, and reply time last,

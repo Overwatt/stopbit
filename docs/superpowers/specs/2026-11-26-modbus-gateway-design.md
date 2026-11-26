@@ -34,7 +34,7 @@ answered). Before a frame goes out the line must have been quiet for 3.5 charact
 | No valid reply within the timeout (1000 ms, settable per port, 50 to 10000) | 0x0B, gateway target device failed to respond |
 | 8 already waiting | 0x06, server device busy |
 | A function the client may not use (see access) | 0x01, illegal function |
-| A reply with a bad CRC, or for another unit or function | ignored; the wait goes on |
+| A reply with a bad CRC, for another unit or function, or that does not fit the request (added after review: a read's byte count must match the quantity; a write must repeat the address and value, or address and quantity) | ignored; the wait goes on |
 | Malformed request (protocol not 0, length out of range) | the connection is closed |
 
 **Unit 0** is a broadcast: every device acts on it and none replies. Many Modbus TCP
