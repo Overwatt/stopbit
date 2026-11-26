@@ -708,6 +708,10 @@ static err_t on_request(conn_t *c)
         if (!strcmp(path, "/")) return go_secure(c) ? redirect(c) : do_page(c);
         if (!strcmp(path, "/metrics"))
             return do_parts(c, end && !strncmp(end + 1, "HTTP/1.1", 8), "text/plain; version=0.0.4; charset=utf-8", api_metrics);
+        if (!strcmp(path, "/api/devices"))
+            return do_parts(c, end && !strncmp(end + 1, "HTTP/1.1", 8), "application/json", api_devices);
+        if (!strcmp(path, "/api/settings"))
+            return do_parts(c, end && !strncmp(end + 1, "HTTP/1.1", 8), "application/json", api_settings);
         if (!strncmp(path, "/api/", 5)) {
             char *js = s_scratch.js;
             int n = api_get(path, js, sizeof s_scratch.js);

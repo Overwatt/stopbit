@@ -6,6 +6,7 @@
 #ifndef METRICS_H
 #define METRICS_H
 #include "bridge.h"
+#include "cfg.h"
 #include "modbus.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -31,6 +32,8 @@ typedef struct {
         mb_stats_t mb;
         uint8_t  mb_waiting;
     } port[PORTS];
+    struct { const char *name; bool used, online; uint32_t polls, misses; } dev[DEVS];
+    uint16_t line_use[PORTS];               /* permille */
 } metrics_t;
 
 /* Part `part`: its length (0 if it has nothing to say), -1 past the last, -2 if it does

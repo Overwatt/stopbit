@@ -200,6 +200,31 @@ int metrics_part(const metrics_t *m, uint32_t part, char *out, size_t max)
             { "n540_modbus_refused_total",       "Requests refused: a function the client may not use, or a unit no device can have.", offsetof(mb_stats_t, refused) },
             { "n540_modbus_broadcasts_total",    "Broadcasts (unit 0) sent.",                              offsetof(mb_stats_t, broadcasts) },
         };
+        if (part >= 32) {
+            static const char *const DN[3] = { "n540_device_up", "n540_device_polls_total", "n540_device_misses_total" };
+            static const char *const DH[3] = { "1 while a device answers (one of its data blocks has values).",
+                                               "Reads sent to a device.", "Reads a device did not answer, answered with an error, or whose answer was refused." };
+            if (part == 35) {
+                head(&w, "n540_port_line_use_ratio", "gauge", "Share of the last minute the line was busy with the gateway's own reads.");
+                for (int i = 0; i < PORTS; i++) {
+                    put(&w, "n540_port_line_use_ratio{port=\"%d\"} %u.%03u\n", i + 1, m->line_use[i] / 1000u, m->line_use[i] % 1000u);
+                }
+                break;
+            }
+            if (part > 35) return -1;
+            bool any = false;
+            for (int i = 0; i < DEVS; i++) any |= m->dev[i].used;
+            if (!any) break;
+            head(&w, DN[part - 32], part == 32 ? "gauge" : "counter", DH[part - 32]);
+            for (int i = 0; i < DEVS; i++) {
+                if (!m->dev[i].used) continue;
+                uint32_t v = part == 32 ? m->dev[i].online : part == 33 ? m->dev[i].polls : m->dev[i].misses;
+                put(&w, "%s{device=\"", DN[part - 32]);
+                label(&w, m->dev[i].name);
+                put(&w, "\"} %lu\n", (unsigned long)v);
+            }
+            break;
+        }
         uint32_t k = part - 22;
         if (k > sizeof MB / sizeof MB[0] + 1) return -1;
         if (!any_mb) break;

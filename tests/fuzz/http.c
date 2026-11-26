@@ -91,6 +91,8 @@ static uint8_t s_web[32] = { 9, 9, 9 };
 const uint8_t *api_web_key(void) { return s_web; }
 const char *api_fw_need(void) { return "listen_only"; }
 bool api_is_post(const char *p) { return !strncmp(p, "/api/", 5) && strcmp(p, "/api/state"); }
+int api_devices(uint32_t part, char *o, size_t n) { return part == 0 ? snprintf(o, n, "{\"profiles\":[],\"line_use\":[0,0,0,0],\"devices\":[") : part == 1 ? snprintf(o, n, "]}\n") : -1; }
+int api_settings(uint32_t part, char *o, size_t n) { return part == 0 ? snprintf(o, n, "{\"text\":\"device.name=sim\\n") : part == 1 ? snprintf(o, n, "\"}\n") : -1; }
 /* GET /metrics: the real format (metrics.c) of made-up figures, two Modbus ports among them. */
 int api_metrics(uint32_t part, char *o, size_t n)
 {

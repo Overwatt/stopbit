@@ -5,6 +5,7 @@
 #include "cfg_store.h"
 #include "bridge.h"
 #include "device.h"
+#include "profiles.h"
 #include "cli.h"
 #include "hwinfo.h"
 #include "history.h"
@@ -210,24 +211,6 @@ static int get_one(const char *path, char *out, size_t max)
     if (!strcmp(path, "/api/tls/csr")) return (int)tls_csr(out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
-    if (!strcmp(path, "/api/settings")) {             /* as a file to keep: lines, no secrets */
-        static char text[3200];
-        static cfg_t c;
-        char iso[17] = "", when[24] = "";
-        c = s_cfg;
-        if (s_pending) c.net = s_trial;
-        if (clock_iso(iso, false))                      /* 20261126T031043Z: 2026-11-26 03:10 UTC */
-            snprintf(when, sizeof when, "%.4s-%.2s-%.2s %.2s:%.2s UTC", iso, iso + 4, iso + 6, iso + 9, iso + 11);
-        int h = snprintf(text, sizeof text, "# Settings of %s (%s), firmware %s, %s\n"
-                         "# Restore them on its Hardware page. Passwords and keys are not here.\n",
-                         c.device_name, g_hostname, g_fw_id.version, when[0] ? when : "time unknown");
-        if (h <= 0 || (size_t)h >= sizeof text || !cfg_lines(&c, text + h, sizeof text - (size_t)h)) return 0;
-        int n = snprintf(out, max, "{\"text\":");
-        size_t w = n > 0 ? json_str(text, out + n, max - (size_t)n) : 0;
-        if (!w || (size_t)n + w + 3 > max) return 0;
-        memcpy(out + n + w, "}\n", 3);
-        return (int)((size_t)n + w + 2);
-    }
     if (!strcmp(path, "/api/events") || !strncmp(path, "/api/events?before=", 19))
         return (int)events_json(path[11] ? (uint32_t)strtoul(path + 19, NULL, 10) : 0, 30, out, max);
     if (strcmp(path, "/api/state")) return -1;
@@ -496,6 +479,73 @@ void cli_wiretest(char *out, size_t max)
 #undef OUT
 }
 
+/* GET /api/devices and /api/settings, part by part (http.c's do_parts). */
+int api_devices(uint32_t part, char *out, size_t max)
+{
+    size_t n = 0;
+#define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); if (w_ < 0 || (size_t)w_ >= max - n) return -2; n += (size_t)w_; } while (0)
+    if (part == 0) {
+        OUT("{\"profiles\":[");
+        for (int i = 0; profiles_id(i); i++) OUT("%s\"%s\"", i ? "," : "", profiles_id(i));
+        OUT("],\"line_use\":[%u,%u,%u,%u],\"devices\":[", device_line_use(0), device_line_use(1), device_line_use(2), device_line_use(3));
+        return (int)n;
+    }
+    if (part <= DEVS) {
+        int i = (int)part - 1;
+        if (!device_get(i)) return 0;
+        bool first = true;
+        for (int k = 0; k < i; k++) first = first && !device_get(k);
+        if (!first) OUT(",");
+        size_t w = device_json(i, out + n, max - n);
+        return w ? (int)(n + w) : -2;
+    }
+    if (part == DEVS + 1) { OUT("]}\n"); return (int)n; }
+    return -1;
+#undef OUT
+}
+
+/* JSON's escapes for s, without the quotes. 0 if it does not fit. */
+static size_t escaped(const char *s, char *out, size_t max)
+{
+    size_t w = json_str(s, out, max);
+    if (w < 2) return 0;
+    memmove(out, out + 1, w - 2);
+    out[w - 2] = 0;
+    return w - 2;
+}
+
+int api_settings(uint32_t part, char *out, size_t max)
+{
+    static char text[3200];
+    static cfg_t c;                                     /* as it was at part 0 */
+    size_t w;
+    if (part == 0) {
+        char iso[17] = "", when[24] = "";
+        c = s_cfg;
+        if (s_pending) c.net = s_trial;
+        if (clock_iso(iso, false))                      /* 20261126T031043Z: 2026-11-26 03:10 UTC */
+            snprintf(when, sizeof when, "%.4s-%.2s-%.2s %.2s:%.2s UTC", iso, iso + 4, iso + 6, iso + 9, iso + 11);
+        int h = snprintf(text, sizeof text, "# Settings of %s (%s), firmware %s, %s\n"
+                         "# Restore them on its Hardware page. Passwords and keys are not here.\n",
+                         c.device_name, g_hostname, g_fw_id.version, when[0] ? when : "time unknown");
+        if (h <= 0 || (size_t)h >= sizeof text || !cfg_lines(&c, text + h, sizeof text - (size_t)h) || max < 9) return -2;
+        memcpy(out, "{\"text\":\"", 9);
+        w = escaped(text, out + 9, max - 9);
+        return w ? (int)(9 + w) : -2;
+    }
+    if (part <= DEVS) {
+        if (!cfg_dev_lines(&c, (int)part - 1, text, sizeof text)) return -2;
+        w = escaped(text, out, max);
+        return w ? (int)w : -2;
+    }
+    if (part == DEVS + 1) {
+        if (max < 4) return -2;
+        memcpy(out, "\"}\n", 4);
+        return 3;
+    }
+    return -1;
+}
+
 /* GET /metrics, a part at a time (http.c): the figures read afresh for each. */
 int api_metrics(uint32_t part, char *out, size_t max)
 {
@@ -533,6 +583,12 @@ int api_metrics(uint32_t part, char *out, size_t max)
         const mb_stats_t *mb = bridge_modbus(i, &m.port[i].mb_waiting);
         if ((m.port[i].modbus = mb != NULL)) m.port[i].mb = *mb;
     }
+    for (int i = 0; i < DEVS; i++) {
+        const device_t *dv = device_get(i);
+        if (!dv) continue;
+        m.dev[i] = (typeof(m.dev[i])){ dv->cfg.name, true, dv->online, dv->polls, dv->misses };
+    }
+    for (int i = 0; i < PORTS; i++) m.line_use[i] = device_line_use(i);
     return metrics_part(&m, part, out, max);
 }
 

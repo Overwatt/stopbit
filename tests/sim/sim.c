@@ -271,6 +271,8 @@ int api_get(const char *p, char *o, size_t n)
       memset(o, 'x', k); o[0] = o[k - 1] = '"'; o[k] = 0; return (int)k;
   }
   return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
+int api_devices(uint32_t part, char *o, size_t n) { return part == 0 ? snprintf(o, n, "{\"profiles\":[],\"line_use\":[0,0,0,0],\"devices\":[") : part == 1 ? snprintf(o, n, "]}\n") : -1; }
+int api_settings(uint32_t part, char *o, size_t n) { return part == 0 ? snprintf(o, n, "{\"text\":\"device.name=sim\\n") : part == 1 ? snprintf(o, n, "\"}\n") : -1; }
 /* GET /metrics: the real format (metrics.c) of made-up figures, two Modbus ports among them. */
 int api_metrics(uint32_t part, char *o, size_t n)
 {

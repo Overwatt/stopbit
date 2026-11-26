@@ -2,7 +2,7 @@
 """GET /metrics over real sockets (the simulator): HTTP/1.1 in chunks, HTTP/1.0 ended by
 the close, and HTTPS with the connection kept for the next request.
    tests/test_metrics_http.py HOST:PORT [HTTPS_PORT]"""
-import http.client, re, socket, ssl, sys
+import http.client, json, re, socket, ssl, sys
 
 host, port = sys.argv[1].split(":")
 port = int(port)
@@ -29,6 +29,13 @@ c.request("GET", "/metrics")
 r = c.getresponse()
 assert r.status == 200 and r.getheader("Transfer-Encoding") == "chunked" and r.getheader("Content-Type").startswith("text/plain; version=0.0.4")
 a = check(r.read(), "HTTP/1.1, chunked")
+c.close()
+
+c = http.client.HTTPConnection(host, port, timeout=10)
+for path in ("/api/devices", "/api/settings"):
+    c.request("GET", path); r = c.getresponse(); j = json.loads(r.read())
+    assert r.status == 200 and r.getheader("Transfer-Encoding") == "chunked", path
+print("ok  /api/devices and /api/settings in parts")
 c.close()
 
 def raw(req, sock):

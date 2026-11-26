@@ -532,6 +532,7 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
 
 size_t cfg_dev_lines(const cfg_t *c, int i, char *out, size_t max)
 {
+    if (i < 0 || i >= DEVS) return 0;
     const dev_cfg_t *d = &c->dev[i];
     size_t n = 0;
     if (!max) return 0;

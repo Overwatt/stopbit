@@ -30,7 +30,7 @@ Set N540_HOST to leave HOST out. Besides the console's own commands:
   n540.py HOST passwd [--clear]            set or remove the web password
   n540.py HOST reboot
 """
-import atexit, getpass, hashlib, hmac, http.client, json, os, select, socket, sys, termios, time, tty
+import atexit, getpass, hashlib, hmac, http.client, json, os, re, select, socket, sys, termios, time, tty
 
 KEYFILE = os.environ.get("N540_KEY", os.path.join(os.path.dirname(__file__), "..", "secrets", "n540.key"))
 
@@ -186,6 +186,7 @@ def enter_loader(d):
     return s
 
 
+DEV_LINE = re.compile(r"dev(\d+)\.")
 LOCAL = ("info", "config", "state", "save", "load", "connect", "watch", "update", "dump", "passwd", "mqtt-passwd", "reboot",
          "loader", "selfupdate", "run")
 
@@ -432,16 +433,27 @@ def main(a):
     elif cmd in ("config", "state"):
         print(json.dumps(json.loads(d.get("/api/" + cmd)), indent=2))
     elif cmd == "save":
-        text = d.auth("POST", "/api/cli", b"get").decode()
-        if "cut short" in text or text.startswith("error"):
-            raise SystemExit("could not read all settings")
+        text = json.loads(d.get("/api/settings"))["text"]
         with open(a[2], "w") as f:
             f.write(text)
         print(f"{len(text.splitlines())} settings saved to {a[2]}")
     elif cmd == "load":
-        body = "\n".join(l for l in open(a[2]).read().splitlines() if l.strip() and not l.startswith("#"))
-        r = json.loads(d.auth("POST", "/api/config", body.encode()))
-        print("network settings are on trial: run keep within 2 minutes or they revert" if r["net_pending"] else "loaded")
+        lines = [l for l in open(a[2]).read().splitlines() if l.strip() and not l.startswith("#")]
+        units, devs = [[l] for l in lines if not DEV_LINE.match(l)], {}
+        for l in lines:                                         # a device's lines stay together
+            m = DEV_LINE.match(l)
+            if m:
+                devs.setdefault(m.group(1), []).append(l)
+        units += devs.values()                                  # the rest first, then whole devices
+        batch, pending = [], False
+        for u in units + [None]:
+            if batch and (u is None or len("\n".join(batch + u)) > 4000):
+                r = json.loads(d.auth("POST", "/api/config", "\n".join(batch).encode()))
+                pending = pending or r["net_pending"]
+                batch = []
+            if u is not None:
+                batch += u
+        print("network settings are on trial: run keep within 2 minutes or they revert" if pending else "loaded")
     elif cmd == "connect":
         connect(d, int(a[2]))
     elif cmd == "watch":

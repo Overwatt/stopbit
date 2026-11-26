@@ -31,4 +31,8 @@ const uint8_t *api_page(uint32_t *len);          /* gzipped HTML */
 const char *api_fw_need(void);
 /* Web-password key, or NULL if none is set. */
 const uint8_t *api_web_key(void);
+/* GET /api/devices and /api/settings, part by part (http.c's do_parts). */
+int  api_devices(uint32_t part, char *out, size_t max);
+int  api_settings(uint32_t part, char *out, size_t max);
+
 #endif

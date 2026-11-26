@@ -153,7 +153,10 @@ static void widest(metrics_t *m, bool modbus)
         memset(&m->port[i].mb, 0xFF, sizeof m->port[i].mb);
         for (int b = 0; b <= MB_HIST; b++) m->port[i].mb.hist[b] = UINT32_MAX / (MB_HIST + 1);
         m->port[i].mb_waiting = MB_QUEUE;
+        m->line_use[i] = 1000;
     }
+    for (int i = 0; i < DEVS; i++)
+        m->dev[i] = (typeof(m->dev[i])){ "abcdefghijklmnopqrstuvwx", true, true, UINT32_MAX, UINT32_MAX };
 }
 
 int main(void)
@@ -176,6 +179,8 @@ int main(void)
     check(all, 4);
     assert(strstr(all, "n540_modbus_reply_seconds_bucket{port=\"2\",le=\"0.010\"} 477218588\n"));
     assert(strstr(all, "n540_modbus_waiting{port=\"3\"} 8\n"));
+    assert(strstr(all, "n540_device_up{device=\"abcdefghijklmnopqrstuvwx\"} 1\n"));
+    assert(strstr(all, "n540_port_line_use_ratio{port=\"4\"} 1.000\n"));
     assert(!strstr(all, "n540_port_forward_seconds_bucket"));   /* not for Modbus ports */
 
     /* Too small: -2, never a part cut short. */
