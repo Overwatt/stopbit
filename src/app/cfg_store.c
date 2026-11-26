@@ -23,19 +23,32 @@ _Static_assert(offsetof(cfg_t, quiet) == 470, "quiet fills the padding after web
 _Static_assert(sizeof(acl_t) == 68, "access list layout must not move");
 static const uint32_t ADDR[2]  = { 0x0F0000u, 0x0F1000u };
 static const uint32_t AADDR[2] = { 0x0F2000u, 0x0F3000u };
+/* Later settings (more_cfg_t): their own record too, for the same reason. Unlike the
+ * lists, one that cannot be read just means defaults. */
+#define MMAGIC  0x45524F4Du
+#define MSCHEMA 1u
+#define MSIZE   sizeof(more_cfg_t)
+_Static_assert(sizeof(more_cfg_t) == 256, "later settings fill their spare bytes, never grow");
+static const uint32_t MADDR[2] = { 0x0FA000u, 0x0FB000u };
 
 typedef struct {
     uint32_t magic, schema, seq, size;
     uint8_t  sha[32];                   /* over schema, seq, size and body */
     uint8_t  body[SIZE2];
 } rec_t;
-_Static_assert(ASIZE <= SIZE2, "record too small");
+_Static_assert(ASIZE <= SIZE2 && MSIZE <= SIZE2, "record too small");
 _Static_assert(sizeof(rec_t) <= 4096, "config record exceeds a sector");
 
 static rec_t s_r, s_w;                  /* too big for the stack */
-static uint32_t s_seq, s_aseq;
-static int s_cur = -1, s_acur = -1;
+static uint32_t s_seq;
+static int s_cur = -1;
 static acl_t s_saved[PORTS];            /* as last read or written */
+static more_cfg_t s_msaved;
+
+/* A record kept apart from the main one, in two alternating sectors. */
+typedef struct { uint32_t magic, schema, size; const uint32_t *addr; int cur; uint32_t seq; } side_t;
+static side_t s_acl  = { AMAGIC, ASCHEMA, ASIZE, AADDR, -1, 0 };
+static side_t s_more = { MMAGIC, MSCHEMA, MSIZE, MADDR, -1, 0 };
 
 #define HEAD offsetof(rec_t, body)
 
@@ -59,57 +72,81 @@ static bool read_valid(int i)
     return ct_equal(d, s_r.sha, 32);
 }
 
-static bool aread_valid(int i, bool *ours)
+static bool side_read(const side_t *k, int i, bool *ours)
 {
     uint8_t d[32];
-    extflash_read(DEV, AADDR[i], &s_r, HEAD + ASIZE);
-    if (s_r.magic != AMAGIC) return false;
+    extflash_read(DEV, k->addr[i], &s_r, HEAD + k->size);
+    if (s_r.magic != k->magic) return false;
     *ours = true;
-    if (s_r.schema != ASCHEMA || s_r.size != ASIZE) return false;
+    if (s_r.schema != k->schema || s_r.size != k->size) return false;
     digest(&s_r, d);
     return ct_equal(d, s_r.sha, 32);
+}
+
+/* The newer valid copy into `body`. 1: read; 0: something is there but cannot be
+ * read; -1: nothing stored. */
+static int side_load(side_t *k, void *body)
+{
+    bool ours = false;
+    k->cur = -1;
+    k->seq = 0;
+    for (int i = 0; i < 2; i++) {
+        if (!side_read(k, i, &ours) || (k->cur >= 0 && s_r.seq <= k->seq)) continue;
+        k->cur = i;
+        k->seq = s_r.seq;
+        memcpy(body, s_r.body, k->size);
+    }
+    return k->cur >= 0 ? 1 : ours ? 0 : -1;
+}
+
+/* The magic goes last, so a power cut leaves this copy looking blank, not damaged. */
+static bool side_save(side_t *k, const void *body)
+{
+    int i = k->cur == 0 ? 1 : 0;
+    bool ours;
+    memset(&s_w, 0, sizeof s_w);
+    s_w.magic = k->magic;
+    s_w.schema = k->schema;
+    s_w.seq = k->seq + 1;
+    s_w.size = k->size;
+    memcpy(s_w.body, body, k->size);
+    digest(&s_w, s_w.sha);
+    if (!extflash_erase(DEV, k->addr[i], 4096)) return false;
+    if (!extflash_write(DEV, k->addr[i] + 4, &s_w.schema, HEAD + k->size - 4)) return false;
+    if (!extflash_write(DEV, k->addr[i], &s_w.magic, 4)) return false;
+    if (!side_read(k, i, &ours) || memcmp(&s_r, &s_w, HEAD + k->size)) return false;
+    k->cur = i;
+    k->seq = s_w.seq;
+    return true;
 }
 
 /* Nothing stored: anyone. Something stored that cannot be read: nobody, rather than
  * silently opening ports that were restricted. */
 static void access_load(cfg_t *c)
 {
-    bool ours = false, ok = true;
-    s_acur = -1;
-    s_aseq = 0;
+    bool ok = true;
     memset(c->access, 0, sizeof c->access);
-    for (int i = 0; i < 2; i++) {
-        if (!aread_valid(i, &ours) || (s_acur >= 0 && s_r.seq <= s_aseq)) continue;
-        s_acur = i;
-        s_aseq = s_r.seq;
-        memcpy(c->access, s_r.body, ASIZE);
-    }
+    int r = side_load(&s_acl, c->access);
     for (int p = 0; p < PORTS; p++) ok = ok && acl_valid(&c->access[p]);
-    if ((s_acur < 0 && ours) || !ok)
+    if (r == 0 || !ok)
         for (int p = 0; p < PORTS; p++) acl_deny_all(&c->access[p]);
     memcpy(s_saved, c->access, sizeof s_saved);
 }
 
-/* The magic goes last, so a power cut leaves this copy looking blank, not damaged. */
 static bool access_save(const cfg_t *c)
 {
-    int i = s_acur == 0 ? 1 : 0;
-    bool ours;
-    memset(&s_w, 0, sizeof s_w);
-    s_w.magic = AMAGIC;
-    s_w.schema = ASCHEMA;
-    s_w.seq = s_aseq + 1;
-    s_w.size = ASIZE;
-    memcpy(s_w.body, c->access, ASIZE);
-    digest(&s_w, s_w.sha);
-    if (!extflash_erase(DEV, AADDR[i], 4096)) return false;
-    if (!extflash_write(DEV, AADDR[i] + 4, &s_w.schema, HEAD + ASIZE - 4)) return false;
-    if (!extflash_write(DEV, AADDR[i], &s_w.magic, 4)) return false;
-    if (!aread_valid(i, &ours) || memcmp(&s_r, &s_w, HEAD + ASIZE)) return false;
-    s_acur = i;
-    s_aseq = s_w.seq;
+    if (!side_save(&s_acl, c->access)) return false;
     memcpy(s_saved, c->access, sizeof s_saved);
     return true;
+}
+
+/* Anything not stored, or not readable, is its default. */
+static void more_load(cfg_t *c)
+{
+    memset(&c->more, 0, sizeof c->more);
+    if (side_load(&s_more, &c->more) != 1) memset(&c->more, 0, sizeof c->more);
+    c->more.ntp[sizeof c->more.ntp - 1] = c->more.topic[sizeof c->more.topic - 1] = 0;
+    s_msaved = c->more;
 }
 
 bool cfg_load(cfg_t *c)
@@ -127,6 +164,7 @@ bool cfg_load(cfg_t *c)
     bool ok = s_cur >= 0 && cfg_validate(c, err, sizeof err);
     if (!ok) cfg_defaults(c);
     access_load(c);
+    more_load(c);
     return ok;
 }
 
@@ -153,5 +191,9 @@ static bool main_save(const cfg_t *c)
 bool cfg_save(const cfg_t *c)
 {
     if (memcmp(s_saved, c->access, sizeof s_saved) && !access_save(c)) return false;
+    if (memcmp(&s_msaved, &c->more, sizeof s_msaved)) {
+        if (!side_save(&s_more, &c->more)) return false;
+        s_msaved = c->more;
+    }
     return main_save(c);
 }

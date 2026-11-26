@@ -1,4 +1,5 @@
 #include "fwlib.h"
+#include "clock.h"
 #include "extflash.h"
 #include "fw_id.h"
 #include "sha256.h"
@@ -14,6 +15,7 @@
 #define SPACE      0x64000u             /* 400 KB: header sector, then the image */
 #define OFF_TRIED  0x100u
 #define OFF_KEPT   0x104u
+#define OFF_ADDED  0x108u               /* unix seconds; left erased if the time was not known */
 #define STUCK_MS   3000u
 
 /* In the order they are first used. Chip 0 from the top, then the bottom of chip 1.
@@ -46,7 +48,7 @@ static slot_hdr_t  s_arch_hdr;
 /* ---- entries ------------------------------------------------------------- */
 void fwlib_get(int i, fwlib_entry_t *o)
 {
-    uint32_t mark[2];
+    uint32_t mark[3];
     memset(o, 0, sizeof *o);
     extflash_read(AT[i].dev, AT[i].addr, &o->hdr, sizeof o->hdr);
     o->valid = o->hdr.magic == MAGIC && o->hdr.size >= 0x400u && o->hdr.size <= STAGE_SIZE;
@@ -55,6 +57,7 @@ void fwlib_get(int i, fwlib_entry_t *o)
     extflash_read(AT[i].dev, AT[i].addr + OFF_TRIED, mark, sizeof mark);
     o->tried = mark[0] == 0;
     o->kept = mark[1] == 0;
+    o->added = mark[2] == 0xFFFFFFFFu ? 0 : mark[2];
 }
 
 static bool same(const uint8_t a[32], const uint8_t b[32]) { return !memcmp(a, b, 32); }
@@ -356,6 +359,10 @@ static void step(void)
             return;
         }
         if (!s_dup && !commit(s_space, &s_hdr)) { stop("header write failed"); return; }
+        if (!s_dup && clock_known()) {   /* an image already here keeps its first date */
+            uint32_t t = clock_unix();
+            extflash_write(AT[s_space].dev, AT[s_space].addr + OFF_ADDED, &t, 4);
+        }
         if (!s_ck.found) { stop("that firmware would not respect a port's listen-only setting"); return; }
         install();
         return;
@@ -438,10 +445,10 @@ size_t fwlib_json(int running, char *out, size_t max)
             if (in[s].valid && same(in[s].hdr.sha, e.hdr.sha)) { slot = s; e.kept |= in[s].confirmed; }
         for (int b = 0; b < 32; b++) snprintf(sha + 2 * b, 3, "%02x", e.hdr.sha[b]);
         for (char *p = e.hdr.version; *p; p++) if (*p < 0x20 || *p > 0x7e || *p == '"' || *p == '\\') *p = '?';
-        OUT("%s{\"version\":\"%s\",\"size\":%lu,\"seq\":%lu,\"kept\":%s,\"tried\":%s,\"running\":%s,\"slot\":%d,\"sha\":\"%s\"}",
+        OUT("%s{\"version\":\"%s\",\"size\":%lu,\"seq\":%lu,\"kept\":%s,\"tried\":%s,\"running\":%s,\"slot\":%d,\"added\":%lu,\"sha\":\"%s\"}",
             k++ ? "," : "", e.hdr.version, (unsigned long)e.hdr.size, (unsigned long)e.hdr.seq,
             e.kept ? "true" : "false", e.tried ? "true" : "false",
-            slot != SLOT_NONE && slot == running ? "true" : "false", slot, sha);
+            slot != SLOT_NONE && slot == running ? "true" : "false", slot, (unsigned long)e.added, sha);
     }
     OUT("]}\n");
     return n;

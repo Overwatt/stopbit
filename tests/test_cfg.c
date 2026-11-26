@@ -30,6 +30,11 @@ int main(void)
     assert(!c.mqtt.no_announce); OK("mqtt.announce=0"); assert(c.mqtt.no_announce == 1); BAD("mqtt.announce=2"); BAD("mqtt.no_announce=1");
     { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"announce\":false")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "mqtt.announce=0\n")); }
     OK("mqtt.announce=1"); assert(!c.mqtt.no_announce);
+    assert(!c.more.ntp[0]); OK("net.ntp=time.example.com"); assert(!strcmp(c.more.ntp, "time.example.com"));
+    OK("net.ntp=10.20.0.1"); BAD("net.ntp=a b"); BAD("net.ntp=x/y"); BAD("net.ntp=123456789012345678901234567890123456789012345678");
+    { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"ntp\":\"10.20.0.1\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "net.ntp=10.20.0.1\n"));
+      static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !strcmp(t.more.ntp, "10.20.0.1")); }
+    OK("net.ntp="); assert(!c.more.ntp[0]);
     OK("port3.quiet_min=1\nport1.quiet_min=1440"); assert(cfg_quiet_min(&c, 2) == 1 && cfg_quiet_min(&c, 0) == 1440 && !cfg_quiet_min(&c, 1) && !cfg_quiet_min(&c, 3));
     BAD("port1.quiet_min=4"); BAD("port1.quiet_min=-1"); BAD("port1.quiet_min="); BAD("port5.quiet_min=1");
     OK("port3.quiet_min=0"); assert(cfg_quiet_min(&c, 2) == 0 && cfg_quiet_min(&c, 0) == 1440); OK("port1.quiet_min=0"); assert(c.quiet == 0);

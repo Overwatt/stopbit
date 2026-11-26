@@ -514,7 +514,7 @@ void acme_poll(void)
     worker_poll(WORKER_RENEW);
     uint32_t now = clock_unix();
     const body_t *b = &s_rec.b;
-    if (!b->automatic || !b->has_secret || !now || s_running || now < s_next_check) return;
+    if (!b->automatic || !b->has_secret || !clock_synced() || s_running || now < s_next_check) return;
     if (due(now)) {
         start(false);
         uint32_t back = s_fails > 4 ? DAY : 3600u << (s_fails < 4 ? s_fails : 4);   /* 1 h, then longer */
@@ -538,7 +538,7 @@ const char *acme_command(char *body, const uint8_t *secret, size_t slen)
     static body_t b;
     if (!strcmp(body, "renew") || !strcmp(body, "test")) {
         if (!s_rec.b.has_secret || !s_rec.b.zone[0]) return "Enter the Route 53 details first";
-        if (!clock_known()) return "The clock is not set yet; try again in a minute";
+        if (!clock_synced()) return "The clock is not set yet; try again in a minute";
         if (!start(!strcmp(body, "test"))) return "Already renewing";
         return NULL;
     }

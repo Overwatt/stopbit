@@ -187,6 +187,7 @@ static bool apply(cfg_t *c, const char *k, const char *v)
         c->net.dhcp = d;
         return true;
     }
+    if (!strcmp(k, "net.ntp")) return set_str(c->more.ntp, sizeof c->more.ntp, v, true);
     uint32_t *ip = !strcmp(k, "net.ip") ? &c->net.ip : !strcmp(k, "net.mask") ? &c->net.mask :
                    !strcmp(k, "net.gateway") ? &c->net.gw : !strcmp(k, "net.dns") ? &c->net.dns : NULL;
     if (!ip) return false;
@@ -354,6 +355,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
     static const char *const NK[] = { "ip", "mask", "gateway", "dns" };
     const uint32_t nv[] = { c->net.ip, c->net.mask, c->net.gw, c->net.dns };
     for (int i = 0; i < 4; i++) ADD(",\"%s\":\"%s\"", NK[i], nv[i] ? ip[i] : "");
+    ADD(",\"ntp\":");
+    STR(c->more.ntp);
     ADD("},\"mqtt\":");
     if (!(w = fields_json(&c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
     n += w - 1;                        /* reopen to add one more key */
@@ -397,9 +400,9 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
     if (!max) return 0;
     ip4_fmt(c->net.ip, ip[0]); ip4_fmt(c->net.mask, ip[1]);
     ip4_fmt(c->net.gw, ip[2]); ip4_fmt(c->net.dns, ip[3]);
-    ADD("device.name=%s\nnet.mode=%s\nnet.ip=%s\nnet.mask=%s\nnet.gateway=%s\nnet.dns=%s\n", c->device_name,
+    ADD("device.name=%s\nnet.mode=%s\nnet.ip=%s\nnet.mask=%s\nnet.gateway=%s\nnet.dns=%s\nnet.ntp=%s\n", c->device_name,
         c->net.dhcp ? "dhcp" : "static", c->net.ip ? ip[0] : "", c->net.mask ? ip[1] : "",
-        c->net.gw ? ip[2] : "", c->net.dns ? ip[3] : "");
+        c->net.gw ? ip[2] : "", c->net.dns ? ip[3] : "", c->more.ntp);
     if (!(w = fields_lines("mqtt", &c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
     n += w;
     for (int i = 0; i < PORTS; i++) {

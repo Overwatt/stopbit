@@ -103,7 +103,7 @@ int main(void)
         STEP(14, "renewal"); acme_poll();
         STEP(15, "bridge"); bridge_poll();
         STEP(16, "api"); api_poll();
-        STEP(17, "supervise"); supervise();
+        STEP(17, "supervise"); supervise(); clock_poll();
         hwinfo_step("led"); led_poll();
     }
 }

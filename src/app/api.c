@@ -1,4 +1,5 @@
 #include "api.h"
+#include "clock.h"
 #include "cfg.h"
 #include "cfg_store.h"
 #include "bridge.h"
@@ -52,6 +53,7 @@ static void run_net(const net_cfg_t *n)
 void api_init(void)
 {
     cfg_load(&s_cfg);
+    clock_server(s_cfg.more.ntp);
     if (!s_cfg.net.dhcp) run_net(&s_cfg.net);
     bridge_configure(&s_cfg);
     mqtt_ha_configure(&s_cfg);
@@ -90,6 +92,7 @@ bool api_set_line(char *line, char *err, size_t errlen)
     s_save_at = HAL_GetTick() + SAVE_MS;
     bridge_configure(&s_cfg);
     mqtt_ha_configure(&s_cfg);
+    clock_server(s_cfg.more.ntp);
     return true;
 }
 
@@ -184,7 +187,7 @@ int api_get(const char *path, char *out, size_t max)
         "{\"version\":\"%s\",\"uptime_s\":%lu,\"host\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\","
         "\"ip\":\"%s\",\"mask\":\"%s\",\"gateway\":\"%s\",\"speed\":%d,\"full_duplex\":%s,"
         "\"net_pending\":%s,\"net_pending_s\":%d,\"fw_trial\":%s,\"slot\":%d,\"boots\":%lu,\"crashes\":%lu,\"reset\":\"%lx\","
-        "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\"},\"ports\":",
+        "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\"},\"clock\":",
         g_fw_id.version, (unsigned long)(HAL_GetTick() / 1000), g_hostname,
         g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip, mask, gw,
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
@@ -192,6 +195,11 @@ int api_get(const char *path, char *out, size_t max)
         (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_CRASHES),
         (unsigned long)bkp_get(BKP_RSTLOG), mqtt_ha_state(), mqtt_ha_error());
     if (n >= max) return 0;
+    size_t k = clock_json(out + n, max - n);
+    if (!k || n + k + 10 >= max) return 0;
+    n += k;
+    memcpy(out + n, ",\"ports\":", 10);  /* with its NUL */
+    n += 9;
     size_t b = bridge_json(out + n, max - n);
     if (!b || n + b + 3 > max) return 0;
     memcpy(out + n + b, "}\n", 3);
@@ -260,6 +268,7 @@ static const char *change(cfg_t *cp, char *body, char *out, size_t max)
         }
         bridge_configure(&s_cfg);
         mqtt_ha_configure(&s_cfg);
+        clock_server(s_cfg.more.ntp);
     }
     if (net_changed) {
         s_trial = want;

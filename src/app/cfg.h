@@ -43,6 +43,14 @@ typedef struct {
     uint8_t  no_announce;          /* no HA discovery. Was padding, always 0 */
 } mqtt_cfg_t;
 
+/* Settings added later, kept in a record of their own (cfg_store.c) that older
+ * firmware never reads. Zero is each one's default. */
+typedef struct {
+    char    ntp[48];               /* time server; blank = the DHCP server's, then pool.ntp.org */
+    char    topic[48];             /* MQTT base topic; blank = the host name. Not used yet */
+    uint8_t spare[160];            /* for later settings */
+} more_cfg_t;
+
 typedef struct {
     char       device_name[32];
     net_cfg_t  net;
@@ -54,6 +62,7 @@ typedef struct {
     mqtt_cfg_t mqtt;
     /* --- end of schema 2; what follows is stored apart, see cfg_store.c --- */
     acl_t      access[PORTS];
+    more_cfg_t more;
 } cfg_t;
 
 /* Minutes without traffic or a client before a port alerts; 0 = never. */

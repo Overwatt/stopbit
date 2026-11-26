@@ -144,6 +144,9 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label>Gateway<input name="gateway" inputmode="decimal" autocomplete="off"></label>
    <label>DNS server<input name="dns" inputmode="decimal" autocomplete="off" placeholder="Same as gateway"></label>
   </div>
+  <div class="grid-f" style="margin-bottom:16px">
+   <label class="wide">Time server<input name="ntp" maxlength="47" autocomplete="off" spellcheck="false" placeholder="pool.ntp.org"></label>
+  </div>
   <div class="acts"><button class="primary">Save network</button><p class="msg" role="status"></p></div>
   <p class="hint">New settings run on trial for two minutes and revert unless you keep them.</p>
  </form></section></div>
@@ -197,7 +200,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <div class="acts"><button class="primary">Install</button><p class="msg" role="status"></p></div>
   <p class="hint">The gateway restarts. If the new firmware fails to start, the gateway reverts to the current version.</p>
  </form></section><section><h3>Installed</h3><dl class="list" id="fwinfo"></dl></section></div>
-  <h3>Kept firmware</h3><table class="stack"><thead><tr><th>Version</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody id="kept"><tr><td colspan="4">Reading…</td></tr></tbody></table>
+  <h3>Kept firmware</h3><table class="stack"><thead><tr><th>Version</th><th>Installed</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody id="kept"><tr><td colspan="5">Reading…</td></tr></tbody></table>
   <p class="msg" id="keptmsg" role="status"></p>
   <p class="hint">Older firmware ignores settings it does not recognise, such as access lists.</p></div>
 </main></div>
@@ -318,7 +321,7 @@ document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38
 
 /* ---- network + device ---- */
 function showStatic(){document.querySelector("[data-static]").hidden=$("net").elements.mode.value!=="static"}
-function fillForms(){const n=$("net").elements;for(const k of ["mode","ip","mask","gateway","dns"])n[k].value=cfg.net[k];
+function fillForms(){const n=$("net").elements;for(const k of ["mode","ip","mask","gateway","dns","ntp"])n[k].value=cfg.net[k]||"";
  if(cfg.net.mode==="dhcp"&&st){if(!n.ip.value)n.ip.value=st.ip;if(!n.mask.value)n.mask.value=st.mask;if(!n.gateway.value)n.gateway.value=st.gateway}
  $("dev").elements.name.value=cfg.device.name;fillMqtt();showStatic();title()}
 function title(){const n=cfg.device.name||"N540 gateway";$("dname").textContent=n;document.title=n}
@@ -326,6 +329,7 @@ $("net").elements.mode.onchange=showStatic;
 $("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("net").querySelector(".msg");
  const L=["net.mode="+n.mode.value];if(n.mode.value==="static")for(const k of ["ip","mask","gateway","dns"])L.push("net."+k+"="+n[k].value.trim());
  else for(const k of ["ip","mask","gateway","dns"])L.push("net."+k+"="+cfg.net[k]);
+ L.push("net.ntp="+n.ntp.value.trim().toLowerCase());
  say(m,"Saving…");try{const r=JSON.parse(await post("/api/config",L.join("\n")));
   if(!r.net_pending){say(m,"Saved.","ok");return}
   if(n.mode.value==="static"&&n.ip.value.trim()!==location.hostname&&!location.hostname.endsWith(".local"))
@@ -378,7 +382,9 @@ async function tick(){clearTimeout(timer);
   failing=0;okAt=now;document.body.classList.remove("stale");$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
-  fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[])]); /* the rest is in the sentence or the form */
+  const c=s.clock,utc=c.now.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC");
+  fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[]), /* the rest is in the sentence or the form */
+   ["Clock",c.src==="none"?el("span",{class:"warn"},"Not set yet"):utc,c.src==="ntp"?sub("Synced "+ago(c.ago*1000).toLowerCase()+(c.from?" from "+c.from:"")):c.src==="restart"?sub("Carried over the restart; waiting for the time server"):null]]);
   paint();hardware();https()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not responding")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
@@ -395,13 +401,16 @@ const FLASH=id=>id==="0xc84015"?"GigaDevice GD25Q16, 2 MB":/^0x(0+|f+)$/.test(id
 const runs=a=>a.reduce((o,x)=>{const l=o[o.length-1];l&&l[0]===x?l[1]++:o.push([x,1]);return o},[]).map(([x,n])=>n>1?nb(x+" × "+n):x).join(", ");
 let lib=null,pick=null,pickT=0,keptAs=""; /* pick: the image whose button was pressed once */
 const STAGE={storing:"Storing",checking:"Checking",saving:"Saving the previous firmware",installing:"Installing"};
+/* The viewer's own time zone; the year only when it is not this one. */
+const when=t=>{if(!t)return "Not known";const d=new Date(t*1000);
+ return d.toLocaleString(undefined,{day:"numeric",month:"short",year:d.getFullYear()===new Date().getFullYear()?undefined:"numeric",hour:"2-digit",minute:"2-digit"})};
 async function library(){try{lib=await getj("/api/library")}catch(e){return}
  const now=JSON.stringify([lib.images,pick]);if(now===keptAs)return;keptAs=now;
- if(!lib.images.length){$("kept").replaceChildren(el("tr",{},el("td",{colSpan:4},"None yet. The next update is kept here.")));return}
+ if(!lib.images.length){$("kept").replaceChildren(el("tr",{},el("td",{colSpan:5},"None yet. The next update is kept here.")));return}
  const run=lib.images.find(i=>i.running),seq=run?run.seq:1e9;
  $("kept").replaceChildren(...[...lib.images].sort((a,b)=>b.seq-a.seq).map(i=>{
   const verb=i.kept&&i.seq<seq?"Roll back":"Install";
-  return el("tr",{class:"row"},el("td",{},el("span",{class:"name"},i.version)),el("td",{"data-h":"Size"},kb(i.size)),el("td",{"data-h":"Status"},
+  return el("tr",{class:"row"},el("td",{},el("span",{class:"name"},i.version)),el("td",{"data-h":"Installed"},when(i.added)),el("td",{"data-h":"Size"},kb(i.size)),el("td",{"data-h":"Status"},
    i.running?el("span",{class:"ok"},i.kept?"Running":"Running, on trial"):i.kept?"Kept":i.tried?el("span",{class:"warn"},"Did not pass its trial"):"Not started yet"),
    i.running?el("td"):el("td",{},el("button",{type:"button","data-auth":"",class:pick===i.sha?"danger":"",onclick:()=>choose(i)},pick===i.sha?"Confirm "+verb.toLowerCase():verb)))}));authUI()}
 function choose(i){clearTimeout(pickT);
@@ -584,8 +593,7 @@ let acme=null,acmeWatch=0;
 async function renewal(){try{acme=await getj("/api/acme")}catch(e){return}const a=acme,e=$("acme").elements,ago=s=>s<0?"":" "+dur(s)+" ago";
  const due=a.name?(a.due_in_s<=0?"Due now":"In "+dur(a.due_in_s)):"No issued certificate";
  acmeRows=[["Renewal",a.running?(a.staging?"Testing: ":"Renewing: ")+a.step+"…":a.auto?due:"Off"],
-  ["Last result",a.result?el("span",{class:/^(Renewed|Test passed)/.test(a.result)?"ok":"bad"},a.result):"None yet",a.result_s>=0?sub(dur(a.result_s)+" ago"):null],
-  ["Clock",a.clock?a.clock.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC"):el("span",{class:"warn"},"Not set yet"),a.clock?sub("synced"+ago(a.clock_s)):null]];drawHttps();
+  ["Last result",a.result?el("span",{class:/^(Renewed|Test passed)/.test(a.result)?"ok":"bad"},a.result):"None yet",a.result_s>=0?sub(dur(a.result_s)+" ago"):null]];drawHttps(); /* the clock: Now, above */
  for(const k of ["zone","key_id"])if(document.activeElement!==e[k]&&!e[k].dataset.edited)e[k].value=a[k];
  if(!e.auto.dataset.edited)e.auto.checked=a.auto;e.secret.placeholder=a.secret_set?"Saved; type to replace":"";
  $("acmenow").disabled=$("acmetest").disabled=!key||a.running;

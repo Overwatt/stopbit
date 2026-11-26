@@ -130,7 +130,7 @@ static const char *open_to(const char *host)
     int r;
     if (s_c.setup && !s_c.lost && !s_c.eof && !strcmp(s_c.host, host)) return NULL;   /* still open */
     hc_close();
-    if (!clock_known()) return "the time is not known yet";
+    if (!clock_synced()) return "the time is not known yet";   /* certificates; AWS allows 5 minutes */
     s_dns = 0;
     err_t e = dns_gethostbyname(host, &s_ip, cb_dns, NULL);
     if (e == ERR_OK) s_dns = 1;

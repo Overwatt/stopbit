@@ -16,7 +16,8 @@ int main(void)
 {
     cfg_t c, d;
     f_no[f_nno++] = (range_t){ 1, 0, 0x0F0000 };
-    f_no[f_nno++] = (range_t){ 1, 0x0F4000, 0x200000 };
+    f_no[f_nno++] = (range_t){ 1, 0x0F4000, 0x0FA000 };          /* HTTPS and renewal records */
+    f_no[f_nno++] = (range_t){ 1, 0x0FC000, 0x200000 };
     f_no[f_nno++] = (range_t){ 0, 0, 0x200000 };
     memset(F, 0xFF, sizeof F);
     assert(!cfg_load(&c));
@@ -59,6 +60,20 @@ int main(void)
     assert(d.port[0].listen_only && d.port[0].baud == 38400);
     set(&d, "port1.access=10.20.1.54 read\nport2.access=\nport3.access=\nport4.access=");
     assert(cfg_save(&d) && cfg_load(&c)); is(&c, 0, "10.20.1.54 read"); is(&c, 1, "");
+
+    /* later settings: their own record, nothing else rewritten for them */
+    memset(F, 0xFF, sizeof F);
+    cfg_load(&c); assert(!c.more.ntp[0]);
+    for (int a = 0xFA000; a < 0xFC000; a++) assert(F[1][a] == 0xFF);
+    set(&c, "net.ntp=time.example.com"); assert(cfg_save(&c));
+    assert(cfg_load(&d) && !strcmp(d.more.ntp, "time.example.com") && !memcmp(&c, &d, sizeof c));
+    { const uint32_t *h = (const uint32_t *)(F[1] + 0xFA000); assert(h[0] == 0x45524F4Du && h[1] == 1 && h[3] == 256); }
+    set(&c, "net.ntp=10.20.0.1"); assert(cfg_save(&c)); assert(cfg_load(&d) && !strcmp(d.more.ntp, "10.20.0.1"));
+    set(&c, "port1.baud=4800"); static uint8_t was[0x2000]; memcpy(was, F[1] + 0xFA000, sizeof was);
+    assert(cfg_save(&c) && !memcmp(was, F[1] + 0xFA000, sizeof was));               /* unchanged: not rewritten */
+    for (int a = 0xFA000; a < 0xFC000; a++) F[1][a] ^= 0x5A;                       /* damaged: defaults, not lockout */
+    assert(cfg_load(&d) && !d.more.ntp[0] && d.port[0].baud == 4800);
+    for (int p = 0; p < PORTS; p++) assert(acl_role(&d.access[p], 0x36014B0Au) != ACL_DENY);
 
     /* junk that is not ours is not a list */
     memset(F, 0xFF, sizeof F);

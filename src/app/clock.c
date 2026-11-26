@@ -1,6 +1,8 @@
 #include "clock.h"
+#include "slots.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
 #include <time.h>
 #ifndef CLOCK_HOST
@@ -8,16 +10,19 @@
 #endif
 
 static uint32_t s_base, s_at;            /* unix seconds at tick s_at */
-static bool s_known;
+static bool s_known, s_synced;           /* synced: by a time server, not carried over */
+static char s_server[48];                /* from the settings */
+#define CHECK 0xC10C5EEDu                /* the copy in the backup registers is whole */
 
 void clock_set(uint32_t unix_s)
 {
     s_base = unix_s;
     s_at = HAL_GetTick();
-    s_known = true;
+    s_known = s_synced = true;
 }
 
 bool clock_known(void) { return s_known; }
+bool clock_synced(void) { return s_synced; }
 uint32_t clock_synced_ago(void) { return s_known ? (HAL_GetTick() - s_at) / 1000u : 0; }
 
 uint32_t clock_unix(void)
@@ -65,12 +70,91 @@ bool clock_iso(char *out, bool date_only)
     return true;
 }
 
+/* Each second, for the next start. Time first, then the check, so a copy cut short
+ * by a reset does not match. */
+void clock_poll(void)
+{
+    static uint32_t last;
+    if (!s_known || HAL_GetTick() - last < 1000u) return;
+    last = HAL_GetTick();
+    uint32_t t = clock_unix();
+    bkp_set(BKP_CLOCK, t);
+    bkp_set(BKP_CLOCK + 1, t ^ CHECK);
+}
+
+#ifndef CLOCK_HOST
+extern uint32_t g_reset_cause;
+/* Behind by however long the restart took, a few seconds. Not after a power cut: the
+ * registers may have outlasted it, by any length of time. */
+static void carry(void)
+{
+    uint32_t t = bkp_get(BKP_CLOCK);
+    if (g_reset_cause & (RCC_RSR_PORRSTF | RCC_RSR_BORRSTF)) return;
+    if (bkp_get(BKP_CLOCK + 1) != (t ^ CHECK) || t < 1700000000u) return;
+    s_base = t;
+    s_at = HAL_GetTick();
+    s_known = true;
+}
+
+/* A chosen server first, with pool.ntp.org behind it; else whatever DHCP names. */
+static void servers(void)
+{
+    if (s_server[0]) {
+        sntp_servermode_dhcp(0);
+        sntp_setservername(0, s_server);
+    } else {
+        sntp_setservername(0, NULL);
+        sntp_servermode_dhcp(1);
+    }
+    sntp_setservername(1, "pool.ntp.org");
+}
+#endif
+
+void clock_server(const char *name)
+{
+    if (!strncmp(name, s_server, sizeof s_server)) return;
+    snprintf(s_server, sizeof s_server, "%s", name);
+#ifndef CLOCK_HOST
+    if (sntp_enabled()) {                /* else clock_init() does it */
+        sntp_stop();
+        servers();
+        sntp_init();
+    }
+#endif
+}
+
+/* The server that answered last. */
+static const char *from(void)
+{
+#ifndef CLOCK_HOST
+    for (int i = 0; i < SNTP_MAX_SERVERS; i++) {
+        if (!(sntp_getreachability((u8_t)i) & 1u)) continue;
+        const char *n = sntp_getservername((u8_t)i);
+        if (n) return n;
+        const ip_addr_t *a = sntp_getserver((u8_t)i);
+        if (a) return ipaddr_ntoa(a);
+    }
+    return "";
+#else
+    return "this computer";
+#endif
+}
+
+size_t clock_json(char *out, size_t max)
+{
+    char iso[17] = "";
+    clock_iso(iso, false);
+    int n = snprintf(out, max, "{\"now\":\"%s\",\"src\":\"%s\",\"ago\":%ld,\"from\":\"%s\"}", iso,
+                     s_synced ? "ntp" : s_known ? "restart" : "none", s_synced ? (long)clock_synced_ago() : -1L, from());
+    return n > 0 && (size_t)n < max ? (size_t)n : 0;
+}
+
 void clock_init(void)
 {
 #ifndef CLOCK_HOST
+    carry();
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    sntp_servermode_dhcp(1);
-    sntp_setservername(1, "pool.ntp.org");
+    servers();
     sntp_init();
 #endif
 }

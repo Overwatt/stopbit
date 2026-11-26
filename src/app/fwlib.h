@@ -22,6 +22,7 @@ typedef struct {
     bool valid;
     bool tried;              /* has been copied to a boot slot */
     bool kept;               /* has passed a trial */
+    uint32_t added;          /* unix seconds it was uploaded; 0 = not known */
 } fwlib_entry_t;
 
 void fwlib_get(int i, fwlib_entry_t *out);

@@ -9,6 +9,9 @@
 #include <assert.h>
 
 void NVIC_SystemReset(void) { abort(); }
+static uint32_t s_now = 1795600000u;         /* the clock, as the library sees it */
+bool clock_known(void) { return s_now != 0; }
+uint32_t clock_unix(void) { return s_now; }
 
 #define MAXIMG STAGE_SIZE
 typedef struct { uint8_t d[MAXIMG]; uint32_t n; uint8_t sha[32]; char v[24]; } img_t;
@@ -139,8 +142,15 @@ int main(void)
     fwlib_entry_t e;
     fwlib_get(lib_find(&C), &e);
     assert(e.tried && !e.kept && !strcmp(e.hdr.version, "v-c"));
+    assert(e.added == 1795600000u);                               /* when it was uploaded */
+    assert(fwlib_json(1, json, sizeof json) && strstr(json, "\"added\":1795600000"));
     fwlib_get(lib_find(&A), &e);
     assert(e.kept && !strcmp(e.hdr.version, "v-a"));
+    assert(e.added == 0);                                         /* saved from a boot slot: not known */
+    s_now = 1795700000u;                                          /* the same image again keeps its date */
+    assert(!upload(&C, C.sha, 1, NULL, C.n));
+    fwlib_get(lib_find(&C), &e);
+    assert(e.added == 1795600000u);
     assert(lib_count() == 2);
     assert(slots_confirm(0));
     fwlib_mark_kept(0);
