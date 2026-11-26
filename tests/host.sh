@@ -25,6 +25,7 @@ t modbus  -Isrc/app tests/test_modbus.c src/app/modbus.c
 t profile -Isrc/app tests/test_profile.c src/app/profile.c
 t pfdecode -Isrc/app tests/test_pfdecode.c src/app/pfdecode.c src/app/profile.c -lm
 t builtin -I"$O" -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm
+t device -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_device.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t metrics -Isrc/app tests/test_metrics.c src/app/metrics.c
 t quiet   -Isrc/app tests/test_quiet.c
 t events  -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_events.c src/app/events.c src/app/cfg.c src/app/acl.c src/common/slots.c src/common/image.c src/common/sha256.c
