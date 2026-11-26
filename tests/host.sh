@@ -25,4 +25,6 @@ t metrics -Isrc/app tests/test_metrics.c src/app/metrics.c
 t quiet   -Isrc/app tests/test_quiet.c
 t events  -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_events.c src/app/events.c src/app/cfg.c src/app/acl.c src/common/slots.c src/common/image.c src/common/sha256.c
 t store   -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_store.c src/app/cfg_store.c src/app/cfg.c src/app/acl.c src/common/sha256.c
+# The gateway's printf (newlib nano) has no 64-bit numbers: %ll prints "lu".
+if grep -rn '%[-0-9.]*ll[dux]' src --include='*.c' --include='*.h'; then echo "printf: no %ll on the gateway"; fail=1; fi
 exit $fail

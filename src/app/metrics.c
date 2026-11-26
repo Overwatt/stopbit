@@ -35,8 +35,17 @@ static void label(out_t *w, const char *v)
     }
 }
 
-static void secs_us(out_t *w, uint64_t us) { put(w, "%llu.%06llu", (unsigned long long)(us / 1000000u), (unsigned long long)(us % 1000000u)); }
-static void secs_ms(out_t *w, uint64_t ms) { put(w, "%llu.%03llu", (unsigned long long)(ms / 1000u), (unsigned long long)(ms % 1000u)); }
+/* The gateway's printf has no 64-bit numbers (newlib nano): whole seconds by hand. */
+static void whole(out_t *w, uint64_t v)
+{
+    char d[21];
+    int k = (int)sizeof d;
+    d[--k] = 0;
+    do { d[--k] = (char)('0' + v % 10u); v /= 10u; } while (v);
+    put(w, "%s", d + k);
+}
+static void secs_us(out_t *w, uint64_t us) { whole(w, us / 1000000u); put(w, ".%06lu", (unsigned long)(us % 1000000u)); }
+static void secs_ms(out_t *w, uint64_t ms) { whole(w, ms / 1000u); put(w, ".%03lu", (unsigned long)(ms % 1000u)); }
 
 /* One per port; gauge or counter of a field. */
 #define PER_PORT(name, type, help, cond, value) do { \
