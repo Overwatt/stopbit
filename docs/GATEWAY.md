@@ -195,7 +195,11 @@ the log; there is no falling back to plain MQTT.
   `listener 8883`, `certfile /etc/letsencrypt/live/NAME/fullchain.pem`,
   `keyfile /etc/letsencrypt/live/NAME/privkey.pem`. Restart Mosquitto after each renewal
   (certbot's `--deploy-hook`).
+- Mosquitto 2.1 does not reload a certificate on SIGHUP: it must restart to serve a renewed one.
 - Tested against Mosquitto with ECDSA and RSA certificates: `tests/mqtt_tls/run.sh`.
+- **On the gateway (2026-11-26):** Mosquitto in Docker with certbot beside it; a Let's
+  Encrypt certificate from the newer chain (YE1, Root YE, cross-signed by ISRG Root X2);
+  TLS 1.2. The main loop's longest pause stayed 3.8 ms; TLS memory 44 KB at most.
 
 
 New network settings run on trial for 2 minutes and revert unless kept (button in
