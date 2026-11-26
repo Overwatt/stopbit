@@ -36,4 +36,4 @@ port1.baud=
 %00
 ..
 ?
-#
+#/api/events

@@ -4,14 +4,19 @@
  * gets the next reply. The crypto is the real mbedTLS, so requests are signed as on the
  * gateway; HTTPS and the rest are stand-ins.
  *
- * Input: a byte of set-up (bit 0: an account key exists), then replies, each:
+ * Input: a byte of set-up (bit 0: an account key exists; bit 1: a test, against
+ * staging; bit 2: settings instead), then replies, each:
  *   status (index into ST; bit 7: no Replay-Nonce), Location length + Location,
  *   2-byte body length + body.
+ * For settings, the rest is what POST /api/acme carries: the text, then a zero byte
+ * and the 64 bytes of the secret, if there is one.
+ * Either way the status (GET /api/acme) must then be good JSON.
  */
 #include "../../src/app/acme.c"
 #include "stm32h7xx_hal.h"
 #include "mbedtls/memory_buffer_alloc.h"
 #include "../flash_sim.h"
+#include "json_ok.h"
 #include <assert.h>
 #include <unistd.h>
 
@@ -81,8 +86,6 @@ const char *hc_request(const char *method, const char *host, const char *path, c
 int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
 {
     static unsigned char heap[180000];
-    static char buf[BUF], body[BUF];
-    static job_t j;
     if (!n) return 0;
     memset(F, 0xFF, sizeof F);
     mbedtls_memory_buffer_alloc_init(heap, sizeof heap);
@@ -107,13 +110,27 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
             psa_export_public_key(k, s_rec.b.account_pub, 65, &m) == PSA_SUCCESS) s_rec.b.has_account = 1;
         psa_destroy_key(k);
     }
-    s_in = d + 1; s_n = n - 1; s_at = 0;
-    memset(&j, 0, sizeof j);
-    snprintf(j.host, sizeof j.host, "%s", LE_HOST);
-    j.buf = buf;
-    j.body = body;
-    const char *why = renew(&j);
-    if (why) assert(*why && strlen(why) < 200);
-    if (j.key) psa_destroy_key(j.key);
+    static char out[2048];
+    if (d[0] & 4) {                                   /* settings, as POST /api/acme */
+        static char text[4096];
+        static uint8_t secret[64];
+        const uint8_t *z = memchr(d + 1, 0, n - 1);
+        size_t tn = z ? (size_t)(z - d - 1) : n - 1;
+        if (tn >= sizeof text) return 0;
+        memcpy(text, d + 1, tn);
+        text[tn] = 0;
+        bool has = z && (size_t)(d + n - z - 1) >= sizeof secret;
+        if (has) memcpy(secret, z + 1, sizeof secret);
+        const char *why = acme_command(text, has ? secret : NULL, sizeof secret);
+        if (why) assert(*why && strlen(why) < 200);
+        acme_poll();
+    } else {                                          /* a renewal, from the start */
+        s_in = d + 1; s_n = n - 1; s_at = 0;
+        run(NULL);
+        assert(s_result[0] && strlen(s_result) < sizeof s_result);
+        if (getenv("ACME_SAY")) fprintf(stderr, "%s\n", s_result);   /* to check a seed goes where meant */
+    }
+    size_t k = acme_json(out, sizeof out);
+    assert(k && json_ok(out));
     return 0;
 }

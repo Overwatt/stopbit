@@ -1,4 +1,5 @@
 #include "acme.h"
+#include "cfg.h"
 #include "hclient.h"
 #include "tls.h"
 #include "clock.h"
@@ -77,7 +78,7 @@ static bool save(const body_t *b)
 /* ---- state ---------------------------------------------------------------------- */
 static bool s_running, s_staging;
 static const char *s_step = "";
-static char s_result[120];
+static char s_result[192];
 static uint32_t s_result_at, s_next_check, s_fails;
 
 void acme_init(void)
@@ -136,8 +137,10 @@ static void hmac(const uint8_t *key, size_t klen, const void *msg, size_t mlen, 
     sha256_final(&s, out);
 }
 
-/* The string value of "key" in JSON, searching from `from`; also *at, where it was. */
-static bool jstr(const char *from, const char *key, char *out, size_t max, const char **at)
+/* The string value of "key" in JSON, searching from `from`; also *at, where it was.
+ * Escapes are undone (line breaks become spaces; \u beyond ASCII, '?'). A value too
+ * long fails, or with `cut`, is cut to fit: for a reason, part is better than none. */
+static bool jget(const char *from, const char *key, char *out, size_t max, const char **at, bool cut)
 {
     char k[40];
     snprintf(k, sizeof k, "\"%s\"", key);
@@ -147,12 +150,45 @@ static bool jstr(const char *from, const char *key, char *out, size_t max, const
     while (*p == ' ' || *p == ':' || *p == '\n' || *p == '\r' || *p == '\t') p++;
     if (*p == '[') { p++; while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') p++; }    /* the first of a list */
     if (*p != '"') return false;
-    const char *e = strchr(++p, '"');
-    if (!e || (size_t)(e - p) >= max) return false;
-    memcpy(out, p, (size_t)(e - p));
-    out[e - p] = 0;
-    if (at) *at = p;
+    if (at) *at = p + 1;
+    size_t n = 0;
+    for (p++; *p != '"'; p++) {
+        char c = *p;
+        if (!c) return false;                                                   /* never ends */
+        if (c == '\\') {
+            c = *++p;
+            if (c == 'u') {
+                unsigned v = 0;
+                for (int i = 1; i <= 4; i++) {
+                    char h = p[i];
+                    int d = h >= '0' && h <= '9' ? h - '0' : h >= 'a' && h <= 'f' ? h - 'a' + 10 : h >= 'A' && h <= 'F' ? h - 'A' + 10 : -1;
+                    if (d < 0) return false;
+                    v = v << 4 | (unsigned)d;
+                }
+                p += 4;
+                c = v >= 0x20 && v < 0x7f ? (char)v : '?';
+            } else if (c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f') {
+                c = ' ';
+            } else if (c != '"' && c != '\\' && c != '/') {
+                return false;
+            }
+        }
+        if (n + 1 >= max) { if (!cut) return false; break; }
+        out[n++] = c;
+    }
+    out[n] = 0;
     return true;
+}
+
+static bool jstr(const char *from, const char *key, char *out, size_t max, const char **at)
+{
+    return jget(from, key, out, max, at, false);
+}
+
+/* What Let's Encrypt gave as the reason, or "no reason given". */
+static const char *reason(const char *body, char *d, size_t max)
+{
+    return jget(body, "detail", d, max, NULL, true) && d[0] ? d : "no reason given";
 }
 
 /* ---- the job --------------------------------------------------------------------- */
@@ -220,10 +256,9 @@ static const char *post(job_t *j, const char *url, const char *payload, bool use
         if (j->r.nonce[0]) snprintf(j->nonce, sizeof j->nonce, "%s", j->r.nonce);
         if (j->r.status == 400 && strstr(j->r.body, "badNonce")) continue;
         if (j->r.status >= 400) {
-            static char msg[110];
-            char d[90] = "";
-            jstr(j->r.body, "detail", d, sizeof d, NULL);
-            snprintf(msg, sizeof msg, "Let's Encrypt said %d: %s", j->r.status, d[0] ? d : "no reason given");
+            static char msg[160];
+            char d[120];
+            snprintf(msg, sizeof msg, "Let's Encrypt said %d: %s", j->r.status, reason(j->r.body, d, sizeof d));
             return msg;
         }
         return NULL;
@@ -261,7 +296,7 @@ static const char *r53(job_t *j, const char *method, const char *path, const cha
     const char *why = hc_request(method, AWS_HOST, path, hdr, body, strlen(body), j->buf, BUF, &j->r);
     if (why) return why;
     if (j->r.status != 200) {
-        static char msg[110];
+        static char msg[160];
         char *m = strstr(j->r.body, "<Message>"), *e = m ? strstr(m, "</Message>") : NULL;
         snprintf(msg, sizeof msg, "Route 53 said %d: %.*s", j->r.status, m && e ? (int)(e - m - 9) : 16, m && e ? m + 9 : "no reason given");
         return msg;
@@ -373,10 +408,9 @@ static const char *poll_status(job_t *j, const char *url, const char *want, int 
         jstr(j->r.body, "status", status, sizeof status, NULL);
         if (!strcmp(status, want)) return NULL;
         if (!strcmp(status, "invalid")) {
-            static char msg[110];
-            char d[90] = "";
-            jstr(j->r.body, "detail", d, sizeof d, NULL);
-            snprintf(msg, sizeof msg, "Let's Encrypt could not check: %s", d[0] ? d : "no reason given");
+            static char msg[160];
+            char d[120];
+            snprintf(msg, sizeof msg, "Let's Encrypt could not check: %s", reason(j->r.body, d, sizeof d));
             return msg;
         }
         wait_s(3);
@@ -594,14 +628,21 @@ size_t acme_json(char *out, size_t max)
     clock_iso(iso, false);
     worker_stats_t w;
     worker_stats(WORKER_RENEW, &w);
-    int n = snprintf(out, max,
-        "{\"auto\":%s,\"zone\":\"%s\",\"key_id\":\"%s\",\"secret_set\":%s,\"running\":%s,\"step\":\"%s\",\"staging\":%s,"
-        "\"result\":\"%s\",\"result_s\":%ld,\"last_ok\":%lu,\"clock\":\"%s\",\"clock_s\":%lu,\"name\":\"%s\",\"due_in_s\":%ld,\"tls_out\":%lu,"
-        "\"slice_us\":%lu,\"stack\":[%lu,%lu]}\n",
+    size_t n = 0;
+#define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); \
+        if (w_ < 0 || (size_t)w_ >= max - n) { return 0; } n += (size_t)w_; } while (0)
+#define STR(s) do { size_t w_ = json_str(s, out + n, max - n); if (!w_) { return 0; } n += w_; } while (0)
+    OUT("{\"auto\":%s,\"zone\":\"%s\",\"key_id\":\"%s\",\"secret_set\":%s,\"running\":%s,\"step\":\"%s\",\"staging\":%s,\"result\":",
         b->automatic ? "true" : "false", b->zone, b->key_id, b->has_secret ? "true" : "false", s_running ? "true" : "false",
-        s_step, s_staging ? "true" : "false", s_result, s_result_at && now ? (long)(now - s_result_at) : -1L,
-        (unsigned long)b->last_ok, iso, (unsigned long)clock_synced_ago(), name ? name : "",
+        s_step, s_staging ? "true" : "false");
+    STR(s_result);                      /* has what Let's Encrypt or Route 53 said: quotes, backslashes */
+    OUT(",\"result_s\":%ld,\"last_ok\":%lu,\"clock\":\"%s\",\"clock_s\":%lu,\"name\":", s_result_at && now ? (long)(now - s_result_at) : -1L,
+        (unsigned long)b->last_ok, iso, (unsigned long)clock_synced_ago());
+    STR(name ? name : "");
+    OUT(",\"due_in_s\":%ld,\"tls_out\":%lu,\"slice_us\":%lu,\"stack\":[%lu,%lu]}\n",
         name && now ? (long)((int64_t)to - (int64_t)(to - from) / 3 - (int64_t)now) : 0L, (unsigned long)hc_handshakes(),
         (unsigned long)w.longest_us, (unsigned long)w.stack_used, (unsigned long)w.stack_size);
-    return n > 0 && (size_t)n < max ? (size_t)n : 0;
+    return n;
+#undef OUT
+#undef STR
 }

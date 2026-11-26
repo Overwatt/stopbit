@@ -16,6 +16,7 @@
 #include "api.h"
 #include "tls.h"
 #include "fwlib.h"
+#include "events.h"
 #include "cfg.h"
 #include "net.h"
 #include "eth_mac.h"
@@ -25,6 +26,7 @@
 #include "stm32h7xx_hal.h"
 #include "../flash_sim.h"
 #include <assert.h>
+#include "json_ok.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,10 +104,12 @@ const char *api_post(const char *p, api_req_t *r, char *o, size_t n)
     snprintf(o, n, "{}");
     return "200 OK";
 }
+static int checked(size_t k, const char *o) { assert(!k || json_ok(o)); return (int)k; }
 int api_get(const char *p, char *o, size_t n)
 {
-    if (!strcmp(p, "/api/config")) return (int)cfg_json(&s_cfg, o, n);
-    if (!strcmp(p, "/api/library")) return (int)fwlib_json(0, o, n);
+    if (!strcmp(p, "/api/config")) return checked(cfg_json(&s_cfg, o, n), o);
+    if (!strcmp(p, "/api/library")) return checked(fwlib_json(0, o, n), o);
+    if (!strcmp(p, "/api/events")) { events_poll(); return checked(events_json(0, 30, o, n), o); }   /* what the server logged */
     if (!strcmp(p, "/api/big")) { if (n < 4300) return 0; memset(o, 'x', 4299); o[0] = o[4298] = '"'; o[4299] = 0; return 4299; }
     return -1;
 }
@@ -213,6 +217,7 @@ static bool sign(const uint8_t *t, size_t n, uint8_t *out, size_t *outn, size_t 
 int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
 {
     memset(F, 0xFF, sizeof F);
+    events_init();
     cfg_defaults(&s_cfg);
     http_init();
     for (int i = 0; i < 24; i++) if (P[i].used && P[i].listening && P[i].port == 80) s_listen = &P[i];

@@ -1,8 +1,9 @@
 /* cfg.c — Settings lines, as POST /api/config, the console and MQTT commands send them.
  * Whatever parses and validates must come back the same through cfg_lines(), and its
- * JSON must fit the reply buffer. */
+ * JSON must fit the reply buffer and be well formed. */
 #include "cfg.h"
 #include "acl.h"
+#include "json_ok.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +25,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
     assert(cfg_validate(&t, err, sizeof err));
     memcpy(t.mqtt.password, c.mqtt.password, sizeof t.mqtt.password);   /* never written out */
     assert(!memcmp(&c, &t, sizeof c));
-    assert(cfg_json(&c, json, sizeof json));
+    assert(cfg_json(&c, json, sizeof json) && json_ok(json));
     for (int p = 0; p < PORTS; p++) (void)acl_role(&c.access[p], (uint32_t)rand());
     return 0;
 }

@@ -23,3 +23,8 @@ INSYNC
 ]
 {
 }
+https://acme-staging-v02.api.letsencrypt.org/acme/
+zone=
+key_id=
+auto=1
+"Incorrect TXT record \\\"x\\\" found"

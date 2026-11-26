@@ -142,7 +142,7 @@ size_t events_json(uint32_t before, int max_n, char *out, size_t max)
 {
     size_t n = 0;
 #define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); \
-        if (w_ < 0 || (size_t)w_ >= max - n) return 0; n += (size_t)w_; } while (0)
+        if (w_ < 0 || (size_t)w_ >= max - n) { return 0; } n += (size_t)w_; } while (0)
     OUT("{\"boot\":%u,\"events\":[", (unsigned)(uint16_t)bkp_get(BKP_BOOTS));
     int k = 0;
     bool more = false;
