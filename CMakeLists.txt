@@ -101,6 +101,9 @@ set_source_files_properties("${BN}/bignum_core.c" PROPERTIES
     COMPILE_OPTIONS "-w;-O2" COMPILE_DEFINITIONS memcpy=tls_core_memcpy)
 set_source_files_properties("${BN}/psa_crypto_hash.c" "${PSA_DIR}/extras/md.c" PROPERTIES
     COMPILE_DEFINITIONS mbedtls_sha256_update=tls_sha256_update)
+# AES-GCM for records goes to gcm_hw.c.
+set_source_files_properties("${BN}/psa_crypto_aead.c" PROPERTIES COMPILE_DEFINITIONS
+    "mbedtls_gcm_setkey=tls_gcm_setkey;mbedtls_gcm_crypt_and_tag=tls_gcm_crypt_and_tag;mbedtls_gcm_auth_decrypt=tls_gcm_auth_decrypt;mbedtls_gcm_free=tls_gcm_free")
 set_source_files_properties("${BN}/bignum.c" "${BN}/ecp_curves.c" "${BN}/aes.c" "${BN}/gcm.c" "${BN}/sha256.c" PROPERTIES COMPILE_OPTIONS "-w;-O2")
 
 # ---------------------------------------------------------------------------

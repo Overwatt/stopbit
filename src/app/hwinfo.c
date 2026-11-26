@@ -7,6 +7,7 @@
 #include "eth_mac.h"
 #include "extflash.h"
 #include "fw_id.h"
+#include "gcm_hw.h"
 #include "slots.h"
 #include "uart485.h"
 #include "wdt.h"
@@ -107,17 +108,19 @@ static uint32_t s_loop_at, s_loop_max, s_loop[2], s_loop_turn;
 static bool s_loop_on;
 /* And which step of the pass was longest: since the start, and in the same window.
  * A save that keeps the ports moving counts as a new pass, so splits a step. */
-typedef struct { uint32_t us; const char *in; } step_t;
+typedef struct { uint32_t us; const char *in; uint32_t gcm_us; } step_t;   /* gcm_us: of which AES-GCM */
 static step_t s_step_max, s_steps[2];
 static const char *s_step;
-static uint32_t s_step_at;
+static uint32_t s_step_at, s_step_gcm;
 
 static void step_end(uint32_t now)
 {
-    uint32_t us = (now - s_step_at) / (SystemCoreClock / 1000000u);
-    if (s_step && us > s_steps[0].us) s_steps[0] = (step_t){ us, s_step };
-    if (s_step && us > s_step_max.us) s_step_max = (step_t){ us, s_step };
+    uint32_t mhz = SystemCoreClock / 1000000u, us = (now - s_step_at) / mhz;
+    uint32_t g = gcm_hw_cycles(), gus = (g - s_step_gcm) / mhz;
+    if (s_step && us > s_steps[0].us) s_steps[0] = (step_t){ us, s_step, gus };
+    if (s_step && us > s_step_max.us) s_step_max = (step_t){ us, s_step, gus };
     s_step_at = now;
+    s_step_gcm = g;
 }
 
 void hwinfo_step(const char *name)
@@ -137,7 +140,7 @@ void hwinfo_loop(void)
         s_loop[1] = s_loop[0];
         s_loop[0] = 0;
         s_steps[1] = s_steps[0];
-        s_steps[0] = (step_t){ 0, NULL };
+        s_steps[0] = (step_t){ 0, NULL, 0 };
     }
     if (us > s_loop[0]) s_loop[0] = us;
     if (us > s_loop_max) s_loop_max = us;
@@ -192,9 +195,10 @@ size_t hwinfo_json(char *out, size_t max)
         U(ru), U(rp), U(rn), U(rw), U(el), U(ep), U(ETH_RX_BUFS), U(es));
 
     const step_t *r = s_steps[0].us > s_steps[1].us ? &s_steps[0] : &s_steps[1];
-    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"max_us\":%lu,\"max\":\"%s\"}}",
+    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"recent_gcm_us\":%lu,"
+        "\"max_us\":%lu,\"max\":\"%s\",\"max_gcm_us\":%lu}}",
         U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max),
-        U(r->us), r->in ? r->in : "", U(s_step_max.us), s_step_max.in ? s_step_max.in : "");
+        U(r->us), r->in ? r->in : "", U(r->gcm_us), U(s_step_max.us), s_step_max.in ? s_step_max.in : "", U(s_step_max.gcm_us));
     const fw_id_t *ld = (const fw_id_t *)(FLASH_BASE + FW_ID_OFFSET);
     OUT(",\"loader\":\"%.23s\",\"slot\":%d,\"slots\":[", ld->magic == FW_ID_MAGIC_LOADER ? ld->version : "", run);
     for (int i = 0; i < SLOT_COUNT; i++)
