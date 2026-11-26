@@ -202,6 +202,23 @@ int api_get(const char *path, char *out, size_t max)
     if (!strcmp(path, "/api/tls/csr")) return (int)tls_csr(out, max);
     if (!strcmp(path, "/api/library")) return (int)fwlib_json((int)bkp_get(BKP_SLOT), out, max);
     if (!strcmp(path, "/api/hardware")) return (int)hwinfo_json(out, max);
+    if (!strcmp(path, "/api/settings")) {             /* as a file to keep: lines, no secrets */
+        static char text[3200];
+        static cfg_t c;
+        char when[17] = "";
+        c = s_cfg;
+        if (s_pending) c.net = s_trial;
+        clock_iso(when, false);
+        int h = snprintf(text, sizeof text, "# Settings of %s (%s), firmware %s, %s\n"
+                         "# Restore them on its Hardware page. Passwords and keys are not here.\n",
+                         c.device_name, g_hostname, g_fw_id.version, when[0] ? when : "time unknown");
+        if (h <= 0 || (size_t)h >= sizeof text || !cfg_lines(&c, text + h, sizeof text - (size_t)h)) return 0;
+        int n = snprintf(out, max, "{\"text\":");
+        size_t w = n > 0 ? json_str(text, out + n, max - (size_t)n) : 0;
+        if (!w || (size_t)n + w + 3 > max) return 0;
+        memcpy(out + n + w, "}\n", 3);
+        return (int)((size_t)n + w + 2);
+    }
     if (!strcmp(path, "/api/events") || !strncmp(path, "/api/events?before=", 19))
         return (int)events_json(path[11] ? (uint32_t)strtoul(path + 19, NULL, 10) : 0, 30, out, max);
     if (strcmp(path, "/api/state")) return -1;

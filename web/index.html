@@ -194,6 +194,10 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label>New password<input name="a" type="password" autocomplete="new-password" minlength="8"></label>
    <label>Repeat password<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
+  <h3>Settings file</h3>
+  <form id="restore"><label style="margin-bottom:16px">Restore from a file<input type="file" name="file" accept=".txt,text/plain" required></label>
+  <div class="acts"><button class="primary">Restore</button><button type="button" id="cfgsave">Download settings</button><p class="msg" role="status"></p></div>
+  <p class="hint">Every setting but passwords and keys. Restored network settings go on trial for two minutes, as when they are changed here.</p></form>
 </section></div></div>
  <div id="p-firmware" hidden><div class="top"><a class="back" href="#status">All stations</a><h2>Firmware</h2><p class="say" id="fsay"></p></div><div class="two">
   <section><h3>Update</h3><form id="fw">
@@ -266,11 +270,11 @@ function setKey(k){key=k;try{k?sessionStorage.setItem("n540key",hex(k)):sessionS
 function authUI(){const open=!$("login").hidden&&!key&&pwset;
  $("login").hidden=!open;$("signin").hidden=!!key||!pwset||open;$("signout").hidden=!key;$("nopw").hidden=pwset||!st;
  $("pwcmd").textContent="tools/n540.py "+(st?st.host+".local":"HOST")+" passwd";
- for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,#tlson,#tlsforget,#tlsreq button,#tlscert button,#acme button"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
+ for(const b of document.querySelectorAll("[data-auth],#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,#restore button[class=primary],#tlson,#tlsforget,#tlsreq button,#tlscert button,#acme button"))b.disabled=!key||(updating&&b.closest("#p-firmware")!==null);
  for(const b of document.querySelectorAll("#net button,#mqtt button,#dev button,#fw button,#restart,#chpw,#keep,#fwkeep,[data-auth]"))b.title=key?"":"Sign in to change settings";
  for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
- for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg,#acme .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
+ for(const m of document.querySelectorAll("#restore .msg,#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg,#acme .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
 const lock=()=>pwset?"Sign in to save.":"Set a web password first; see the top of the page.";
 
 /* ---- port settings ---- */
@@ -581,6 +585,18 @@ function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PA
  hwAt=tlsAt=evAt=0;evOlder=[];hardware();https();events()}
 addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
+
+/* ---- settings file ---- */
+$("cfgsave").onclick=async()=>{const m=$("restore").querySelector(".msg");
+ try{const t=(await getj("/api/settings")).text,d=new Date(),day=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const a=el("a",{href:URL.createObjectURL(new Blob([t],{type:"text/plain"})),download:(cfg.device.name||st.host).toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-settings-"+day+".txt"});
+  document.body.append(a);a.click();a.remove();say(m,"")}catch(e){say(m,e.message,"bad")}};
+$("restore").onsubmit=async ev=>{ev.preventDefault();const m=$("restore").querySelector(".msg"),f=ev.target.elements.file.files[0];if(!f)return;
+ if(f.size>8000)return say(m,"That file is too large to be a settings file.","bad");
+ const t=(await f.text()).split(/\r?\n/).filter(l=>l.trim()&&!l.startsWith("#")).join("\n");
+ if(!/^[a-z0-9]+\.[a-z_.0-9]+=/m.test(t))return say(m,"That is not a settings file.","bad");
+ say(m,"Restoring…");try{const r=JSON.parse(await post("/api/config",t));cfg=await getj("/api/config");fillForms();
+  say(m,r.net_pending?"Restored. The network settings are on trial: keep them within two minutes.":"Restored.","ok");tick()}catch(e){say(m,e.message,"bad")}};
 
 /* ---- events ---- */
 /* [seq, unix time or 0, seconds since its start, start number, kind, port, a, note] */

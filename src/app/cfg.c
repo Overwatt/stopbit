@@ -215,7 +215,7 @@ bool cfg_parse(cfg_t *c, char *body, char *err, size_t errlen)
         if ((next = strchr(line, '\n'))) *next++ = 0;
         size_t n = strlen(line);
         if (n && line[n - 1] == '\r') line[n - 1] = 0;
-        if (!*line) continue;
+        if (!*line || *line == '#') continue;          /* a settings file's notes */
         char *eq = strchr(line, '=');
         if (!eq) { snprintf(err, errlen, "Expected key=value: %.40s", line); return false; }
         *eq = 0;
