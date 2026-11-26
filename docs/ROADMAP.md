@@ -70,6 +70,8 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [x] Modbus TCP ↔ RTU gateway with multi-master queuing.
 - [x] Device profiles, phase 1: the gateway polls RS485 Modbus devices from text
       profiles and publishes them to MQTT with HA discovery (EG4 BMS; reading only).
+- [ ] Modbus ports without TCP: only the devices use the line
+      ([design](superpowers/specs/2026-11-26-modbus-tcp-off-design.md)).
 - [ ] Device profiles, phase 2: controls (number, select, switch, button over MQTT);
       SRNE inverter and SmartGen HSC941 profiles; uploaded profiles.
 - [ ] Device profiles, phase 3: a JBD-protocol driver; Ecoworthy BMS.
