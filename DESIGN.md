@@ -311,7 +311,8 @@ Network, Firmware, Hardware), each under a small soft label.
 
 In the sheet: the name with its one action at the right and the sentence (two lines reserved)
 sit in the band, a tone between sheet and ground (#f1f7fa, dark #132d3a) that runs to the
-sheet's top and side edges, 30px above what follows. Then
+sheet's top and side edges and fades into the sheet at its foot, the page's one gradient.
+What follows starts 30px below the sentence. Then
 charts, then readings four across, 24px by 20px apart. Sections sit 40px apart; pairs sit in
 two equal columns with 48px between. Fields fill columns at least 160px wide, 14px by 18px
 apart. Tables have fixed layouts.
