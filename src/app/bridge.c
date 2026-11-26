@@ -474,11 +474,7 @@ static void port_start(int i)
     uart485_open(i, &u);
     switch (p->cfg.mode) {
     case MODE_SERVER: start_listen(p); break;
-    case MODE_MODBUS:
-        mb_start(i);
-        if (p->cfg.local_port) start_listen(p);
-        else p->state = LS_BOUND;             /* polled only: no TCP clients */
-        break;
+    case MODE_MODBUS: mb_start(i); start_listen(p); break;
     case MODE_CLIENT: start_resolve(p); break;
     default:          start_udp(p);
     }
@@ -703,9 +699,8 @@ void bridge_poll(void)
         watch(p, HAL_GetTick(), s_quiet[i]);
         if ((p->state == LS_WAITING || p->state == LS_ERROR) &&
             (int32_t)(HAL_GetTick() - p->retry_at) >= 0) {
-            if (p->cfg.mode == MODE_SERVER || (p->cfg.mode == MODE_MODBUS && p->cfg.local_port)) start_listen(p);
+            if (p->cfg.mode == MODE_SERVER || p->cfg.mode == MODE_MODBUS) start_listen(p);
             else if (p->cfg.mode == MODE_UDP && !p->udp) start_udp(p);
-            else if (p->cfg.mode == MODE_MODBUS) p->state = LS_BOUND;
             else start_resolve(p);
         }
     }

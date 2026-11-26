@@ -13,6 +13,8 @@ static bool set(cfg_t *c, const char *text)
     err[0] = 0;
     n++;
     if (!cfg_parse(&t, b, err, sizeof err) || !cfg_validate(&t, err, sizeof err)) return false;
+    for (int i = 0; i < PORTS; i++)     /* older firmware refuses the whole record, and loads defaults */
+        assert(!t.port[i].enabled || t.port[i].mode == MODE_CLIENT || t.port[i].local_port);
     *c = t;
     return true;
 }
@@ -83,6 +85,18 @@ int main(void)
     OK("port3.enabled=1\nport4.enabled=1\nport4.mode=udp\nport4.local_port=502");     /* UDP 502 beside TCP 502 */
     BAD("port4.mode=server");                                                          /* TCP 502 twice */
     OK("port3.enabled=0\nport4.enabled=0\nport3.mode=server\nport3.local_port=4003\nport4.mode=server\nport4.local_port=4004");
+    /* Every enabled port but a TCP client needs a local port, as in older firmware, which
+     * otherwise refuses the whole record on a downgrade (set() checks each accepted one). */
+    {
+        static const char *const M[] = { "server", "udp", "modbus" };
+        for (int m = 0; m < 3; m++) {
+            char t[80];
+            snprintf(t, sizeof t, "port4.enabled=1\nport4.mode=%s\nport4.local_port=0", M[m]);
+            BAD(t); assert(strstr(err, "Port 4: enter a local port"));
+        }
+        OK("port4.enabled=1\nport4.mode=client\nport4.remote_host=h\nport4.remote_port=1\nport4.local_port=0");  /* unused */
+        OK("port4.enabled=0\nport4.mode=server\nport4.remote_host=\nport4.remote_port=0\nport4.local_port=4004");
+    }
     OK("port1.baud=115200\r\nport1.enabled=1\n\nport1.parity=even\n");
     assert(c.port[0].baud == 115200 && c.port[0].parity == PARITY_EVEN && c.port[0].enabled);
     OK("port4.name=Pump \"A\" \\ x");
@@ -139,9 +153,8 @@ int main(void)
     for (size_t k = 0; k < l; k++) assert(cfg_json(&c, j, k) == 0);     /* never overruns */
     /* Devices: devN.* (N = 1..16). Their port need not be a Modbus gateway (checked when they run). */
     OK("port2.enabled=1\nport2.mode=modbus\nport2.local_port=502");
-    OK("port2.local_port=0");                             /* polled only: no TCP */
+    BAD("port2.local_port=0"); assert(strstr(err, "Port 2: enter a local port"));   /* older firmware would load defaults */
     BAD("port1.local_port=0");                            /* a TCP server needs one */
-    OK("port2.local_port=502");
     OK("dev1.profile=eg4-bms\ndev1.name=eg4m\ndev1.port=2\ndev1.address=16");
     assert(!strcmp(c.dev[0].profile, "eg4-bms") && !strcmp(c.dev[0].name, "eg4m") && c.dev[0].port == 2 && c.dev[0].address == 16);
     BAD("dev2.profile=eg4-bms");                                                   /* no name */

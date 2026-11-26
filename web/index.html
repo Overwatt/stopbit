@@ -695,7 +695,7 @@ function devForm(d){const mb=cfg.ports.map((p,i)=>[i+1,p]).filter(([,p])=>p.mode
    el("label",{},"Address",el("input",{name:"address",type:"number",min:1,max:247,value:d.address||1,required:true})),
    el("label",{},"Home Assistant IDs",el("select",{name:"ids"},el("option",{value:"own",selected:d.ids!=="esphome"},"The gateway's own"),el("option",{value:"esphome",selected:d.ids==="esphome"},"The ESP32's (ESPHome)"))),
    el("label",{},"ESPHome prefix",el("input",{name:"prefix",value:d.prefix||"",maxLength:24,pattern:"[a-z0-9_]*"}))),
-  el("p",{class:"hint"},mb.length?"ESPHome IDs only once the ESP32 is removed from Home Assistant: two cannot hold the same ID.":"First set a port to Modbus gateway (its local port may be 0)."),
+  el("p",{class:"hint"},mb.length?"ESPHome IDs only once the ESP32 is removed from Home Assistant: two cannot hold the same ID.":"First set a port to Modbus gateway."),
   el("div",{class:"acts"},el("button",{class:"primary","data-auth":""},"Save device"),el("button",{type:"button",onclick(){devEd=null;drawDevices()}},"Cancel"),el("p",{class:"msg",role:"status"})));
  f.onsubmit=async ev=>{ev.preventDefault();const e=f.elements,m=f.querySelector(".msg");
   const n=d.n||[...Array(16).keys()].map(k=>k+1).find(k=>!devs.devices.some(x=>x.n===k));if(!n)return say(m,"All 16 places are in use.","bad");

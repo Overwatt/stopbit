@@ -37,9 +37,12 @@ data and controls to MQTT, with Home Assistant discovery.
 | `devmqtt.c` | State, availability and discovery over the existing MQTT connection (`mqtt_ha.c`); commands to writes. |
 | drivers | Modbus RTU through `modbus.c` first; JBD later behind the same small interface. |
 
-- A polled port runs in Modbus gateway mode. Its local TCP port may be 0: polled only, no
-  listener. The engine adds a local client to the port's queue (`modbus.c` gains one
-  beside the 4 network clients, whose replies go to a callback, and a timeout per request).
+- A polled port runs in Modbus gateway mode, with a local TCP port like any other: older
+  firmware refuses the whole settings record if an enabled port has none, so a downgrade
+  would lose every setting. Its TCP clients share the queue with the polling; an access
+  list can turn them away. The engine adds a local client to the port's queue (`modbus.c`
+  gains one beside the 4 network clients, whose replies go to a callback, and a timeout
+  per request).
 - Everything runs in the main loop; no job stack. The engine keeps one request in each
   port's queue at most, so at most one reply per port is decoded per pass.
 - **Settings** `devN.*`, N = 1..16, in a record of their own (`cfg_store.c`, like the access

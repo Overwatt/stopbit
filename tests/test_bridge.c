@@ -424,17 +424,24 @@ int main(void)
     assert(mr->closed);
     set("port2.listen_only=0\nport2.enabled=0\nport2.access=");
 
-    /* A Modbus port polled only: no listener, ready; the engine's requests reach the line,
-     * and their replies reach device_reply(). */
+    /* A Modbus port that devices poll listens as usual: the engine's requests and its TCP
+     * clients' share the queue, in turn; the engine's replies reach device_reply(). */
     cfg_defaults(&C);
-    set("port3.enabled=1\nport3.mode=modbus\nport3.local_port=0");
-    assert(!strcmp(info(2).state, "ready") && bridge_modbus_port(2) && !bridge_modbus_port(0) && !bridge_modbus_port(3));
+    set("port3.enabled=1\nport3.mode=modbus\nport3.local_port=4003");
+    assert(!strcmp(info(2).state, "listening") && listener(4003));
+    assert(bridge_modbus_port(2) && !bridge_modbus_port(0) && !bridge_modbus_port(3));
     assert(modbus_local(bridge_modbus_port(2), 5, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 42));
-    bridge_poll();
+    struct tcp_pcb *mc = from(4003, "10.0.0.9");
+    assert(!mc->aborted);
+    sayb(mc, "00 07 00 00 00 06 01 03 00 00 00 01");                    /* behind the engine's */
     assert(lineb(2, "05 03 00 00 00 01 85 8e"));
     heardb(2, "05 03 02 00 07 08 46");
-    assert(dr_tag == 42 && dr_st == 0 && dr_n == 4);
-    set("port3.enabled=0\nport3.mode=server\nport3.local_port=4003");
+    assert(dr_tag == 42 && dr_st == 0 && dr_n == 4 && mc->out_n == 0);
+    bridge_poll();
+    assert(lineb(2, "01 03 00 00 00 01 84 0a"));
+    heardb(2, "01 03 02 00 2a 39 9b");
+    assert(outb(mc, "00 07 00 00 00 05 01 03 02 00 2a") && dr_tag == 42);
+    set("port3.enabled=0\nport3.mode=server");
     assert(!bridge_modbus_port(2));
 
     /* the widest state JSON still fits what /api/state leaves for it */

@@ -198,16 +198,20 @@ and publishes its values to MQTT with Home Assistant discovery, which replaces o
 per device. Phase 1 ships one profile, `eg4-bms` (EG4 LifePower4 / LL battery), and only
 reads. The profile format is in [profiles/README.md](../profiles/README.md).
 
-The port should be a Modbus gateway (`portN.mode=modbus`). With `local_port=0` it is
-polled only: no TCP listener, and the port's state reads "ready". Settings accept a device
-on a port that is not a Modbus gateway, so a port change or a restore never locks the
-settings; the Devices page then shows "Its port is off, or not a Modbus gateway", and the
-device is not polled. A profile's `line` (baud and frame) is checked against the port: on
-a mismatch the page shows "The profile wants 9600 8N1; the port is ..." and polling
-continues.
+The port should be a Modbus gateway (`portN.mode=modbus`) with its usual local port. It
+still takes Modbus TCP clients: their requests and the gateway's own polls share the
+port's queue, one on the line at a time. To keep clients out, give the port an access
+list ([Access lists](#access-lists)): anyone not on it is turned away (an empty list
+allows anyone).
+
+Settings accept a device on a port that is not a Modbus gateway, so a port change or a
+restore never locks the settings; the Devices page then shows "Its port is off, or not a
+Modbus gateway", and the device is not polled. A profile's `line` (baud and frame) is
+checked against the port: on a mismatch the page shows "The profile wants 9600 8N1; the
+port is ..." and polling continues.
 
 ```sh
-tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=0 \
+tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=502 \
   dev1.profile=eg4-bms dev1.name=pack1 dev1.port=2 dev1.address=16
 ```
 
