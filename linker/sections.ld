@@ -103,8 +103,8 @@ SECTIONS
   } >RAM_D2
 
   /* Large buffers in the rest of D2 SRAM, past the MPU region (not zeroed). */
-  ASSERT(ADDR(.dma_d2) + SIZEOF(.dma_d2) <= ORIGIN(RAM_D2) + 32K, "dma_d2 exceeds its 32 KB MPU region")
-  .d2_bss ORIGIN(RAM_D2) + 32K (NOLOAD) :
+  ASSERT(ADDR(.dma_d2) + SIZEOF(.dma_d2) <= ORIGIN(RAM_D2) + DMA_D2_SIZE, "dma_d2 exceeds its uncached MPU region")
+  .d2_bss ORIGIN(RAM_D2) + DMA_D2_SIZE (NOLOAD) :
   {
     . = ALIGN(8);
     *(.d2_bss)

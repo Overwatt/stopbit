@@ -32,4 +32,7 @@ size_t bridge_access_json(int port, char *out, size_t max);
 bool bridge_send(int port, const uint8_t *d, size_t n);
 /* JSON array of per-port live state. Returns length, or 0 if it did not fit. */
 size_t bridge_json(char *out, size_t max);
+/* The shared network-to-line rings: in use now, most at once, how many, and how
+ * often data had to wait for one. */
+void bridge_rings(uint32_t *used, uint32_t *peak, uint32_t *size, uint32_t *waits);
 #endif

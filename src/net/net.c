@@ -75,6 +75,17 @@ uint32_t net_rand(void)
 }
 
 /* ---- netif --------------------------------------------------------------- */
+#ifdef APP_IMAGE
+/* A received frame goes to lwIP where the DMA put it; the buffer goes back to the
+ * driver when lwIP frees it. One pbuf for each buffer, as each is lent once at a time. */
+static struct pbuf_custom s_rxp[ETH_RX_BUFS];
+
+static void rx_free(struct pbuf *p)
+{
+    eth_rx_give((uint32_t)((struct pbuf_custom *)p - s_rxp));
+}
+#endif
+
 static err_t link_output(struct netif *n, struct pbuf *p)
 {
     (void)n;
@@ -130,15 +141,27 @@ void net_init(void)
 void net_poll(void)
 {
     static uint32_t last_link;
-    const uint8_t *f;
     uint32_t len;
 
+#ifdef APP_IMAGE
+    uint8_t *b;
+    uint32_t k;
+    for (int budget = 8; budget && (b = eth_rx_take(&len, &k)); budget--) {
+        s_rxp[k].custom_free_function = rx_free;
+        struct pbuf *p = pbuf_alloced_custom(PBUF_RAW, (u16_t)len, PBUF_REF, &s_rxp[k], b, ETH_FRAME_MAX);
+        if (!p) { eth_rx_give(k); continue; }
+        if (s_if.input(p, &s_if) != ERR_OK) pbuf_free(p);
+    }
+    if (!eth_rx_spare()) pbuf_free_ooseq_pending = 1;  /* as lwIP does when its pool runs dry */
+#else
+    const uint8_t *f;
     for (int budget = 8; budget && (f = eth_rx_peek(&len)); budget--) {
         struct pbuf *p = pbuf_alloc(PBUF_RAW, (u16_t)len, PBUF_POOL);
         if (p) pbuf_take(p, f, (u16_t)len);
         eth_rx_release();
         if (p && s_if.input(p, &s_if) != ERR_OK) pbuf_free(p);
     }
+#endif
 
     if (HAL_GetTick() - last_link >= 200) {
         last_link = HAL_GetTick();

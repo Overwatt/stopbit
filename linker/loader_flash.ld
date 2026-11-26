@@ -7,4 +7,6 @@ MEMORY
   RAM_D2  (xrw) : ORIGIN = 0x30000000, LENGTH = 288K
 }
 REGION_ALIAS("CODE", FLASH);
+/* Uncached, for Ethernet DMA (eth_mac.c). */
+DMA_D2_SIZE = 32K;
 INCLUDE sections.ld

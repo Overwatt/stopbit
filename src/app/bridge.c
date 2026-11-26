@@ -1,7 +1,11 @@
 /*
- * Network -> serial: received TCP data is copied into a per-connection ring the
- * size of the TCP window and acknowledged to the peer only as it drains, so a
- * slow line pushes back on the sender and no lwIP buffers are held.
+ * Network -> serial: received TCP data is copied into a ring the size of the TCP
+ * window and acknowledged to the peer only as it drains, so a slow line pushes back
+ * on the sender and no lwIP buffers are held. The rings are shared: a connection
+ * holds one only while it has bytes on their way to the line. Data that will not
+ * reach the line (a reader, a listen-only port) takes no ring: it is acknowledged
+ * and dropped as it comes. If every ring is in use, lwIP keeps the data and offers
+ * it again (each 250 ms): that sender waits, nothing is lost.
  * Serial -> network: bytes are collected until the line goes quiet (gap) or the
  * packet is full, then sent to every connection. A peer that cannot keep up
  * loses that packet; the others are unaffected.
@@ -27,9 +31,13 @@
 #define D2 __attribute__((section(".d2_bss")))
 #endif
 #define RING TCP_WND
+#ifndef RINGS
+#define RINGS 6                 /* of 16 places; a ring is 5.7 KB */
+#endif
 
 typedef struct {
     struct tcp_pcb *pcb;
+    uint8_t *ring;              /* while bytes are held for the line; else NULL */
     uint32_t head, count;       /* ring read position, bytes held */
     bool     fin;               /* peer sent FIN; flush then close */
     uint32_t drained_at;
@@ -62,7 +70,9 @@ typedef struct {
 } port_t;
 
 static port_t s_p[PORTS];
-static D2 uint8_t s_ring[PORTS][MAX_CLIENTS][RING];
+static D2 uint8_t s_ring[RINGS][RING];
+static bool s_ring_used[RINGS];
+static uint32_t s_rings, s_rings_peak, s_rings_waits;
 static port_cfg_t s_want[PORTS];
 static uint16_t s_quiet[PORTS];
 static acl_t s_acl[PORTS];
@@ -100,6 +110,35 @@ static void deny(port_t *p, const ip_addr_t *ip)
     if (!known) events_add(EV_TURNED_AWAY, (int)(p - s_p) + 1, a, NULL);
 }
 
+/* ---- shared rings -------------------------------------------------------- */
+static bool ring_take(client_t *c)
+{
+    for (int i = 0; i < RINGS; i++) {
+        if (s_ring_used[i]) continue;
+        s_ring_used[i] = true;
+        c->ring = s_ring[i];
+        c->head = c->count = 0;
+        if (++s_rings > s_rings_peak) s_rings_peak = s_rings;
+        return true;
+    }
+    s_rings_waits++;
+    return false;
+}
+
+static void ring_give(client_t *c)
+{
+    if (!c->ring) return;
+    s_ring_used[(c->ring - s_ring[0]) / RING] = false;
+    c->ring = NULL;
+    c->head = c->count = 0;
+    s_rings--;
+}
+
+void bridge_rings(uint32_t *used, uint32_t *peak, uint32_t *size, uint32_t *waits)
+{
+    *used = s_rings; *peak = s_rings_peak; *size = RINGS; *waits = s_rings_waits;
+}
+
 /* ---- TCP connections ----------------------------------------------------- */
 static void client_detach(client_t *c)
 {
@@ -108,7 +147,7 @@ static void client_detach(client_t *c)
     tcp_err(c->pcb, NULL);
     c->pcb = NULL;
     c->up = false;
-    c->count = 0;
+    ring_give(c);
 }
 
 /* Main-loop context only (never from this pcb's own callback). */
@@ -137,18 +176,26 @@ static err_t cb_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *q, err_t err)
         return ERR_OK;
     }
     if (!q) { c->fin = true; c->drained_at = HAL_GetTick(); return ERR_OK; }
+    port_t *p = &s_p[c->port];
+    if (!c->ring && (!c->may_write || p->cfg.listen_only)) {     /* bound nowhere: taken and dropped */
+        p->net_rx += q->tot_len;
+        if (!c->may_write) p->ignored += q->tot_len;
+        tcp_recved(pcb, q->tot_len);
+        pbuf_free(q);
+        return ERR_OK;
+    }
+    if (!c->ring && !ring_take(c)) return ERR_MEM;               /* lwIP offers it again */
     /* The ring equals the advertised window, so this always fits. */
     if (q->tot_len > RING - c->count) return ERR_MEM;
-    int idx = (int)(c - s_p[c->port].cl);
     for (struct pbuf *b = q; b; b = b->next) {
         const uint8_t *d = b->payload;
         uint32_t w = (c->head + c->count) % RING, n = b->len, k = RING - w;
         if (k > n) k = n;
-        memcpy(&s_ring[c->port][idx][w], d, k);
-        memcpy(&s_ring[c->port][idx][0], d + k, n - k);
+        memcpy(&c->ring[w], d, k);
+        memcpy(&c->ring[0], d + k, n - k);
         c->count += n;
     }
-    s_p[c->port].net_rx += q->tot_len;
+    p->net_rx += q->tot_len;
     pbuf_free(q);
     return ERR_OK;
 }
@@ -160,13 +207,14 @@ static void cb_err(void *arg, err_t err)
     if (!c) return;
     c->pcb = NULL;              /* lwIP already freed it */
     c->up = false;
-    c->count = 0;
+    ring_give(c);
     port_t *p = &s_p[c->port];
     if (p->cfg.mode == MODE_CLIENT && p->state != LS_OFF) schedule_retry(p);
 }
 
 static void client_attach(port_t *p, client_t *c, struct tcp_pcb *pcb)
 {
+    ring_give(c);               /* none, as it was detached; to be sure */
     c->pcb = pcb;
     c->head = c->count = 0;
     c->fin = false;
@@ -359,6 +407,8 @@ void bridge_init(void)
     history_init(HAL_GetTick());
     traffic_init();
     memset(s_p, 0, sizeof s_p);
+    memset(s_ring_used, 0, sizeof s_ring_used);
+    s_rings = s_rings_peak = s_rings_waits = 0;
 }
 
 void bridge_configure(const cfg_t *c)
@@ -456,7 +506,7 @@ static void net_to_serial(int i, bool may_close)
         while (c->count) {
             uint32_t n = RING - c->head;
             if (n > c->count) n = c->count;
-            if (c->may_write) n = (uint32_t)to_line(i, &s_ring[i][k][c->head], n);
+            if (c->may_write) n = (uint32_t)to_line(i, &c->ring[c->head], n);
             else p->ignored += n;
             if (!n) break;
             c->head = (c->head + n) % RING;
@@ -464,6 +514,7 @@ static void net_to_serial(int i, bool may_close)
             c->drained_at = HAL_GetTick();
             tcp_recved(c->pcb, (u16_t)n);
         }
+        if (!c->count) ring_give(c);    /* for whoever needs one next */
         /* After a half-close, leave time for the device to answer. */
         if (may_close && c->fin && !c->count && uart485_tx_idle(i) && HAL_GetTick() - c->drained_at > 1000) {
             client_close(c);

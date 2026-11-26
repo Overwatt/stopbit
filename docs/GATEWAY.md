@@ -45,7 +45,7 @@ the gateway and is reached through signed requests, so there is no telnet port.
 | Status | a verdict, then every part with its state; a port opens beside it as a sentence, ten minutes of traffic and its readings, with its settings one press away |
 | Network | address |
 | MQTT | Home Assistant and the broker |
-| Hardware | chips found, processor temperature and supply, pin map, memory; device name, restart, password |
+| Hardware | chips found, processor temperature and supply, pin map, memory and shared buffers; device name, restart, password |
 | Firmware | upload an `app.bin`, slots, starts |
 
 `GET /api/history/1` to `/4` is that port's last ten minutes in 5 s steps (bytes heard and
@@ -146,7 +146,12 @@ connections), a TCP client that reconnects, or UDP. **Data ports have no passwor
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
-loses packets (counted as "not delivered") without affecting the others.
+loses packets (counted as "not delivered") without affecting the others. Bytes on their
+way to a line wait in one of 6 buffers of 5.7 KB, shared by all ports, held only until
+the line has taken them; readers and listen-only ports need none. If all 6 are in use,
+another sender's data is offered again every quarter of a second until one is free:
+nothing is lost. The
+Hardware page shows how many have been in use at once.
 
 ## Home Assistant (MQTT)
 

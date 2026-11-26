@@ -1,6 +1,7 @@
 #include "hwinfo.h"
 #include "tls.h"
 #include "board.h"
+#include "bridge.h"
 #include "button.h"
 #include "cfg.h"
 #include "eth_mac.h"
@@ -184,6 +185,11 @@ size_t hwinfo_json(char *out, size_t max)
         "{\"name\":\"D2\",\"used\":%lu,\"size\":%lu},{\"name\":\"D3\",\"used\":%lu,\"size\":%lu}]",
         U((uint32_t)&_eaxi - D1_AXISRAM_BASE + peak), U(512u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
         U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10), U((uint32_t)&_ed3bss - D3_SRAM_BASE), U(64u << 10));
+    uint32_t ru, rp, rn, rw, el, ep, es;        /* the shared buffers: now, at most, how many, how often short */
+    bridge_rings(&ru, &rp, &rn, &rw);
+    eth_rx_stats(&el, &ep, &es);
+    OUT(",\"pools\":{\"line\":[%lu,%lu,%lu,%lu],\"frames\":[%lu,%lu,%lu,%lu]}",
+        U(ru), U(rp), U(rn), U(rw), U(el), U(ep), U(ETH_RX_BUFS), U(es));
 
     const step_t *r = s_steps[0].us > s_steps[1].us ? &s_steps[0] : &s_steps[1];
     OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"max_us\":%lu,\"max\":\"%s\"}}",

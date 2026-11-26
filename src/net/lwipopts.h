@@ -31,7 +31,11 @@
 #endif
 #define MEMP_NUM_SYS_TIMEOUT        22
 #define SO_REUSE                    1
+#ifdef APP_IMAGE                    /* received frames stay in the driver's buffers (net.c) */
+#define PBUF_POOL_SIZE              0
+#else
 #define PBUF_POOL_SIZE              20
+#endif
 #define PBUF_POOL_BUFSIZE           1536
 
 #define LWIP_IPV4                   1

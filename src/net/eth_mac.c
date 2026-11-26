@@ -4,6 +4,11 @@
  * Descriptors and buffers live in D2 SRAM (.dma_d2), which an MPU region marks
  * non-cacheable so this keeps working if the application enables the D-cache.
  *
+ * In the application a received frame stays where the DMA put it: its buffer is
+ * lent out with it (net.c hands it to lwIP) and given back when lwIP is done, and
+ * meanwhile its descriptor takes a spare buffer. The loader copies, as before, so
+ * each buffer stays with its descriptor.
+ *
  * Both tail pointers are parked one past the ring end. The DMA therefore stops
  * only when it meets a descriptor it does not own, and rewriting a tail pointer
  * acts as a plain "poll demand".
@@ -14,6 +19,11 @@
 
 #define RX_COUNT 12u
 #define TX_COUNT 8u
+#ifdef APP_IMAGE
+#define RX_BUFS  ETH_RX_BUFS
+#else
+#define RX_BUFS  RX_COUNT
+#endif
 
 typedef struct { volatile uint32_t d0, d1, d2, d3; } desc_t;
 
@@ -28,13 +38,24 @@ typedef struct { volatile uint32_t d0, d1, d2, d3; } desc_t;
 #define RDES3_ES    (1u << 15)
 #define RDES3_PL    0x7FFFu
 
+#ifndef DMA_MEM                         /* a host test has no such section */
 #define DMA_MEM __attribute__((section(".dma_d2"), aligned(32)))
+#endif
 static DMA_MEM desc_t  s_rx[RX_COUNT];
 static DMA_MEM desc_t  s_tx[TX_COUNT];
-static DMA_MEM uint8_t s_rxbuf[RX_COUNT][ETH_FRAME_MAX];
+static DMA_MEM uint8_t s_rxbuf[RX_BUFS][ETH_FRAME_MAX];
 static DMA_MEM uint8_t s_txbuf[TX_COUNT][ETH_FRAME_MAX];
 
 static uint32_t s_rx_i, s_tx_i;
+#ifdef APP_IMAGE
+static uint8_t  s_rx_of[RX_COUNT];      /* the buffer at each descriptor */
+static uint8_t  s_spare[RX_BUFS];
+static uint32_t s_nspare;
+static uint32_t s_armed;                /* descriptors from s_rx_i on that hold a buffer for the DMA */
+static uint32_t s_out;                  /* a bit for each buffer lent */
+static uint32_t s_lent, s_lent_peak, s_starved;
+_Static_assert(RX_BUFS <= 32, "s_out has a bit per buffer");
+#endif
 eth_info_t g_eth;
 
 /* ---- MDIO ---------------------------------------------------------------- */
@@ -87,14 +108,51 @@ static void eth_gpio_init(void)
 
 static void mpu_dma_region(void)
 {
-    /* 32 KB @ 0x30000000: normal, non-cacheable, shareable, no execute. */
     ARM_MPU_Disable();
+#ifdef APP_IMAGE
+    /* 40 KB @ 0x30000000 (DMA_D2_SIZE in app_ram.ld): normal, non-cacheable, shareable,
+     * no execute. A 64 KB region with its top three 8 KB subregions off; those keep
+     * the default map, cached, as the rest of D2. */
+    ARM_MPU_SetRegionEx(0, 0x30000000u,
+        ARM_MPU_RASR(1, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0xE0, ARM_MPU_REGION_SIZE_64KB));
+#else
+    /* 32 KB @ 0x30000000: normal, non-cacheable, shareable, no execute. */
     ARM_MPU_SetRegionEx(0, 0x30000000u,
         ARM_MPU_RASR(1, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0, ARM_MPU_REGION_SIZE_32KB));
+#endif
     ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk);
 }
 
 /* ---- Rings --------------------------------------------------------------- */
+#ifdef APP_IMAGE
+static void rx_arm_with(uint32_t i, const uint8_t *buf)
+{
+    s_rx[i].d0 = (uint32_t)buf;
+    s_rx[i].d1 = 0;
+    s_rx[i].d2 = 0;
+    __DMB();
+    s_rx[i].d3 = RDES3_OWN | RDES3_BUF1V;
+}
+
+/* Spare buffers to the descriptors after the armed ones, in ring order: the DMA
+ * stops at the first it does not own, and a new tail pointer starts it again. */
+static void rx_refill(void)
+{
+    bool any = false;
+    while (s_armed < RX_COUNT && s_nspare) {
+        uint32_t i = (s_rx_i + s_armed) % RX_COUNT, b = s_spare[--s_nspare];
+        s_rx_of[i] = (uint8_t)b;
+        rx_arm_with(i, s_rxbuf[b]);
+        s_armed++;
+        any = true;
+    }
+    if (s_armed < RX_COUNT) s_starved++;
+    if (any) {
+        __DSB();
+        ETH->DMACRDTPR = (uint32_t)&s_rx[RX_COUNT];
+    }
+}
+#else
 static void rx_arm(uint32_t i)
 {
     s_rx[i].d0 = (uint32_t)s_rxbuf[i];
@@ -103,12 +161,24 @@ static void rx_arm(uint32_t i)
     __DMB();
     s_rx[i].d3 = RDES3_OWN | RDES3_BUF1V;
 }
+#endif
 
 static void rings_init(void)
 {
     memset((void *)s_tx, 0, sizeof s_tx);
+#ifdef APP_IMAGE
+    s_rx_i = s_armed = s_lent = s_out = 0;
+    for (s_nspare = 0; s_nspare < RX_BUFS; s_nspare++) s_spare[s_nspare] = (uint8_t)s_nspare;
+    while (s_armed < RX_COUNT) {        /* rx_refill, before the DMA has a ring */
+        uint32_t b = s_spare[--s_nspare];
+        s_rx_of[s_armed] = (uint8_t)b;
+        rx_arm_with(s_armed++, s_rxbuf[b]);
+    }
+    s_tx_i = 0;
+#else
     for (uint32_t i = 0; i < RX_COUNT; i++) rx_arm(i);
     s_rx_i = s_tx_i = 0;
+#endif
     __DSB();
 
     ETH->DMACTDLAR = (uint32_t)s_tx;
@@ -240,6 +310,49 @@ void eth_stop(void)
 }
 
 /* ---- Data path ----------------------------------------------------------- */
+#ifdef APP_IMAGE
+uint8_t *eth_rx_take(uint32_t *len, uint32_t *buf)
+{
+    for (uint32_t n = 0; n < RX_COUNT && s_armed; n++) {
+        uint32_t i = s_rx_i, d3 = s_rx[i].d3, b = s_rx_of[i];
+        if (d3 & RDES3_OWN) return NULL;
+        __DMB();
+        s_rx_i = (i + 1) % RX_COUNT;
+        s_armed--;
+        uint32_t l = d3 & RDES3_PL;
+        if (!(d3 & (RDES3_CTXT | RDES3_ES)) && (d3 & (RDES3_FD | RDES3_LD)) == (RDES3_FD | RDES3_LD) &&
+            l && l <= ETH_FRAME_MAX) {
+            s_out |= 1u << b;
+            if (++s_lent > s_lent_peak) s_lent_peak = s_lent;
+            rx_refill();
+            g_eth.rx_frames++;
+            *len = l;
+            *buf = b;
+            return s_rxbuf[b];
+        }
+        g_eth.rx_errors++;
+        s_spare[s_nspare++] = (uint8_t)b;
+        rx_refill();
+    }
+    return NULL;
+}
+
+void eth_rx_give(uint32_t buf)
+{
+    if (buf >= RX_BUFS || !(s_out & 1u << buf)) return;      /* not out: a second give would arm it twice */
+    s_out &= ~(1u << buf);
+    s_lent--;
+    s_spare[s_nspare++] = (uint8_t)buf;
+    rx_refill();
+}
+
+uint32_t eth_rx_spare(void) { return s_nspare; }
+
+void eth_rx_stats(uint32_t *lent, uint32_t *peak, uint32_t *starved)
+{
+    *lent = s_lent; *peak = s_lent_peak; *starved = s_starved;
+}
+#else
 const uint8_t *eth_rx_peek(uint32_t *len)
 {
     for (uint32_t n = 0; n < RX_COUNT; n++) {
@@ -268,6 +381,7 @@ void eth_rx_release(void)
     __DSB();
     ETH->DMACRDTPR = (uint32_t)&s_rx[RX_COUNT];
 }
+#endif
 
 uint8_t *eth_tx_alloc(void)
 {

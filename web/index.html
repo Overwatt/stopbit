@@ -445,7 +445,10 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?i===h.slot?", on trial":", not kept":"")};
  fillDl($("fwinfo"),[["Slot A",slot(0)],["Slot B",slot(1)],["Loader",h.loader||"Unknown"],["Starts",num(h.boots)],["Failed starts",el("span",{class:fails?"bad":""},fails?num(fails):"None")],["Recent starts",runs(h.resets.map(RST))||"None recorded"]]);
  const M={AXI:"Program",DTCM:"Data",D2:"Buffers"};
- fillDl($("meminfo"),h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]));
+ const pool=(a,what,short)=>a?[num(a[0])+" of "+a[2]+" "+what+", at most "+num(a[1]),a[3]?sub(short(a[3])):null]:["Unknown"];
+ fillDl($("meminfo"),[...h.mem.map(m=>[M[m.name]||m.name,kb(m.used)+" of "+kb(m.size)]),
+  ["Line buffers",...pool(h.pools&&h.pools.line,"in use",n=>"Data waited for one "+plural(n,"time"))],
+  ["Frame buffers",...pool(h.pools&&h.pools.frames,"held",n=>"Ran short "+plural(n,"time"))]]);
  fillDl($("devinfo"),[["Chip serial",el("code",{},c.uid)]])}
 
 /* ---- stations ---- */

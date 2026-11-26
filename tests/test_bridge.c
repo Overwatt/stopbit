@@ -28,7 +28,8 @@ size_t uart485_rx_avail(int p) { return Rn[p]; }
 size_t uart485_read(int p, uint8_t *b, size_t n) { if (n > Rn[p]) n = Rn[p]; memcpy(b, R[p], n); Rn[p] = 0; return n; }
 uint32_t uart485_rx_idle_us(int p) { (void)p; return 1000000; }
 size_t uart485_tx_room(int p) { (void)p; return 4096; }
-size_t uart485_write(int p, const uint8_t *b, size_t n) { memcpy(L[p] + Ln[p], b, n); Ln[p] += n; return n; }
+static bool busy;                                               /* the line takes nothing */
+size_t uart485_write(int p, const uint8_t *b, size_t n) { if (busy) return 0; memcpy(L[p] + Ln[p], b, n); Ln[p] += n; return n; }
 bool uart485_tx_idle(int p) { (void)p; return true; }
 
 /* ---- the event log: counted ---- */
@@ -104,6 +105,14 @@ static void dgram(struct udp_pcb *u, const char *src, u16_t port, const char *s)
 static void heard(int p, const char *s) { strcpy((char *)R[p], s); Rn[p] = strlen(s); bridge_poll(); }
 static bool line(int p, const char *s) { bool r = Ln[p] == strlen(s) && !memcmp(L[p], s, Ln[p]); if (!r) printf("line %d: %.*s\n", p + 1, (int)Ln[p], L[p]); Ln[p] = 0; return r; }
 static bridge_info_t info(int p) { bridge_info_t b; bridge_info(p, &b); return b; }
+static err_t give(struct tcp_pcb *p, struct pbuf **q, const char *s)  /* *q: kept, as lwIP would, if refused */
+{
+    if (!*q) { *q = pbuf_alloc(0, (u16_t)strlen(s), 0); memcpy((*q)->payload, s, strlen(s)); p->unacked += (int)strlen(s); }
+    err_t e = p->rx(p->arg, p, *q, ERR_OK);
+    if (e == ERR_OK) *q = NULL;
+    return e;
+}
+static uint32_t rings(uint32_t *peak, uint32_t *waits) { uint32_t u, pk, n, w; bridge_rings(&u, &pk, &n, &w); if (peak) *peak = pk; if (waits) *waits = w; return u; }
 static struct udp_pcb *udp(void) { for (int i = 0; i < 4; i++) if (U[i].used) return &U[i]; return NULL; }
 
 int main(void)
@@ -290,6 +299,63 @@ int main(void)
     strcpy((char *)R[0], "x"); Rn[0] = 1; C.port[0].enabled = 0; bridge_configure(&C);
     bridge_pump(); assert(!strcmp(info(0).state, "listening"));         /* as are changed settings */
     bridge_poll(); assert(!strcmp(info(0).state, "off"));
+
+    /* ---- the shared rings ---- */
+    cfg_defaults(&C);
+    bridge_init();
+    memset(Ln, 0, sizeof Ln);
+    set("port1.enabled=1\nport2.enabled=1\nport3.enabled=1\nport3.access=10.0.0.5 read\nport4.enabled=1\nport4.listen_only=1");
+    struct tcp_pcb *w[7];
+    for (int k = 0; k < 7; k++) w[k] = from(k < 4 ? 4001 : 4002, k < 4 ? "10.0.0.1" : "10.0.0.2");
+    struct tcp_pcb *rd = from(4003, "10.0.0.5"), *lo = from(4004, "10.0.0.6");
+    busy = true;
+    struct pbuf *held[7] = { 0 };
+    char msg[7][8];
+    for (int k = 0; k < 6; k++) { snprintf(msg[k], 8, "w%d.", k); assert(give(w[k], &held[k], msg[k]) == ERR_OK); }
+    uint32_t peak, waits;
+    assert(rings(&peak, &waits) == 6 && peak == 6 && waits == 0);
+    snprintf(msg[6], 8, "w6.");
+    assert(give(w[6], &held[6], "w6.") == ERR_MEM && held[6] && rings(NULL, &waits) == 6 && waits == 1);  /* waits, kept by lwIP */
+    assert(give(w[0], &held[0], "more.") == ERR_OK);                    /* one that has a ring keeps using it */
+    for (int i = 0; i < 100; i++) {                                     /* a reader or a listen-only port never needs one */
+        struct pbuf *q = NULL;
+        assert(give(rd, &q, "chatter from a reader") == ERR_OK && give(lo, &q, "chatter, listen-only") == ERR_OK);
+    }
+    assert(rd->unacked == 0 && lo->unacked == 0 && rings(NULL, NULL) == 6);
+    bridge_poll();
+    assert(Ln[0] == 0 && Ln[1] == 0 && rings(NULL, NULL) == 6 && w[0]->unacked == 8);   /* the line is busy: all held, nothing acknowledged */
+    busy = false;
+    bridge_poll();
+    assert(line(0, "w0.more.w1.w2.w3.") && line(1, "w4.w5.") && rings(NULL, NULL) == 0);    /* drained, given back */
+    for (int k = 0; k < 6; k++) assert(w[k]->unacked == 0);
+    assert(give(w[6], &held[6], "w6.") == ERR_OK && !held[6]);         /* offered again: there is room now */
+    bridge_poll();
+    assert(line(1, "w6.") && w[6]->unacked == 0 && rings(&peak, NULL) == 0 && peak == 6);
+    assert(line(2, "") && line(3, ""));
+    /* a connection that goes, or is closed, with bytes still held gives its ring back */
+    busy = true;
+    for (int k = 0; k < 6; k++) { struct pbuf *q = NULL; assert(give(w[k], &q, "x") == ERR_OK); }
+    assert(rings(NULL, NULL) == 6);
+    w[0]->err(w[0]->arg, ERR_ABRT);                                     /* lost: lwIP freed it */
+    assert(rings(NULL, NULL) == 5);
+    set("port2.enabled=0");                                             /* w4 and w5 closed */
+    assert(rings(NULL, NULL) == 3 && w[4]->closed && w[5]->closed);
+    set("port1.access=10.0.0.9 write");                                 /* w1 to w3 turned away */
+    assert(rings(NULL, NULL) == 0 && w[1]->closed && w[3]->closed);
+    busy = false;
+    bridge_poll();
+    assert(line(0, "") && line(1, ""));                                 /* what they had is not sent */
+    /* demoted with bytes held: dropped as they drain, and the ring is given back */
+    set("port1.access=");
+    struct tcp_pcb *d = from(4001, "10.0.0.1");
+    busy = true;
+    { struct pbuf *q = NULL; assert(give(d, &q, "held") == ERR_OK); }
+    set("port1.access=10.0.0.1 read");
+    { struct pbuf *q = NULL; assert(give(d, &q, "after") == ERR_OK); }   /* behind what is held, in order */
+    busy = false;
+    bridge_poll();
+    assert(line(0, "") && d->unacked == 0 && rings(NULL, NULL) == 0 && !d->closed);
+    set("port1.enabled=0\nport3.enabled=0\nport4.enabled=0\nport1.access=");
 
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");

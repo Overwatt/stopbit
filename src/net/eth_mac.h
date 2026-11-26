@@ -34,9 +34,21 @@ void eth_stop(void);
 /* Re-read PHY state; applies speed/duplex on change. Returns link state. */
 bool eth_poll_link(void);
 
+#ifdef APP_IMAGE
+/* Next received frame, or NULL. Its buffer (*buf) is the caller's until given back;
+ * meanwhile a spare takes its place for the DMA. With no spares left, frames wait in
+ * the descriptors that still have a buffer, then the MAC drops them. */
+#define ETH_RX_BUFS 18u
+uint8_t *eth_rx_take(uint32_t *len, uint32_t *buf);
+void eth_rx_give(uint32_t buf);
+uint32_t eth_rx_spare(void);
+/* Buffers lent now and at most; how often a descriptor was left without one. */
+void eth_rx_stats(uint32_t *lent, uint32_t *peak, uint32_t *starved);
+#else
 /* Next received frame, or NULL. Valid until eth_rx_release(). */
 const uint8_t *eth_rx_peek(uint32_t *len);
 void eth_rx_release(void);
+#endif
 
 /* Free TX buffer (ETH_FRAME_MAX bytes), or NULL if the ring is full. */
 uint8_t *eth_tx_alloc(void);

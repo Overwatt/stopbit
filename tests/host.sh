@@ -15,6 +15,7 @@ t acl     -Isrc/app tests/test_acl.c src/app/acl.c src/app/cfg.c
 t bridge  -DD2= -DD2_BSS= -Itests/stub_net -Itests/stub -Isrc/app tests/test_bridge.c src/app/bridge.c src/app/cfg.c src/app/acl.c src/app/knock.c src/app/traffic.c src/app/history.c
 t button  -Isrc/app tests/test_button.c src/app/button.c src/app/cfg.c src/app/acl.c
 t cfg     -Isrc/app tests/test_cfg.c src/app/cfg.c src/app/acl.c
+t eth     -DAPP_IMAGE '-DDMA_MEM=__attribute__((aligned(32)))' -Itests/stub_eth -Isrc/net tests/test_eth.c src/net/eth_mac.c
 t cli     -DD2_BSS= -Isrc/app tests/test_cli.c src/app/cli.c src/app/cfg.c src/app/acl.c src/app/traffic.c
 t fwlib   -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' -DAXI_BSS= tests/test_fwlib.c src/app/fwlib.c src/common/slots.c src/common/image.c src/common/sha256.c
 t history -DD2_BSS= -Isrc/app tests/test_history.c src/app/history.c

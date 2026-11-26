@@ -8,6 +8,8 @@ MEMORY
   RAM_D2  (xrw) : ORIGIN = 0x30000000, LENGTH = 288K
 }
 REGION_ALIAS("CODE", AXI);
+/* Uncached, for Ethernet DMA; eth_mac.c sets the MPU to match. */
+DMA_D2_SIZE = 40K;
 INCLUDE sections.ld
 
 /* Buffers in what the image leaves of AXI SRAM (not zeroed, not in the image). */
@@ -30,6 +32,7 @@ SECTIONS
     _ed3bss = .;
   } >RAM_D3
 }
+ASSERT(DMA_D2_SIZE == 40K, "eth_mac.c makes 40 KB uncached for the application")
 ASSERT(ADDR(.axi_bss) >= _image_end, "axi_bss overlaps the image")
 ASSERT(_image_end <= ORIGIN(AXI) + 384K, "the image is larger than the loader can load")
 /* From _eaxi to the end of AXI SRAM is the TLS heap (tls.c). */
