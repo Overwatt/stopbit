@@ -1,7 +1,9 @@
 /* test_devmqtt.c — devices' MQTT topics and payloads (src/app/devmqtt.c): discovery for
- * every field, status, state, pacing, removal, HA naming. */
+ * every field, status, state, pacing, removal, HA naming; each built-in profile's longest
+ * state and device_json. */
 #include "devmqtt.h"
 #include "device.h"
+#include "profiles.h"
 #include "../tests/fuzz/json_ok.h"
 #include "stm32h7xx_hal.h"
 #include <assert.h>
@@ -150,6 +152,69 @@ int main(void)
     int empty = 0;
     for (int k = 0; k < Pn; k++) empty += Pb[k].payload[0] == 0;
     assert(empty == Pn && find("solar/dev/eg4m/state") && find("solar/dev/eg4m/status"));
+
+    /* Each built-in profile at its longest: every field known, each number as long as pf_num
+     * prints one at its precision, every bit of a bits text set, an enum at its longest name
+     * (or "Unknown (4294967295)"), ascii texts full of quotes (each escaped), the device's
+     * own strings and counts at their longest. The state must fit devmqtt.c's BUF (3584),
+     * and device_json one part of GET /api/devices: http.c's RESP_MAX 4600 less GEN_HEAD 8
+     * and the chunk's CRLF is 4590, less the ',' api_devices puts before all but the first. */
+    for (int pi = 0; profiles_id(pi); pi++) {
+        static char j[4590 - 1];
+        char st[80], v[520];
+        memset(&c.dev[0], 0, sizeof c.dev[0]);
+        snprintf(c.dev[0].profile, sizeof c.dev[0].profile, "%s", profiles_id(pi));
+        memset(c.dev[0].name, 'z', sizeof c.dev[0].name - 1);
+        memset(c.dev[0].label, '"', sizeof c.dev[0].label - 1);
+        memset(c.dev[0].prefix, 'z', sizeof c.dev[0].prefix - 1);
+        c.dev[0].port = 2; c.dev[0].address = 247; c.dev[0].ids = 1; c.dev[0].controls = 1;
+        device_configure(&c);
+        device_t *w = (device_t *)device_get(0);           /* values set by hand */
+        assert(w && w->p);
+        const profile_t *p = w->p;
+        for (int f = 0; f < p->nfield; f++) {
+            const pf_field_t *x = &p->field[f];
+            w->st.ok[f >> 3] |= (uint8_t)(1u << (f & 7));
+            if (x->kind == PF_SENSOR || x->kind == PF_CALC) {
+                double a = 1.7e19;                          /* pf_num: |v| x 10^prec below 1.8e19 */
+                for (int k = 0; k < pf_prec(x) && k < 6; k++) a /= 10;
+                w->st.val[f].v = (float)-a;
+            } else if (x->kind == PF_BITS) {
+                w->st.val[f].raw = 0xFFFFFFFFu;
+            } else if (x->kind == PF_ASCII) {
+                memset(w->st.str[x->str], '"', PF_STR_LEN - 1);
+            } else if (x->kind == PF_ENUM) {
+                uint32_t best = 0xFFFFFFFFu;
+                w->st.val[f].raw = best;
+                size_t bl = device_value(w, f, v, sizeof v);
+                for (int k = 0; k < x->nvname; k++) {
+                    w->st.val[f].raw = p->vname[x->vname + k].value;
+                    size_t l = device_value(w, f, v, sizeof v);
+                    if (l > bl) { bl = l; best = w->st.val[f].raw; }
+                }
+                w->st.val[f].raw = best;
+            } else {
+                w->st.val[f].v = 0;                         /* "false" */
+            }
+        }
+        memset(w->error, 'x', sizeof w->error - 1);
+        memset(w->why, 'x', sizeof w->why - 1);
+        w->polls = w->misses = 0xFFFFFFFFu;
+        w->seq++;
+        t_now += 60000;
+        w->last_ok = t_now + 1;                             /* ago_ms 2147483647 */
+        Pn = 0;
+        assert(drain(true) == p->nfield + 2);               /* nothing left out: every config, the status, the state */
+        snprintf(st, sizeof st, "solar/dev/%s/state", c.dev[0].name);
+        s = find(st);
+        assert(s && s[0] && json_ok(s) && strlen(s) < 3584);
+        size_t jn = device_json(0, j, sizeof j);
+        assert(jn && json_ok(j));
+        printf("worst case %s: state %zu bytes (BUF 3584), device_json %zu (part 4589)\n", profiles_id(pi), strlen(s), jn);
+    }
+    memset(&c.dev[0], 0, sizeof c.dev[0]);
+    device_configure(&c);
+    drain(true);
     printf("largest config %zu, largest state %zu (BUF 3584)\n", max_cfg, max_state);
     assert(max_cfg < 3584 && max_state < 3584);
     puts("devmqtt: ok");

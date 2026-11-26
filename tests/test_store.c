@@ -115,6 +115,35 @@ int main(void)
         F[1][at + 100] ^= 1;
     }
     assert(cfg_load(&d) && !d.dev[2].profile[0] && d.port[1].mode == MODE_MODBUS);   /* the rest as it was */
+
+    /* power cut at every flash operation of a save that changes devices (and the main
+     * record): each is old or new, never neither, and the settings save again. From one
+     * device copy written, and from both. */
+    for (int start = 0; start < 2; start++) {
+        static uint8_t img[0x6000];                      /* 0x0EE000 to 0x0F4000: devices, main, lists */
+        memset(F, 0xFF, sizeof F);
+        cfg_load(&c);
+        set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\ndev1.profile=eg4-bms\ndev1.name=old\ndev1.port=2\ndev1.address=16");
+        assert(cfg_save(&c));
+        if (start) { set(&c, "dev2.profile=eg4-bms\ndev2.name=two\ndev2.port=2\ndev2.address=17"); assert(cfg_save(&c)); }
+        cfg_t old = c;
+        memcpy(img, F[1] + 0xEE000, sizeof img);
+        set(&c, "dev1.name=new\ndev1.address=20\ndev2.profile=\ndev3.profile=eg4-bms\ndev3.name=three\ndev3.port=2\ndev3.address=30\nport2.baud=19200");
+        f_ops = 0; assert(cfg_save(&c)); long total = f_ops;
+        for (long k = 0; k < total; k++)
+            for (int rep = 0; rep < 20; rep++) {
+                memcpy(F[1] + 0xEE000, img, sizeof img);
+                cfg_load(&d);
+                f_ops = 0; f_cut = k; srand((unsigned)(k * 100 + rep));
+                if (!setjmp(f_power)) { cfg_save(&c); assert(!"cut"); }
+                f_cut = -1;
+                assert(cfg_load(&d));
+                assert(!memcmp(d.dev, old.dev, sizeof old.dev) || !memcmp(d.dev, c.dev, sizeof c.dev));
+                assert(d.port[1].mode == MODE_MODBUS && (d.port[1].baud == 9600 || d.port[1].baud == 19200));
+                assert(cfg_save(&c) && cfg_load(&d) && !memcmp(&c, &d, sizeof c));   /* and it can be saved again */
+            }
+        printf("power cut at each of %ld operations of a save with devices: old or new, never neither\n", total);
+    }
     (void)ops;
     puts("ok");
     return 0;

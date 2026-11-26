@@ -163,8 +163,18 @@ int main(void)
     OK("dev2.profile=eg4-bms\ndev2.name=p1\ndev2.port=1\ndev2.address=1");        /* port 1 is no Modbus gateway: accepted */
     OK("dev2.profile=");
     BAD("dev3.name=lonely");                                                       /* no profile */
-    BAD("dev2.profile=EG4"); BAD("dev2.name=Big Name"); BAD("dev2.address=248"); BAD("dev2.port=5");
-    BAD("dev17.name=x"); BAD("dev0.name=x"); BAD("dev2.ids=maybe"); BAD("dev2.x=1");
+    /* The parse rules, on a device that is otherwise whole so that nothing else refuses them
+     * first: name and prefix go as they are into JSON, unique_ids and MQTT topics. */
+#define REFUSED(s) do { BAD(s); assert(strstr(err, "Not accepted:")); } while (0)
+    REFUSED("dev1.name=Big Name"); REFUSED("dev1.name=a b"); REFUSED("dev1.name=a\"b"); REFUSED("dev1.name=a/b"); REFUSED("dev1.name=a+b");
+    REFUSED("dev1.name=a#b"); REFUSED("dev1.name=EG4M"); REFUSED("dev1.name=1234567890123456789012345");
+    REFUSED("dev1.prefix=a-b"); REFUSED("dev1.prefix=a/b"); REFUSED("dev1.prefix=a+b"); REFUSED("dev1.prefix=a#b");
+    REFUSED("dev1.prefix=a\"b"); REFUSED("dev1.prefix=a b"); REFUSED("dev1.prefix=A");
+    REFUSED("dev1.address=248"); REFUSED("dev1.address=0"); REFUSED("dev1.port=5"); REFUSED("dev1.port=0");
+    REFUSED("dev1.profile=EG4"); REFUSED("dev1.ids=maybe"); REFUSED("dev1.x=1");
+    BAD("dev17.name=x"); BAD("dev0.name=x");
+    OK("dev1.name=a_b-9\ndev1.prefix=a_b9"); OK("dev1.name=eg4m\ndev1.prefix=");   /* what they take */
+    assert(!strcmp(c.dev[0].name, "eg4m") && !c.dev[0].prefix[0] && c.dev[0].port == 2 && c.dev[0].address == 16);
     BAD("dev1.ids=esphome");                                                       /* needs the ESP32's prefix */
     OK("dev1.ids=esphome\ndev1.prefix=eg4_bms");
     OK("dev16.profile=eg4-bms\ndev16.name=p1\ndev16.port=2\ndev16.address=1\ndev16.label=Pack 1");
