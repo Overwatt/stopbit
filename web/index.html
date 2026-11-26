@@ -498,11 +498,12 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  if(s.state==="off")return "Off.";
  if(s.state==="error")L.push("Cannot open network port "+p.local_port+".");
  else if(p.mode==="client")L.push(s.state==="connected"?"Connected to "+p.remote_host+".":"Trying to reach "+p.remote_host+".");
- else if(n)L.push((p.mode==="udp"?"Exchanging with ":"Connected to ")+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
+ else if(p.mode==="udp"&&n)L.push("Exchanging with "+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
+ else if(n)L.push(n>1?n+" clients connected.":host(s.peers[0])+" connected.");   /* they connect to us; the list is under Clients */
  else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
  const lim=p.quiet_min;
  L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+(s.alert==="silent"?", longer than the "+span(lim*60)+" allowed":"")+".");
- if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");else if(s.heard_ms>=0&&!s.alert)L.push("No errors.");
+ if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");   /* none: Errors says so below */
  if(away(s))L.push(p.mode==="client"?s.denied_ip+" is not on the access list.":"Turned away "+s.denied_ip+" "+ago(s.denied_ms).toLowerCase()+".");
  if(p.loopback)L.push("Loopback test is on.");
  L.push(p.listen_only?"Listen only.":r[1]>=1?"Sending "+rt(r[1])+".":"");
