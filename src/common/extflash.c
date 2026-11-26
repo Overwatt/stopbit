@@ -90,10 +90,26 @@ static bool wait_idle(const bus_t *b, uint32_t ms)
     return ok;
 }
 
+static void (*s_meanwhile)(void);
+void extflash_meanwhile(void (*fn)(void)) { s_meanwhile = fn; }
+static void read_some(const bus_t *b, uint32_t addr, uint8_t *p, uint32_t len);
+
+/* Clocked by hand, so slow: a long read lets the rest run every 1 KB. Only the
+ * HTTPS record is that long, read at start-up and straight after an erase. */
 void extflash_read(int dev, uint32_t addr, void *dst, uint32_t len)
 {
-    const bus_t *b = &BUS[dev];
     uint8_t *p = dst;
+    if (len <= 2048u || !s_meanwhile) { read_some(&BUS[dev], addr, p, len); return; }
+    while (len) {
+        uint32_t n = len < 1024u ? len : 1024u;
+        read_some(&BUS[dev], addr, p, n);
+        addr += n; p += n; len -= n;
+        if (len) s_meanwhile();
+    }
+}
+
+static void read_some(const bus_t *b, uint32_t addr, uint8_t *p, uint32_t len)
+{
     wait_idle(b, 1000);          /* an erase or write may have been started */
     lo(b->cs);
     xfer(b, 0x03);
@@ -139,9 +155,6 @@ void extflash_write_start(int dev, uint32_t addr, const void *src, uint32_t len)
     for (uint32_t i = 0; i < len; i++) xfer(b, p[i]);
     hi(b->cs);
 }
-
-static void (*s_meanwhile)(void);
-void extflash_meanwhile(void (*fn)(void)) { s_meanwhile = fn; }
 
 bool extflash_erase(int dev, uint32_t addr, uint32_t len)
 {
