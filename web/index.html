@@ -338,7 +338,7 @@ function editor(p,i){
   f.querySelector("[data-f=modbus_timeout]").hidden=f.querySelector("[data-f=modbus_broadcast]").hidden=v!=="modbus";
   for(const n of ["listen_only","echo_cancel"])f.elements[n].closest("label").hidden=v==="modbus";   /* refused; always on */
   f.querySelector("[data-f=packet_len]").hidden=v==="modbus";                                         /* a reply ends at the silence */
-  const lp=f.elements.local_port;if(v==="modbus"&&lp.value===String(4001+i))lp.value="502";else if(v!=="modbus"&&lp.value==="502"&&p.mode!=="modbus")lp.value=String(p.local_port);
+  const lp=f.elements.local_port;if(v==="modbus"&&p.mode!=="modbus"&&lp.value===String(4001+i))lp.value="502";else if(v!=="modbus"&&lp.value==="502"&&p.mode!=="modbus")lp.value=String(p.local_port);
   hint.textContent=v==="server"?"Up to 4 simultaneous connections. Data ports have no password.":v==="client"?"Connects to the remote host and reconnects automatically.":off?"Nothing listens on the network; only the port's devices use the line.":v==="modbus"?"Up to 4 Modbus TCP clients take turns on the line; each request waits for its reply or the timeout. Addresses that may only read can only use read functions.":"Leave the remote host empty to reply to the most recent sender."};f.elements.modbus_tcp.onchange=m.onchange;m.onchange();
  save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
  return f}
