@@ -82,6 +82,21 @@ int main(void)
     OK("port1.modbus_broadcast=1\nport3.modbus_broadcast=0"); assert(c.more.modbus_broadcast == 1);
     BAD("port3.modbus_broadcast=2"); BAD("port3.modbus_broadcast=");
     OK("port1.modbus_broadcast=0");
+    /* modbus_tcp: on unless its bit in more.modbus_no_tcp is set, so a blank byte (every
+     * older record) listens. Its own bits, apart from modbus_broadcast's. */
+    assert(!c.more.modbus_no_tcp && cfg_modbus_tcp(&c, 0) && cfg_modbus_tcp(&c, 3));
+    OK("port3.modbus_tcp=0"); assert(c.more.modbus_no_tcp == 4 && !cfg_modbus_tcp(&c, 2) && cfg_modbus_tcp(&c, 1));
+    OK("port3.modbus_broadcast=1"); assert(c.more.modbus_no_tcp == 4 && c.more.modbus_broadcast == 4);
+    OK("port1.modbus_tcp=0\nport3.modbus_tcp=1"); assert(c.more.modbus_no_tcp == 1 && c.more.modbus_broadcast == 4);
+    BAD("port3.modbus_tcp=2"); BAD("port3.modbus_tcp="); BAD("port5.modbus_tcp=0"); BAD("mqtt.modbus_tcp=0");
+    { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"modbus_broadcast\":false,\"modbus_tcp\":false}") &&
+                                   strstr(jj, "\"modbus_broadcast\":true,\"modbus_tcp\":true}"));
+      assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "port1.modbus_tcp=0\n") && strstr(jj, "port3.modbus_tcp=1\n"));
+      static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && t.more.modbus_no_tcp == 1); }
+    /* With TCP off the local port rules stay, so older firmware still accepts the record. */
+    OK("port3.modbus_tcp=0"); BAD("port3.local_port=0"); assert(strstr(err, "Port 3: enter a local port"));
+    BAD("port3.local_port=80"); BAD("port1.enabled=1\nport1.local_port=502");
+    OK("port1.modbus_tcp=1\nport3.modbus_tcp=1\nport3.modbus_broadcast=0"); assert(!c.more.modbus_no_tcp && !c.more.modbus_broadcast);
     OK("port3.enabled=1\nport4.enabled=1\nport4.mode=udp\nport4.local_port=502");     /* UDP 502 beside TCP 502 */
     BAD("port4.mode=server");                                                          /* TCP 502 twice */
     OK("port3.enabled=0\nport4.enabled=0\nport3.mode=server\nport3.local_port=4003\nport4.mode=server\nport4.local_port=4004");
@@ -205,6 +220,7 @@ int main(void)
     l = cfg_json(&c, j, sizeof j);
     printf("ok: %d change sets, worst-case JSON %zu bytes\n", n, l);
     assert(l && l < 4344);                      /* http.c: RESP_MAX - 256 */
-    { static char ll[3600]; size_t k = cfg_lines(&c, ll, sizeof ll); printf("longest settings text %zu bytes\n", k); assert(k); }
+    { static char ll[3600]; size_t k = cfg_lines(&c, ll, sizeof ll); printf("longest settings text %zu bytes\n", k); assert(k);
+      assert(k <= 3200 - 200); }                /* api.c: text[3200], after a header of at most ~190 bytes */
     return 0;
 }

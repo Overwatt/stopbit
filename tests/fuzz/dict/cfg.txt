@@ -56,3 +56,4 @@ odd
 mqtt.tls=1
 .modbus_timeout=
 .modbus_broadcast=
+.modbus_tcp=

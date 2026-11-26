@@ -53,7 +53,8 @@ typedef struct {
     uint8_t pad_;
     uint16_t modbus_timeout[PORTS]; /* ms a Modbus gateway waits for a reply; 0 = MB_TIMEOUT_MS */
     uint8_t modbus_broadcast;      /* bit per port: unit 0 goes to every device. Else refused */
-    uint8_t spare[149];            /* for later settings */
+    uint8_t modbus_no_tcp;         /* bit per port: a Modbus port opens no listener; only its devices use the line */
+    uint8_t spare[148];            /* for later settings */
 } more_cfg_t;
 
 /* A device polled on a port, by a profile (device.c). Kept in a record of its own
@@ -86,6 +87,8 @@ typedef struct {
 uint16_t cfg_quiet_min(const cfg_t *c, int port);
 /* How long a Modbus gateway on this port waits for a reply, ms. */
 unsigned cfg_modbus_timeout(const cfg_t *c, int port);
+/* Whether a Modbus gateway on this port listens for Modbus TCP clients (the default). */
+bool cfg_modbus_tcp(const cfg_t *c, int port);
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);

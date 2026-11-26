@@ -40,7 +40,8 @@ data and controls to MQTT, with Home Assistant discovery.
 - A polled port runs in Modbus gateway mode, with a local TCP port like any other: older
   firmware refuses the whole settings record if an enabled port has none, so a downgrade
   would lose every setting. Its TCP clients share the queue with the polling; an access
-  list can turn them away. The engine adds a local client to the port's queue (`modbus.c`
+  list can turn them away, and `modbus_tcp=0` opens no listener at all
+  ([design](2026-11-26-modbus-tcp-off-design.md)). The engine adds a local client to the port's queue (`modbus.c`
   gains one beside the 4 network clients, whose replies go to a callback, and a timeout
   per request).
 - Everything runs in the main loop; no job stack. The engine keeps one request in each

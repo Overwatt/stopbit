@@ -75,6 +75,35 @@ int main(void)
     assert(cfg_load(&d) && !d.more.ntp[0] && d.port[0].baud == 4800);
     for (int p = 0; p < PORTS; p++) assert(acl_role(&d.access[p], 0x36014B0Au) != ACL_DENY);
 
+    /* modbus_tcp: a bit in the later settings' spare byte; a blank one (every older record)
+     * means listen. Power cut at every flash operation of the save that turns it off, from no
+     * later-settings copy and from one: old or new, never neither. */
+    for (int start = 0; start < 2; start++) {
+        static uint8_t img[0x4000], imm[0x2000];         /* main and lists; later settings */
+        memset(F, 0xFF, sizeof F);
+        cfg_load(&c); assert(cfg_modbus_tcp(&c, 1));
+        set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502"); assert(cfg_save(&c));
+        if (start) { set(&c, "net.ntp=10.20.0.1"); assert(cfg_save(&c)); }
+        cfg_t old = c;
+        memcpy(img, F[1] + 0xF0000, sizeof img); memcpy(imm, F[1] + 0xFA000, sizeof imm);
+        set(&c, "port2.modbus_tcp=0\nport2.baud=19200");
+        f_ops = 0; assert(cfg_save(&c)); long total = f_ops;
+        assert(cfg_load(&d) && !cfg_modbus_tcp(&d, 1) && cfg_modbus_tcp(&d, 0) && !memcmp(&c, &d, sizeof c));
+        for (long k = 0; k < total; k++)
+            for (int rep = 0; rep < 20; rep++) {
+                memcpy(F[1] + 0xF0000, img, sizeof img); memcpy(F[1] + 0xFA000, imm, sizeof imm);
+                cfg_load(&d);
+                f_ops = 0; f_cut = k; srand((unsigned)(k * 100 + rep));
+                if (!setjmp(f_power)) { cfg_save(&c); assert(!"cut"); }
+                f_cut = -1;
+                assert(cfg_load(&d));
+                assert(!memcmp(&d.more, &old.more, sizeof old.more) || !memcmp(&d.more, &c.more, sizeof c.more));
+                assert(d.port[1].mode == MODE_MODBUS && d.port[1].local_port == 502);
+                assert(cfg_save(&c) && cfg_load(&d) && !memcmp(&c, &d, sizeof c));   /* and it can be saved again */
+            }
+        printf("power cut at each of %ld operations of a save turning TCP off: old or new, never neither\n", total);
+    }
+
     /* junk that is not ours is not a list */
     memset(F, 0xFF, sizeof F);
     for (int a = 0xF2000; a < 0xF4000; a++) F[1][a] = (uint8_t)rand();

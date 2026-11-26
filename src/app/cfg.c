@@ -53,6 +53,7 @@ static const uint16_t QUIET_MIN[16] = { 0, 1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 
 uint16_t cfg_quiet_min(const cfg_t *c, int i) { return QUIET_MIN[c->quiet >> (4 * i) & 15]; }
 
 unsigned cfg_modbus_timeout(const cfg_t *c, int i) { return c->more.modbus_timeout[i] ? c->more.modbus_timeout[i] : MB_TIMEOUT_MS; }
+bool cfg_modbus_tcp(const cfg_t *c, int i) { return !(c->more.modbus_no_tcp >> i & 1); }
 
 void cfg_defaults(cfg_t *c)
 {
@@ -221,6 +222,12 @@ static bool apply(cfg_t *c, const char *k, const char *v)
             if (strcmp(v, "0") && strcmp(v, "1")) return false;
             uint8_t bit = (uint8_t)(1u << (k[4] - '1'));
             c->more.modbus_broadcast = (uint8_t)(*v == '1' ? c->more.modbus_broadcast | bit : c->more.modbus_broadcast & ~bit);
+            return true;
+        }
+        if (!strcmp(k + 6, "modbus_tcp")) {                  /* stored inverted: blank = listen */
+            if (strcmp(v, "0") && strcmp(v, "1")) return false;
+            uint8_t bit = (uint8_t)(1u << (k[4] - '1'));
+            c->more.modbus_no_tcp = (uint8_t)(*v == '0' ? c->more.modbus_no_tcp | bit : c->more.modbus_no_tcp & ~bit);
             return true;
         }
         if (!strcmp(k + 6, "modbus_timeout")) {
@@ -479,8 +486,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
         n += w - 1;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":%s}", cfg_quiet_min(c, i), t,
-            cfg_modbus_timeout(c, i), c->more.modbus_broadcast >> i & 1 ? "true" : "false");
+        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":%s,\"modbus_tcp\":%s}", cfg_quiet_min(c, i), t,
+            cfg_modbus_timeout(c, i), c->more.modbus_broadcast >> i & 1 ? "true" : "false", cfg_modbus_tcp(c, i) ? "true" : "false");
     }
     ADD("]}\n");
     return n;
@@ -524,8 +531,8 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         n += w;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%u\n", pre, cfg_quiet_min(c, i), pre, t,
-            pre, cfg_modbus_timeout(c, i), pre, (unsigned)(c->more.modbus_broadcast >> i & 1));
+        ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%u\n%s.modbus_tcp=%u\n", pre, cfg_quiet_min(c, i), pre, t,
+            pre, cfg_modbus_timeout(c, i), pre, (unsigned)(c->more.modbus_broadcast >> i & 1), pre, (unsigned)cfg_modbus_tcp(c, i));
     }
     return n;
 }

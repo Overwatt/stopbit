@@ -152,6 +152,7 @@ connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below)
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 | modbus_timeout | Modbus gateway: ms to wait for a device's reply, 50 to 10000 (1000) |
 | modbus_broadcast | Modbus gateway: 1 lets unit 0 reach every device; 0 (the default) refuses it |
+| modbus_tcp | Modbus gateway: 1 (the default) listens on the local port for Modbus TCP clients; 0 opens no listener, and only the port's [devices](#devices) use the line |
 
 A slow serial line pushes back on TCP senders. A network client that stops reading
 loses packets (counted as "not delivered") without affecting the others. Bytes on their
@@ -205,9 +206,16 @@ reads. The profile format is in [profiles/README.md](../profiles/README.md).
 
 The port should be a Modbus gateway (`portN.mode=modbus`) with its usual local port. It
 still takes Modbus TCP clients: their requests and the gateway's own polls share the
-port's queue, one on the line at a time. To keep clients out, give the port an access
-list ([Access lists](#access-lists)): anyone not on it is turned away (an empty list
-allows anyone).
+port's queue, one on the line at a time. To let only some clients in, give the port an
+access list ([Access lists](#access-lists)): anyone not on it is turned away (an empty
+list allows anyone). To have none, set `portN.modbus_tcp=0`. Nothing then listens on the
+network for the port, and its state is "ready", not "listening". There is no "no client"
+alert; "nothing heard" still applies. The change opens or closes the listener alone: the
+line and the devices' polls carry on, and connected clients are closed and their waiting
+requests dropped. The local port is still required and must still be unique, because
+firmware older than this would otherwise refuse the whole settings record. Such firmware
+ignores the setting, so after going back to it the port listens again (and has no
+devices).
 
 Settings accept a device on a port that is not a Modbus gateway, so a port change or a
 restore never locks the settings; the Devices page then shows "Its port is off, or not a

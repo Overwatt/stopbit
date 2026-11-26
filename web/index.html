@@ -286,7 +286,9 @@ const lock=()=>pwset?"Sign in to save.":"Set a web password first; see the top o
 /* ---- port settings ---- */
 const MODES={server:"TCP server",client:"TCP client",udp:"UDP",modbus:"Modbus gateway"};
 const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
-function where(p){if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
+const devOnly=p=>p.mode==="modbus"&&p.modbus_tcp===false;   /* no listener: only its devices use the line */
+function where(p){if(devOnly(p))return "No TCP clients";
+ if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
  return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
 /* access lists: "10.0.0.5 read, 10.0.0.0/24 write"; the most specific entry decides */
 const ipn=t=>{const m=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(t);return m&&m.slice(1).every(x=>+x<256)?m.slice(1).reduce((a,x)=>a*256+ +x,0):-1};
@@ -311,7 +313,7 @@ function editor(p,i){
  const sel=(n,l,o)=>el("label",{"data-f":n},l,el("select",{name:n},...o.map(([v,t])=>el("option",{value:v,selected:String(p[n])===String(v)},t))));
  const chk=(n,l,h)=>el("label",{class:"check"},el("input",{type:"checkbox",name:n,checked:p[n]}),el("span",{},l,el("span",{},h)));
  const num=(a,b)=>({type:"number",min:a,max:b,required:true});
- const msg=el("p",{class:"msg",role:"status"}),hint=el("p",{class:"hint"}),save=el("button",{class:"primary","data-auth":""},"Save port");
+ const msg=el("p",{class:"msg",role:"status"}),hint=el("p",{class:"hint"}),save=el("button",{class:"primary","data-auth":""},"Save port"),acc=access(p,i);
  const f=el("form",{onsubmit:async ev=>{ev.preventDefault();const L=[];
    for(const e of f.elements){if(!e.name)continue;const v=e.type==="checkbox"?(e.checked?"1":"0"):e.value.trim();
     const was=typeof p[e.name]==="boolean"?(p[e.name]?"1":"0"):String(p[e.name]);if(v!==was)L.push("port"+(i+1)+"."+e.name+"="+(v===""&&e.type==="number"?"0":v))}
@@ -322,20 +324,21 @@ function editor(p,i){
   el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid-f"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
   el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535}),inp("modbus_timeout","Reply timeout, ms",num(50,10000))),
-   el("div",{class:"checks","data-f":"modbus_broadcast",style:"margin-top:12px"},chk("modbus_broadcast","Allow broadcasts","Unit 0 goes to every device on the line, and none replies. Off, unit 0 is refused, so a client left at its default cannot write to all of them.")),hint),
-  access(p,i),
+   el("div",{class:"checks","data-f":"modbus_broadcast",style:"margin-top:12px"},chk("modbus_tcp","Accept TCP clients","Off, the port only polls its devices for MQTT. The local port is kept so that older firmware still accepts these settings."),chk("modbus_broadcast","Allow broadcasts","Unit 0 goes to every device on the line, and none replies. Off, unit 0 is refused, so a client left at its default cannot write to all of them.")),hint),
+  acc,
   el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"A silence of 0 is automatic: 3.5 characters, at least 1.75\u00a0ms, as Modbus RTU requires.")),
   el("fieldset",{},el("legend",{},"Alert"),el("div",{class:"grid-f"},sel("quiet_min","Alert if quiet",[[0,"Never"],...[1,2,3,5,10,15,20,30,60,120,180,240,360,720,1440].map(m=>[m,"After "+span(m*60)])])),el("p",{class:"hint"},"When nothing is heard, or no client is connected, for this long."+(!cfg.mqtt.enabled?"":cfg.mqtt.announce===false?" Also published over MQTT.":" Also sent to Home Assistant."))),
   el("fieldset",{},el("legend",{},"Line options"),el("div",{class:"checks"},chk("listen_only","Listen only","Nothing is sent on the line. Data from the network is discarded."),chk("echo_cancel","Ignore own echo","Discards bytes received while this port transmits. Enable it if replies begin with a copy of the request."),chk("loopback","Loopback test","Connects transmit to receive inside the chip, for testing without wiring. Connected devices are ignored but still receive what is sent."))),
   el("div",{class:"acts"},save,el("button",{type:"button",onclick(){editing=false;showSheet()}},"Cancel"),msg));
- const m=f.elements.mode;m.onchange=()=>{const v=m.value;
+ const m=f.elements.mode;m.onchange=()=>{const v=m.value,off=v==="modbus"&&!f.elements.modbus_tcp.checked;
+  acc.hidden=off;f.elements.modbus_broadcast.closest("label").hidden=off;   /* both concern TCP clients */
   f.querySelector("[data-f=local_port]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server"||v==="modbus";
   f.querySelector("[data-f=modbus_timeout]").hidden=f.querySelector("[data-f=modbus_broadcast]").hidden=v!=="modbus";
   for(const n of ["listen_only","echo_cancel"])f.elements[n].closest("label").hidden=v==="modbus";   /* refused; always on */
   f.querySelector("[data-f=packet_len]").hidden=v==="modbus";                                         /* a reply ends at the silence */
   const lp=f.elements.local_port;if(v==="modbus"&&lp.value===String(4001+i))lp.value="502";else if(v!=="modbus"&&lp.value==="502"&&p.mode!=="modbus")lp.value=String(p.local_port);
-  hint.textContent=v==="server"?"Up to 4 simultaneous connections. Data ports have no password.":v==="client"?"Connects to the remote host and reconnects automatically.":v==="modbus"?"Up to 4 Modbus TCP clients take turns on the line; each request waits for its reply or the timeout. Addresses that may only read can only use read functions.":"Leave the remote host empty to reply to the most recent sender."};m.onchange();
+  hint.textContent=v==="server"?"Up to 4 simultaneous connections. Data ports have no password.":v==="client"?"Connects to the remote host and reconnects automatically.":off?"Nothing listens on the network; only the port's devices use the line.":v==="modbus"?"Up to 4 Modbus TCP clients take turns on the line; each request waits for its reply or the timeout. Addresses that may only read can only use read functions.":"Leave the remote host empty to reply to the most recent sender."};f.elements.modbus_tcp.onchange=m.onchange;m.onchange();
  save.disabled=!key;if(!key)say(msg,lock(),"warn lock");
  return f}
 document.body.append(el("datalist",{id:"bauds"},...[1200,2400,4800,9600,19200,38400,57600,115200,230400,460800,921600].map(v=>el("option",{value:String(v)}))));
@@ -481,6 +484,7 @@ function portState(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],n=s.pe
  if(s.err_10m)return ["warn",plural(s.err_10m,"error")];
  if(away(s))return ["warn",away(s)];
  if(s.state==="retrying"||s.state==="connecting")return ["warn",s.state==="retrying"?"Retrying":"Connecting"];
+ if(devOnly(p))return ["idle","Devices only"];
  if(!up)return ["idle",p.mode==="udp"?"Ready":"No client"];
  if(quiet(s))return ["idle",quiet(s)];
  return ["ok",r[0]>=1?rt(r[0]):r[1]>=1?rt(r[1]):"Idle"]}
@@ -537,6 +541,7 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  if(s.state==="off")return "Off.";
  if(s.state==="error")L.push("Cannot open network port "+p.local_port+".");
  else if(p.mode==="client")L.push(s.state==="connected"?"Connected to "+p.remote_host+".":"Trying to reach "+p.remote_host+".");
+ else if(devOnly(p))L.push("No TCP clients; only its devices use the line.");
  else if(p.mode==="udp"&&n)L.push("Exchanging with "+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
  else if(n)L.push(n>1?n+" clients connected.":host(s.peers[0])+" connected.");   /* they connect to us; the list is under Clients */
  else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
@@ -552,7 +557,7 @@ function report(){const i=sel,s=st.ports[i],p=cfg.ports[i];put($("pname"),pn(i))
  put($("psay"),sentence(i));
  const e=[["parity",s.parity],["framing",s.framing],["overrun",s.overrun],["buffer full",s.rx_lost],["not delivered",s.net_lost],["refused",s.refused]].filter(x=>x[1]),
   nz=s.serial_rx?100*s.noise/s.serial_rx:0;
- facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)+(p.access?", listed addresses only":"")],["Clients",p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.map((x,k)=>x+(s.read_only>>k&1?" (read)":"")).join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
+ facts([["Line",line(p),p.echo_cancel?"Ignores own echo":null],["Network",MODES[p.mode],where(p)+(p.access&&!devOnly(p)?", listed addresses only":"")],["Clients",devOnly(p)?"None":p.mode==="client"?(s.state==="connected"?"1":"0"):p.mode==="udp"?String(s.peers.length):s.peers.length+" of 4",s.peers.map((x,k)=>x+(s.read_only>>k&1?" (read)":"")).join(", ")||null],["Last heard",ago(s.heard_ms),p.quiet_min?"Alert after "+span(p.quiet_min*60):null],
   ["Heard in all",bytes(s.serial_rx)],["Sent in all",bytes(s.serial_tx),p.listen_only?"Listen only":s.sent_ms>=0?ago(s.sent_ms):null],["Noise",s.noise?nz<.01?"Under 0.01%":nz.toFixed(2)+"%":"None",s.noise?s.noise.toLocaleString()+" flagged":null],["Errors, 10 min",s.err_10m?s.err_10m.toLocaleString():"None",e.length?"Since start: "+e.map(x=>x[1].toLocaleString()+" "+x[0]).join(", "):null],
   ...(s.fwd_us&&!s.modbus?[["Forwarding",(s.fwd_us[1]/1000).toFixed(1)+" ms on average","Longest "+(s.fwd_us[2]/1000).toFixed(1)+" ms, the silence that ends a packet included"]]:[]),
   ...(s.modbus?(m=>[["Modbus requests",m.requests.toLocaleString(),[m.timeouts&&m.timeouts.toLocaleString()+" unanswered",m.busy&&m.busy.toLocaleString()+" turned away busy",m.refused&&m.refused.toLocaleString()+" not allowed",m.waiting&&m.waiting+" waiting"].filter(Boolean).join(", ")||null],

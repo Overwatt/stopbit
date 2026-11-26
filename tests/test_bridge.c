@@ -444,6 +444,39 @@ int main(void)
     set("port3.enabled=0\nport3.mode=server");
     assert(!bridge_modbus_port(2));
 
+    /* modbus_tcp=0: no listener, only the devices use the line. A change opens or closes the
+     * listener alone: the line stays open and the devices' requests stay queued. */
+    cfg_defaults(&C);
+    int was3 = opened[2];
+    set("port3.enabled=1\nport3.mode=modbus\nport3.local_port=4003\nport3.modbus_tcp=0");
+    assert(opened[2] == was3 + 1 && !listener(4003) && !strcmp(info(2).state, "ready") && info(2).up && bridge_modbus_port(2));
+    assert(modbus_local(bridge_modbus_port(2), 5, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 43));
+    bridge_poll();
+    assert(lineb(2, "05 03 00 00 00 01 85 8e"));
+    heardb(2, "05 03 02 00 07 08 46");
+    assert(dr_tag == 43 && dr_st == 0);
+    set("port3.modbus_tcp=1");                                          /* on: listens; the line is not reopened */
+    assert(opened[2] == was3 + 1 && listener(4003) && !strcmp(info(2).state, "listening"));
+    struct tcp_pcb *mo = from(4003, "10.0.0.9");
+    assert(!mo->aborted);
+    assert(modbus_local(bridge_modbus_port(2), 5, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 44));
+    sayb(mo, "00 08 00 00 00 06 01 03 00 00 00 01");                    /* behind the engine's */
+    assert(lineb(2, "05 03 00 00 00 01 85 8e"));
+    set("port3.modbus_tcp=0");                                          /* off: the client goes, the engine's request stays */
+    assert(mo->closed && !listener(4003) && !strcmp(info(2).state, "ready") && opened[2] == was3 + 1);
+    heardb(2, "05 03 02 00 07 08 46");
+    assert(dr_tag == 44 && dr_st == 0);
+    bridge_poll();
+    assert(lineb(2, "") && mo->out_n == 0);                             /* the client's request was dropped */
+    set("port3.quiet_min=1");                                           /* no "no client" alert without TCP */
+    for (int k = 0; k < 8; k++) { t_now += 10000; heardb(2, "00"); }
+    assert(!info(2).alert[0]);
+    set("port3.modbus_tcp=1");                                          /* with it, there is */
+    for (int k = 0; k < 8; k++) { t_now += 10000; heardb(2, "00"); }
+    assert(!strcmp(info(2).alert, "no_client"));
+    set("port3.enabled=0\nport3.mode=server\nport3.modbus_tcp=1\nport3.quiet_min=0");
+    assert(!bridge_modbus_port(2));
+
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");
     for (int p = 0; p < PORTS; p++) { memset((void *)&g_uart[p], 0xFF, sizeof g_uart[p]); char t[64]; snprintf(t, sizeof t, "port%d.enabled=1", p + 1); set(t); for (int k = 0; k < 5; k++) from((u16_t)(4001 + p), "255.255.255.255"); }

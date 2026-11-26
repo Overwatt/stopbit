@@ -86,6 +86,7 @@ static bool s_dirty;
 static D2 modbus_t s_mb[PORTS];
 static uint16_t s_mb_timeout[PORTS];
 static uint8_t s_mb_broadcast;              /* bit per port */
+static uint8_t s_mb_no_tcp;                 /* bit per port: no listener, the devices only */
 _Static_assert(MAX_CLIENTS == MB_CLIENTS, "a Modbus client per connection");
 static bool is_mb(int i);
 static void mb_gone(client_t *c);
@@ -397,6 +398,7 @@ static void start_udp(port_t *p)
 
 /* ---- Modbus --------------------------------------------------------------- */
 static bool is_mb(int i) { return s_p[i].cfg.mode == MODE_MODBUS; }
+static bool mb_no_tcp(int i) { return is_mb(i) && (s_mb_no_tcp >> i & 1); }
 
 static void mb_local(void *ctx, uint32_t tag, int st, const uint8_t *pdu, size_t n)
 {
@@ -474,7 +476,11 @@ static void port_start(int i)
     uart485_open(i, &u);
     switch (p->cfg.mode) {
     case MODE_SERVER: start_listen(p); break;
-    case MODE_MODBUS: mb_start(i); start_listen(p); break;
+    case MODE_MODBUS:
+        mb_start(i);
+        if (mb_no_tcp(i)) p->state = LS_BOUND;               /* only its devices use the line */
+        else start_listen(p);
+        break;
     case MODE_CLIENT: start_resolve(p); break;
     default:          start_udp(p);
     }
@@ -510,9 +516,27 @@ void bridge_configure(const cfg_t *c)
     for (int i = 0; i < PORTS; i++) s_quiet[i] = cfg_quiet_min(c, i);
     for (int i = 0; i < PORTS; i++) s_mb_timeout[i] = (uint16_t)cfg_modbus_timeout(c, i);
     s_mb_broadcast = c->more.modbus_broadcast;
+    s_mb_no_tcp = c->more.modbus_no_tcp;
     memcpy(s_acl, c->access, sizeof s_acl);     /* for new arrivals at once, the rest in bridge_poll */
     memcpy(s_want, c->port, sizeof s_want);
     s_dirty = true;
+}
+
+/* modbus_tcp changed on a running Modbus port: open or close the listener alone. The line
+ * and the queue carry on; closing a client drops its requests (modbus_close), not the
+ * devices'. */
+static void apply_tcp(int i)
+{
+    port_t *p = &s_p[i];
+    if (p->state == LS_OFF || !is_mb(i)) return;
+    if (!mb_no_tcp(i)) {
+        if (p->state == LS_BOUND) start_listen(p);
+        return;
+    }
+    if (p->state == LS_BOUND) return;
+    for (int k = 0; k < MAX_CLIENTS; k++) client_close(&p->cl[k]);
+    if (p->listener) { tcp_close(p->listener); p->listener = NULL; }
+    p->state = LS_BOUND;
 }
 
 /* A changed list: drop whoever is no longer on it and nobody else. */
@@ -634,7 +658,7 @@ static void net_to_serial(int i, bool may_close)
 
 static void watch(port_t *p, uint32_t now, uint16_t limit)
 {
-    bool client = p->cfg.mode == MODE_UDP;         /* UDP has no connection to lose */
+    bool client = p->cfg.mode == MODE_UDP || mb_no_tcp((int)(p - s_p));   /* no connection to lose */
     for (int k = 0; k < MAX_CLIENTS; k++) client |= p->cl[k].pcb && p->cl[k].up;
     if (client) p->client_from = now;
     p->quiet_from = quiet_clamp(now, p->quiet_from);
@@ -677,6 +701,7 @@ void bridge_poll(void)
                 s_p[i].cfg = s_want[i];
                 s_mb[i].timeout_ms = s_mb_timeout[i];
                 s_mb[i].broadcast = s_mb_broadcast >> i & 1;
+                apply_tcp(i);
                 apply_access(&s_p[i]);
                 continue;
             }

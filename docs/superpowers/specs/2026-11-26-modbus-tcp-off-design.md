@@ -1,6 +1,6 @@
 # Modbus ports without TCP
 
-Proposed 2026-11-26; not yet built.
+Approved 2026-11-26.
 
 ## Goal
 
