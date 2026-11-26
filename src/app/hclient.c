@@ -223,10 +223,10 @@ static bool unchunk(char *b, size_t *len)
         char *e;
         unsigned long n = strtoul(in, &e, 16);
         char *crlf = strstr(in, "\r\n");
-        if (!crlf || e == in) return false;
+        if (!crlf || e == in || e > crlf) return false;    /* the size is on its own line */
         in = crlf + 2;
         if (!n) break;
-        if (in + n + 2 > end) return false;
+        if (n > (size_t)(end - in) || (size_t)(end - in) - n < 2) return false;   /* no pointer sums: n may be huge */
         memmove(out, in, n);
         out += n;
         in += n + 2;
