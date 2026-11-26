@@ -892,8 +892,8 @@
     "section": "colors"
    },
    {
-    "name": "The Logo Amber Rule",
-    "body": "Amber in the logo means the live part. It is not the page's caution amber, and neither palette borrows from the other.",
+    "name": "The Logo Wire Rule",
+    "body": "The orange wire in the logo is the live part. The terminal's green is not the page's running green, and neither palette borrows from the other.",
     "section": "colors"
    },
    {
@@ -933,7 +933,7 @@
    "**Don't** use the disc, ring, triangle or square as decoration.",
    "**Don't** reorder the list by severity.",
    "**Don't** add shadows, or a card inside the sheet.",
-   "**Don't** bring the logo's amber or indigo into the page.",
+   "**Don't** bring the logo's green or orange into the page.",
    "**Don't** animate anything but colour."
   ]
  }

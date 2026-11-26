@@ -1,38 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="N540 gateway">
   <!--
-    "Through the gate": an RS485 bus becoming network traffic.
-
-    Two wires of the bus cross as a twisted pair on the left, pass the gate, and
-    leave on the right as one line. The gate is the gateway.
-
-    Same family as TigoMonitor's mark: dark tile, silicon indigo, busbar silver,
-    and amber #F4B23C meaning one thing, the part that is live.
-
-    Small-size sibling: logo-small.svg (header, favicon). Below about 40px the
-    second wire inside the gate closes up, so it is dropped and strokes thicken.
+    "Terminal": the green four-way screw terminal on the box, a wire in port 1.
+    One drawing for every size, 16 px up; no tile. The orange wire is the live part.
+    The same art is inline in web/index.html (header and tab icon).
   -->
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#16213B"/>
-      <stop offset="100%" stop-color="#0B111F"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Tile -->
-  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
-
-  <!-- Gateway: the inside of the arch -->
-  <path d="M25 54V27a13.500 13.500 0 0 1 27 0v27Z" fill="#1D2A63"/>
-
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Second wire of the pair, behind the gate and the live one -->
-    <path d="M7 27c7 0 8 17 16 17 9 0 9-8 18-8" stroke="#C6D0E2" stroke-width="4.200"/>
-    <!-- Gap that lets the live wire read in front -->
-    <path d="M7 45c7 0 8-18 16-18 9 0 9 9 18 9h17" stroke="#111A33" stroke-width="8" stroke-linecap="butt"/>
-    <!-- Gate -->
-    <path d="M25 55V27a13.500 13.500 0 0 1 27 0v28" stroke="#C6D0E2" stroke-width="4.500"/>
-    <!-- Live wire: in on the bus, out on the network -->
-    <path d="M7 45c7 0 8-18 16-18 9 0 9 9 18 9h17" stroke="#F4B23C" stroke-width="4.800"/>
+  <rect x="3" y="19" width="58" height="40" rx="6" fill="#1f8f4e"/>
+  <path d="M3 51h58v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z" fill="#17763f"/>
+  <g fill="#0c3a20">
+  <rect x="8" y="24" width="10" height="10" rx="2"/>
+  <rect x="21" y="24" width="10" height="10" rx="2"/>
+  <rect x="34" y="24" width="10" height="10" rx="2"/>
+  <rect x="47" y="24" width="10" height="10" rx="2"/>
   </g>
+  <g fill="#d4dade">
+  <circle cx="13" cy="43" r="5"/>
+  <circle cx="26" cy="43" r="5"/>
+  <circle cx="39" cy="43" r="5"/>
+  <circle cx="52" cy="43" r="5"/>
+  </g>
+  <g stroke="#7a8790" stroke-width="1.8" stroke-linecap="round">
+  <path d="M10.2 43h5.6M23.2 43h5.6M36.2 43h5.6M49.2 43h5.6"/>
+  </g>
+  <path d="M13 3V28" stroke="#ff8a1f" stroke-width="5.5" stroke-linecap="round"/>
 </svg>

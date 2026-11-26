@@ -252,10 +252,10 @@ Sea blues from near-black to pale, with green, amber and red kept for state.
 - **Idle slate** (#4e6f7f, dark #8fb0be): off, no client, quiet, or not known. A ring. Marks
   only; words beside it are Soft Ink.
 
-The logo has its own palette, shared with a sibling project's mark and deliberately separate
-from the page: dark tile (#111A33 flat in the small mark; #16213B to #0B111F in the full one),
-silicon indigo (#1D2A63), busbar silver (#C6D0E2), and amber (#F4B23C) for the live part. It
-does not change between themes.
+The logo is the green four-way screw terminal on the box, with a wire in port 1, and has its
+own palette, separate from the page: terminal green (#1f8f4e, its lower edge #17763f), wire
+holes (#0c3a20), screw heads (#d4dade, slots #7a8790), and wire orange (#ff8a1f) for the live
+part. No tile; one drawing at every size. It does not change between themes.
 
 ### Named Rules
 **The State-Only Rule.** Green, amber and red appear only for state, never as decoration or
@@ -263,8 +263,8 @@ category. Colour belongs to state and to what can be operated.
 **The Mark-and-Word Rule.** State is never colour alone. Every station has a mark, and a word
 or reading beside it: disc running, ring idle, triangle caution, square fault. Elsewhere a
 state is stated in words, and colour repeats it.
-**The Logo Amber Rule.** Amber in the logo means the live part. It is not the page's caution
-amber, and neither palette borrows from the other.
+**The Logo Wire Rule.** The orange wire in the logo is the live part. The terminal's green is
+not the page's running green, and neither palette borrows from the other.
 
 ## Typography
 
@@ -424,5 +424,5 @@ on the right. For things that will happen unless the viewer acts, or that have s
 - **Don't** use the disc, ring, triangle or square as decoration.
 - **Don't** reorder the list by severity.
 - **Don't** add shadows, or a card inside the sheet.
-- **Don't** bring the logo's amber or indigo into the page.
+- **Don't** bring the logo's green or orange into the page.
 - **Don't** animate anything but colour.
