@@ -424,7 +424,7 @@ static uint32_t gap_us(const port_cfg_t *c);
 
 static void mb_start(int i)
 {
-    const mb_io_t io = { mb_line, mb_reply, &s_p[i] };
+    const mb_io_t io = { mb_line, mb_reply, NULL, &s_p[i] };
     modbus_init(&s_mb[i], &io, s_mb_timeout[i], gap_us(&s_p[i].cfg));
     s_mb[i].broadcast = s_mb_broadcast >> i & 1;
 }

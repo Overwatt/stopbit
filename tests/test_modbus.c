@@ -10,9 +10,17 @@ static bool full;                                           /* the line takes no
 static uint8_t A[MB_CLIENTS][4096]; static size_t An[MB_CLIENTS];   /* what each client got */
 static size_t line(void *ctx, const uint8_t *d, size_t n) { (void)ctx; if (full) return 0; memcpy(L + Ln, d, n); Ln += n; return n; }
 static void reply(void *ctx, int c, const uint8_t *d, size_t n) { (void)ctx; memcpy(A[c] + An[c], d, n); An[c] += n; }
-static const mb_io_t IO = { line, reply, NULL };
-
 static modbus_t M;
+/* The gateway's own requests: their replies (or timeouts) come here. */
+static uint32_t Ltag[16]; static int Lst[16], Lk; static uint8_t Lpdu[16][260]; static size_t Lpn[16];
+static bool again;                                          /* queue another from inside the callback */
+static void local(void *ctx, uint32_t tag, int st, const uint8_t *pdu, size_t n)
+{
+    (void)ctx;
+    Ltag[Lk] = tag; Lst[Lk] = st; Lpn[Lk] = n; if (n) memcpy(Lpdu[Lk], pdu, n); Lk++;
+    if (again) { again = false; assert(modbus_local(&M, 2, (const uint8_t[]){ 3, 0, 1, 0, 1 }, 5, 0, 77)); }
+}
+static const mb_io_t IO = { line, reply, local, NULL };
 static uint32_t now = 1000;
 #define GAP 2000u
 
@@ -276,6 +284,47 @@ int main(void)
     poll(GAP); Ln = 0; poll(GAP);
     hearc("01 03 02 00 2a");
     assert(to(0, "00 46 00 00 00 05 01 03 02 00 2a"));
+
+    /* The gateway's own requests: replies to the callback, not to a client. */
+    M.broadcast = false;
+    Lk = 0;
+    assert(modbus_local(&M, 0x10, (const uint8_t[]){ 3, 0x00, 0x00, 0x00, 0x02 }, 5, 300, 0x0102));
+    poll(GAP); assert(on_linec("10 03 00 00 00 02")); poll(GAP);
+    hearc("10 03 04 14 c0 ff 85");
+    assert(Lk == 1 && Lst[0] == 0 && Ltag[0] == 0x0102 && Lpn[0] == 6 && !memcmp(Lpdu[0], (const uint8_t[]){ 3, 4, 0x14, 0xc0, 0xff, 0x85 }, 6));
+    assert(An[0] == 0 && An[1] == 0);                       /* no client heard of it */
+    /* Its own timeout: 300 ms, not the port's 1000. */
+    assert(modbus_local(&M, 0x10, (const uint8_t[]){ 3, 0, 0, 0, 2 }, 5, 300, 9));
+    poll(GAP); Ln = 0; poll(GAP);
+    now += 299; poll(GAP); assert(Lk == 1);
+    now += 1; poll(GAP); assert(Lk == 2 && Lst[1] == -1 && Ltag[1] == 9 && An[0] == 0);
+    /* An exception reaches the callback as it is. */
+    assert(modbus_local(&M, 0x10, (const uint8_t[]){ 3, 0, 0x99, 0, 1 }, 5, 0, 10));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("10 83 02");
+    assert(Lk == 3 && Lst[2] == 0 && Lpn[2] == 2 && Lpdu[2][0] == 0x83 && Lpdu[2][1] == 2);
+    /* Turnaround: quiet for turn_us before any request, a client's too. */
+    M.turn_us = 50000;
+    assert(ask(0, "00 50 00 00 00 06 01 03 00 00 00 01"));
+    poll(GAP); assert(Ln == 0);
+    poll(49999); assert(Ln == 0);
+    poll(50000); assert(on_linec("01 03 00 00 00 01"));
+    poll(GAP); hearc("01 03 02 00 2a");
+    assert(to(0, "00 50 00 00 00 05 01 03 02 00 2a"));
+    M.turn_us = 0;
+    /* A callback may queue the next one. */
+    again = true;
+    assert(modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 76));
+    poll(GAP); Ln = 0; poll(GAP);
+    hearc("01 03 02 00 2a");
+    assert(Lk == 4 && Ltag[3] == 76 && M.qn == 1 && M.q[0].tag == 77);
+    poll(GAP); assert(on_linec("02 03 00 01 00 01"));
+    poll(GAP); hearc("02 03 02 00 01");
+    assert(Lk == 5 && Ltag[4] == 77);
+    /* Full: refused. A bad length: refused. */
+    for (int i = 0; i < MB_QUEUE; i++) assert(modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0));
+    assert(!modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0));
+    assert(!modbus_local(&M, 1, (const uint8_t[]){ 3 }, 0, 0, 0) && !modbus_local(&M, 1, (const uint8_t[]){ 3 }, MB_PDU + 1, 0, 0));
 
     printf("modbus: ok, average %llu ms over %u replies\n", (unsigned long long)(M.s.total_ms / M.s.replies), (unsigned)M.s.replies);
     return 0;

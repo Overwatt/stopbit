@@ -60,7 +60,7 @@ void modbus_close(modbus_t *m, int c)
 static void exception(modbus_t *m, int c, uint16_t tid, uint8_t unit, uint8_t fn, uint8_t code)
 {
     uint8_t r[9] = { (uint8_t)(tid >> 8), (uint8_t)tid, 0, 0, 0, 3, unit, (uint8_t)(fn | 0x80), code };
-    if (c >= 0 && m->cl[c].open) m->io.reply(m->io.ctx, c, r, sizeof r);
+    if (c >= 0 && c < MB_CLIENTS && m->cl[c].open) m->io.reply(m->io.ctx, c, r, sizeof r);
 }
 
 static bool may_read_only(const uint8_t *pdu, uint16_t len)
@@ -97,6 +97,8 @@ static void take(modbus_t *m, int c, const uint8_t *a, uint16_t len)
     r->unit = unit;
     r->tid = tid;
     r->len = plen;
+    r->timeout_ms = 0;
+    r->tag = 0;
     memcpy(r->pdu, pdu, plen);
 }
 
@@ -123,6 +125,21 @@ bool modbus_from_client(modbus_t *m, int c, const uint8_t *d, size_t n, uint32_t
             m->cl[c].n = 0;
         }
     }
+    return true;
+}
+
+bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, uint16_t timeout_ms, uint32_t tag)
+{
+    if (!len || len > MB_PDU || m->qn == MB_QUEUE) return false;
+    mb_req_t *r = &m->q[m->qn++];
+    r->client = MB_LOCAL;
+    r->unit = unit;
+    r->tid = 0;
+    r->len = len;
+    r->timeout_ms = timeout_ms;
+    r->tag = tag;
+    memcpy(r->pdu, pdu, len);
+    m->s.requests++;
     return true;
 }
 
@@ -182,7 +199,8 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
     mb_req_t *r = &m->q[0];
     switch (m->state) {
     case MB_IDLE: {
-        if (!m->qn || !tx_idle || quiet_us < m->gap_us) return;
+        uint32_t quiet = m->turn_us > m->gap_us ? m->turn_us : m->gap_us;
+        if (!m->qn || !tx_idle || quiet_us < quiet) return;
         uint8_t f[1 + MB_PDU + 2];
         f[0] = r->unit;
         memcpy(f + 1, r->pdu, r->len);
@@ -224,6 +242,12 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
                 int b = 0;
                 while (b < MB_HIST && ms > B[b]) b++;
                 m->s.hist[b]++;
+                if (r->client == MB_LOCAL) {            /* a[7..]: function and data, plen bytes */
+                    uint32_t tag = r->tag;
+                    done(m);                            /* the callback may queue the next one */
+                    if (m->io.local) m->io.local(m->io.ctx, tag, 0, a + 7, plen);
+                    return;
+                }
                 if (r->client >= 0 && m->cl[r->client].open) m->io.reply(m->io.ctx, r->client, a, 7u + plen);
                 done(m);
                 return;
@@ -232,8 +256,14 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
             m->rxn = 0;
             m->rx_over = false;
         }
-        if (now - m->at >= m->timeout_ms) {
+        if (now - m->at >= (r->timeout_ms ? r->timeout_ms : m->timeout_ms)) {
             m->s.timeouts++;
+            if (r->client == MB_LOCAL) {
+                uint32_t tag = r->tag;
+                done(m);
+                if (m->io.local) m->io.local(m->io.ctx, tag, -1, NULL, 0);
+                return;
+            }
             exception(m, r->client, r->tid, r->unit, r->pdu[0], EX_NO_RESPONSE);
             done(m);
         }

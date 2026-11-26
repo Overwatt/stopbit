@@ -16,6 +16,7 @@
 #define MB_TURN_MS  100u        /* after a broadcast, before the next request */
 #define MB_HIST     8           /* reply times: counts per bucket, the last for longer */
 #define MB_BOUNDS_MS { 10, 25, 50, 100, 250, 500, 1000, 2500 }
+#define MB_LOCAL    MB_CLIENTS  /* the gateway's own requests (device.c): replies go to io.local */
 
 typedef struct {
     uint32_t requests;          /* taken from clients */
@@ -35,6 +36,9 @@ typedef struct {
 typedef struct {
     size_t (*line)(void *ctx, const uint8_t *d, size_t n);          /* all of it, or 0: not now */
     void   (*reply)(void *ctx, int client, const uint8_t *d, size_t n);
+    /* A local request ended: status 0 and the reply's PDU (function, then data; an
+     * exception is function | 0x80 and its code), or -1: no valid reply in time. */
+    void   (*local)(void *ctx, uint32_t tag, int status, const uint8_t *pdu, size_t n);
     void   *ctx;
 } mb_io_t;
 
@@ -42,6 +46,8 @@ typedef struct {
     int8_t   client;            /* -1: whoever asked has gone */
     uint8_t  unit;
     uint16_t tid, len;          /* len: of pdu */
+    uint16_t timeout_ms;        /* 0: the port's */
+    uint32_t tag;               /* a local request's, given back with its reply */
     uint8_t  pdu[MB_PDU];
 } mb_req_t;
 
@@ -49,6 +55,7 @@ typedef struct {
     mb_io_t  io;
     uint32_t timeout_ms, gap_us;
     bool     broadcast;         /* unit 0 goes to every device; else it is refused (bridge sets it) */
+    uint32_t turn_us;           /* quiet before any request, beyond gap_us (device.c sets it) */
     struct { uint8_t buf[7 + MB_PDU]; uint16_t n; bool open, may_write; } cl[MB_CLIENTS];
     mb_req_t q[MB_QUEUE];       /* q[0] is the one on the line while state != MB_IDLE */
     uint8_t  qn;
@@ -72,6 +79,9 @@ void modbus_may_write(modbus_t *m, int client, bool may_write);    /* its access
 void modbus_close(modbus_t *m, int client);
 /* Bytes from a client, in any pieces. False: not Modbus TCP; close the connection. */
 bool modbus_from_client(modbus_t *m, int client, const uint8_t *d, size_t n, uint32_t now_ms);
+/* The gateway's own request: unit, PDU (function and data). Its reply or timeout goes to
+ * io.local with `tag`. False if 8 wait already, or the PDU is empty or too long. */
+bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, uint16_t timeout_ms, uint32_t tag);
 /* Bytes heard on the line. */
 void modbus_from_line(modbus_t *m, const uint8_t *d, size_t n);
 /* quiet_us: since the last byte heard; tx_idle: all sent, the line released. */

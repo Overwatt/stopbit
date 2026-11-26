@@ -26,7 +26,7 @@ static void reply(void *ctx, int c, const uint8_t *d, size_t n)
     assert(d[2] == 0 && d[3] == 0 && (size_t)(d[4] << 8 | d[5]) == n - 6);
 }
 
-static const mb_io_t IO = { line, reply, NULL };
+static const mb_io_t IO = { line, reply, NULL, NULL };
 
 int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
 {
