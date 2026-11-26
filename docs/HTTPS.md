@@ -112,8 +112,9 @@ name, type or action. Whoever has the board can still read the key from its flas
 it for that one record, which is enough to get certificates for that name.
 
 **Tested:** full staging runs from the simulator (31 s) and on the gateway (41 s, 2026-11-25),
-with TigoBus live: nothing lost. The main loop paused up to 18 ms meanwhile, most likely
-while decrypting a 16 KB record in software. Let's Encrypt's lifetimes are getting shorter (64 days from
+with TigoBus live: nothing lost. The main loop paused up to 18 ms meanwhile, saving the new
+key: the external flash is clocked by hand, and the record was written and read back with
+nothing else running. Long writes and reads now let the ports run between pieces: 2.9 ms. Let's Encrypt's lifetimes are getting shorter (64 days from
 2027-02-10, 45 from 2028-02-16); renewing at a third of the life follows them.
 
 ## Not built
