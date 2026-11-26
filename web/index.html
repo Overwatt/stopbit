@@ -487,7 +487,7 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  put($("nsay"),st.ip+(cfg.net.mode==="dhcp"?" by DHCP":", fixed")+". "+nb(st.speed+" Mb/s")+(st.full_duplex?" full":" half")+" duplex."+(st.net_pending?" New settings on trial, reverting in "+span(st.net_pending_s)+".":""));
  put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.map(x=>x[1]).join(". ")+".":"All chips respond. "+(hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":""));
  const fails=st.crashes-(st.uptime_s<30?1:0);
- put($("fsay"),"Running "+st.version+(st.slot>=0&&st.slot<2?" from slot "+"AB"[st.slot]:"")+(st.fw_trial?", on trial":", kept")+". Up "+dur(st.uptime_s)+". "+(fails>0?plural(fails,"failed start")+".":"No failed starts."));
+ put($("fsay"),"Running "+st.version+(st.fw_trial?", on trial":"")+"."+(fails>0?" "+plural(fails,"failed start")+".":"")); /* slot and starts: Installed, below; uptime: the header */
  if(page==="port")report()}
 function put(td,...kids){kids=kids.filter(x=>x!=null);const k=kids.map(x=>(x.textContent??x)+(x.className||"")).join("|");if(td.dataset.k!==k){td.dataset.k=k;td.replaceChildren(...kids)}}
 
