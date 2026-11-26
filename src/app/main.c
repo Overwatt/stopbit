@@ -82,6 +82,7 @@ int main(void)
 #define CRUMB(n) bkp_set(BKP_CRUMB, (n))
 #define STEP(n, name) do { CRUMB(n); hwinfo_step(name); } while (0)
     extflash_init();
+    clock_carry();                         /* so the start has its time */
     events_init();
     {
         uint32_t f = bkp_get(BKP_FAULT), pc = bkp_get(BKP_FAULT + 1);

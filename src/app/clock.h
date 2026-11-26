@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+void     clock_carry(void);          /* early: the time from before a restart, if any */
 void     clock_init(void);           /* after the network */
 void     clock_poll(void);           /* main loop: keeps a copy for the next start */
 void     clock_server(const char *name);  /* from the settings; blank = DHCP's, then pool.ntp.org */

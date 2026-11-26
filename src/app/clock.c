@@ -94,7 +94,7 @@ void clock_poll(void)
 extern uint32_t g_reset_cause;
 /* Behind by however long the restart took, a few seconds. Not after a power cut: the
  * registers may have outlasted it, by any length of time. */
-static void carry(void)
+void clock_carry(void)
 {
     uint32_t t = bkp_get(BKP_CLOCK);
     if (g_reset_cause & (RCC_RSR_PORRSTF | RCC_RSR_BORRSTF)) return;
@@ -116,6 +116,8 @@ static void servers(void)
     }
     sntp_setservername(1, "pool.ntp.org");
 }
+#else
+void clock_carry(void) { }
 #endif
 
 void clock_server(const char *name)
@@ -160,7 +162,6 @@ size_t clock_json(char *out, size_t max)
 void clock_init(void)
 {
 #ifndef CLOCK_HOST
-    carry();
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     servers();
     sntp_init();

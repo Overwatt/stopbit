@@ -78,13 +78,12 @@ void events_add(ev_kind_t k, int port, uint32_t a, const char *s)
     if (s) snprintf(r->s, sizeof r->s, "%s", s);
 }
 
+/* In one read, so a whole sector lets the ports run between pieces (extflash.c). */
 static bool blank(uint32_t a, uint32_t n)
 {
-    uint8_t b[64];
-    for (uint32_t at = 0; at < n; at += sizeof b) {
-        extflash_read(DEV, a + at, b, sizeof b);
-        for (unsigned i = 0; i < sizeof b; i++) if (b[i] != 0xFF) return false;
-    }
+    static uint8_t b[4096];
+    extflash_read(DEV, a, b, n);
+    for (uint32_t i = 0; i < n; i++) if (b[i] != 0xFF) return false;
     return true;
 }
 
