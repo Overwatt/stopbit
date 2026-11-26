@@ -485,7 +485,7 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  put($("msay"),(!m2.enabled?"Off.":q2.state==="connected"?"Connected to "+m2.host+(m2.user?" as "+m2.user:"")+". "+(m2.announce===false?"Not announced to Home Assistant.":"Announced to Home Assistant.")+(m2.control?" Remote changes allowed.":" Read-only."):(q2.error?"Not connected to "+m2.host+". "+q2.error+". Trying again.":"Connecting to "+m2.host+".")));
  const tp=t=>el("code",{},st.host+"/"+t);fillDl($("topics"),[["Ports",tp("port1"),sub("to port4, JSON")],["Device",tp("device"),sub("JSON")],["Status",tp("status"),sub("online or offline")],["Commands",m2.control?tp("port1/set/baud"):"Off",m2.control?sub("every port setting except listen_only and access; device/set/restart accepts PRESS"):null]]);
  put($("nsay"),st.ip+(cfg.net.mode==="dhcp"?" by DHCP":", fixed")+". "+nb(st.speed+" Mb/s")+(st.full_duplex?" full":" half")+" duplex."+(st.net_pending?" New settings on trial, reverting in "+span(st.net_pending_s)+".":""));
- put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.map(x=>x[1]).join(". ")+".":"All chips respond. "+(hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":""));
+ put($("hsay"),!hw?"Reading the hardware…":fl.length?fl.map(x=>x[1]).join(". ")+".":hw.cpu.temp_c!=null?nb(hw.cpu.temp_c.toFixed(1)+" °C")+", "+nb((hw.cpu.mv/1000).toFixed(2)+" V")+".":"No faults."); /* faults are named; otherwise just the readings */
  const fails=st.crashes-(st.uptime_s<30?1:0);
  put($("fsay"),"Running "+st.version+(st.fw_trial?", on trial":"")+"."+(fails>0?" "+plural(fails,"failed start")+".":"")); /* slot and starts: Installed, below; uptime: the header */
  if(page==="port")report()}
