@@ -391,6 +391,9 @@ static void refill(conn_t *c)
 
 static err_t pump(conn_t *c)
 {
+#ifdef APP_IMAGE
+    bool made = false;                       /* one part a call: the next when this one is acknowledged */
+#endif
     for (;;) {
         while (c->resp_off < c->resp_len) {
             uint32_t n = c->resp_len - c->resp_off, room = out_room(c);
@@ -399,7 +402,8 @@ static err_t pump(conn_t *c)
             c->resp_off += n;
         }
 #ifdef APP_IMAGE
-        if (c->gen) { refill(c); continue; }     /* sent and copied: the buffer takes the next part */
+        if (c->gen && !made) { refill(c); made = true; continue; }   /* sent and copied: the buffer takes the next */
+        if (c->gen) goto out;
 #endif
         break;
     }
