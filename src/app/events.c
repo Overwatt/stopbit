@@ -28,6 +28,10 @@ typedef struct {
 _Static_assert(sizeof(rec_t) == 64 && PER * sizeof(rec_t) == 4096, "a sector of records");
 
 static uint32_t s_seqs[N];              /* each slot's seq, as in flash */
+/* The newest records, so the log can be shown without reading the flash (about 3 ms for
+ * a page of them). Slot i is kept at i % RECENT; it is good while its seq is the slot's. */
+#define RECENT  32u
+static rec_t    s_recent[RECENT];
 static uint32_t s_w, s_next = 1;        /* the slot written next; its seq */
 static rec_t    s_q[16];                /* queued, not yet written */
 static uint32_t s_qn, s_dropped, s_tokens = BURST, s_refill_at;
@@ -50,10 +54,12 @@ void events_init(void)
 {
     uint32_t best = 0;
     bool any = false;
+    memset(s_recent, 0, sizeof s_recent);
     for (uint32_t i = 0; i < N; i++) {
         rec_t r;
         extflash_read(DEV, addr(i), &r, sizeof r);
         s_seqs[i] = valid(&r) ? r.seq : EMPTY;
+        if (s_seqs[i] != EMPTY) s_recent[i % RECENT] = r;
         if (s_seqs[i] != EMPTY && (!any || s_seqs[i] > s_seqs[best])) { best = i; any = true; }
     }
     s_w = any ? (best + 1) % N : 0;
@@ -101,6 +107,7 @@ static bool put(rec_t *r)
         r->check = sum(r);
         if (!extflash_write(DEV, addr(s_w) + 4, (const uint8_t *)r + 4, sizeof *r - 4) ||
             !extflash_write(DEV, addr(s_w), &r->seq, 4)) return false;
+        s_recent[s_w % RECENT] = *r;
         s_seqs[s_w] = s_next++;
         s_w = (s_w + 1) % N;
         return true;
@@ -150,9 +157,12 @@ size_t events_json(uint32_t before, int max_n, char *out, size_t max)
         uint32_t i = (s_w + N - back) % N, q = s_seqs[i];
         if (q == EMPTY || (before && q >= before)) continue;
         if (k == max_n) { more = true; break; }
-        rec_t r;
-        extflash_read(DEV, addr(i), &r, sizeof r);
-        if (r.seq != q || !valid(&r)) continue;             /* changed under us */
+        rec_t r = s_recent[i % RECENT];
+        if (r.seq != q) {                                    /* not kept: from the flash */
+            extflash_read(DEV, addr(i), &r, sizeof r);
+            if (r.seq != q || !valid(&r)) continue;         /* changed under us */
+            s_recent[i % RECENT] = r;
+        }
         r.s[sizeof r.s - 1] = 0;
         OUT("%s[%lu,%lu,%lu,%u,%u,%u,%lu,", k++ ? "," : "", (unsigned long)r.seq, (unsigned long)r.t,
             (unsigned long)r.up, r.boot, r.kind, r.port, (unsigned long)r.a);
