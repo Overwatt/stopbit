@@ -65,6 +65,11 @@ void clock_set(uint32_t unix_s);
 #endif
 #define LWIP_DNS_SUPPORT_MDNS_QUERIES 1      /* so homeassistant.local works */
 
+#ifdef APP_IMAGE                    /* MQTT over TLS: lwIP's MQTT client asks mqtt_tls.c for it */
+#define LWIP_ALTCP                  1
+#define LWIP_ALTCP_TLS              1
+#define MEMP_NUM_ALTCP_PCB          4       /* MQTT's, and the TCP one under TLS */
+#endif
 #define MQTT_OUTPUT_RINGBUF_SIZE    4096
 #define MQTT_VAR_HEADER_BUFFER_LEN  256
 #define MQTT_REQ_MAX_IN_FLIGHT      8

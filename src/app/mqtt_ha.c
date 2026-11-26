@@ -4,6 +4,8 @@
 #include "net.h"
 #include "fw_id.h"
 #include "events.h"
+#include "mqtt_tls.h"
+#include "clock.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/apps/mqtt.h"
 #include "lwip/apps/mqtt_priv.h"
@@ -61,6 +63,7 @@ static const char *const NAMES[] = { "off", "connecting", "connecting", "connect
 
 static mqtt_client_t s_c;
 static mqtt_cfg_t s_run;                /* what the connection was made with */
+static bool     s_tls;                  /* and whether over TLS */
 static char     s_name[32];             /* device name last announced */
 static uint8_t  s_state;
 static uint32_t s_retry_at, s_backoff, s_gen;
@@ -81,6 +84,7 @@ static int      s_clear;                /* retained topics under s_old cleared s
 
 const char *mqtt_ha_state(void) { return NAMES[s_state]; }
 const char *mqtt_ha_error(void) { return s_err; }
+bool mqtt_ha_tls(void) { return s_tls; }
 
 static uint32_t hash(const char *s)
 {
@@ -202,6 +206,7 @@ static void connect_to(const ip_addr_t *ip)
     ci.will_topic = will;
     ci.will_msg = "offline";
     ci.will_retain = 1;
+    ci.tls_config = s_tls ? mqtt_tls_config(s_run.host) : NULL;
     s_lost = false;
     s_state = M_CONNECTING;
     s_gen++;
@@ -223,6 +228,7 @@ static void cb_dns(const char *name, const ip_addr_t *ip, void *arg)
 static void start(void)
 {
     ip_addr_t ip;
+    if (s_tls && !clock_known()) { retry("Waiting for the time, to check the broker's certificate"); return; }
     s_state = M_RESOLVING;
     s_gen++;
     err_t e = dns_gethostbyname(s_run.host, &ip, cb_dns, (void *)s_gen);
@@ -254,7 +260,8 @@ void mqtt_ha_configure(const cfg_t *c)
         memcpy(s_base, base, sizeof s_base);
         s_sub = false;
     }
-    bool same_conn = m->port == s_run.port && !strcmp(m->host, s_run.host) &&
+    bool tls = c->more.mqtt_tls;
+    bool same_conn = m->port == s_run.port && !strcmp(m->host, s_run.host) && tls == s_tls &&
                      !strcmp(m->user, s_run.user) && !strcmp(m->password, s_run.password);
 
     if (strcmp(s_name, c->device_name) || m->control != s_run.control || m->no_announce != s_run.no_announce) {
@@ -272,6 +279,7 @@ void mqtt_ha_configure(const cfg_t *c)
     }
     bool restart = m->enabled != s_run.enabled || !same_conn;
     s_run = *m;
+    s_tls = tls;
     if (!restart) return;
     if (s_state != M_OFF) drop();
     s_err = "";
@@ -382,11 +390,12 @@ void mqtt_ha_poll(const cfg_t *c)
 {
     char topic[64];
     if (s_leaving) return;
+    mqtt_tls_poll();
     if (s_lost) {
         s_lost = false;
         if (s_state == M_REMOVING) { drop(); return; }
         if (s_state == M_MOVING) s_state = M_UP;      /* the retry connects under the new base */
-        if (s_state != M_OFF) retry(why(s_lost_why));
+        if (s_state != M_OFF) retry(s_tls && mqtt_tls_error()[0] ? mqtt_tls_error() : why(s_lost_why));
     }
     if (s_state == M_WAIT && (int32_t)(HAL_GetTick() - s_retry_at) >= 0) start();
 

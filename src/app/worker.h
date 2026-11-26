@@ -16,7 +16,7 @@
 #define WORKER_SLICE_US 1000u
 #endif
 
-enum { WORKER_TLS, WORKER_RENEW, WORKERS };
+enum { WORKER_TLS, WORKER_RENEW, WORKER_MQTT, WORKERS };
 
 typedef struct { uint32_t slices, longest_us, stack_used, stack_size; } worker_stats_t;   /* used: the most yet */
 

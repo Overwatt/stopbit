@@ -170,13 +170,32 @@ tools/n540.py $H mqtt-passwd
   Order matters: 7 data bits needs parity or 2 stop bits first.
 - Commands reach port settings, the device name and restart. Network, MQTT and
   password settings are not reachable. Retained commands are ignored.
-- **Anyone who can publish to the broker can use the controls.** The connection,
-  including the broker password, is not encrypted. Use a dedicated broker user.
+- **Anyone who can publish to the broker can use the controls.** Use a dedicated broker
+  user. Without TLS the connection, broker password included, is not encrypted.
 - Settings are written to flash (about 100k cycles per sector): don't automate
   settings changes every few seconds.
 - Turning MQTT off removes the entities from HA.
 
 Serial data does not go over MQTT; use the TCP/UDP ports for that.
+
+### Over TLS
+
+Tick **Encrypt the connection (TLS)** (`mqtt.tls=1`); the port moves to 8883. The broker
+needs a certificate for the name the gateway is given (not an address) from Let's Encrypt
+or Amazon, the roots the gateway carries (`src/app/roots.c`). It is checked: name, chain
+and dates. A failed check is a failed connection, with the reason on the MQTT page and in
+the log; there is no falling back to plain MQTT.
+
+- The handshake runs in slices beside the ports, as HTTPS does; reconnecting resumes the
+  TLS session, so it costs milliseconds.
+- About 23 KB of the TLS memory while connected (55 KB during the handshake).
+- The clock must be known to check dates. After a restart it carries on; after a power
+  cut MQTT waits for network time, a few seconds.
+- A Mosquitto listener for it, with a certificate from certbot (Route 53 plugin):
+  `listener 8883`, `certfile /etc/letsencrypt/live/NAME/fullchain.pem`,
+  `keyfile /etc/letsencrypt/live/NAME/privkey.pem`. Restart Mosquitto after each renewal
+  (certbot's `--deploy-hook`).
+- Tested against Mosquitto with ECDSA and RSA certificates: `tests/mqtt_tls/run.sh`.
 
 
 New network settings run on trial for 2 minutes and revert unless kept (button in

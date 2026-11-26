@@ -48,7 +48,8 @@ typedef struct {
 typedef struct {
     char    ntp[48];               /* time server; blank = the DHCP server's, then pool.ntp.org */
     char    topic[48];             /* MQTT base topic; blank = the host name */
-    uint8_t spare[160];            /* for later settings */
+    uint8_t mqtt_tls;              /* MQTT over TLS: the broker's certificate is checked (mqtt_tls.c) */
+    uint8_t spare[159];            /* for later settings */
 } more_cfg_t;
 
 typedef struct {

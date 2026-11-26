@@ -13,6 +13,7 @@
 #include "uart485.h"
 #include "net.h"
 #include "mqtt_ha.h"
+#include "mqtt_tls.h"
 #include "eth_mac.h"
 #include "sha256.h"
 #include "slots.h"
@@ -47,7 +48,8 @@ static void note(const cfg_t *was, const cfg_t *now)
     if (strcmp(was->device_name, now->device_name)) WHAT("name");
     if (memcmp(&was->net, &now->net, sizeof was->net)) WHAT("network");
     if (strcmp(was->more.ntp, now->more.ntp)) WHAT("time server");
-    if (memcmp(&was->mqtt, &now->mqtt, sizeof was->mqtt) || strcmp(was->more.topic, now->more.topic)) WHAT("mqtt");
+    if (memcmp(&was->mqtt, &now->mqtt, sizeof was->mqtt) || strcmp(was->more.topic, now->more.topic) ||
+        was->more.mqtt_tls != now->more.mqtt_tls) WHAT("mqtt");
 #undef WHAT
     for (int i = 0; i < PORTS; i++)
         if (memcmp(&was->port[i], &now->port[i], sizeof was->port[i]) || memcmp(&was->access[i], &now->access[i], sizeof was->access[i]) ||
@@ -231,13 +233,14 @@ int api_get(const char *path, char *out, size_t max)
         "{\"version\":\"%s\",\"uptime_s\":%lu,\"host\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\","
         "\"ip\":\"%s\",\"mask\":\"%s\",\"gateway\":\"%s\",\"speed\":%d,\"full_duplex\":%s,"
         "\"net_pending\":%s,\"net_pending_s\":%d,\"fw_trial\":%s,\"slot\":%d,\"boots\":%lu,\"crashes\":%lu,\"reset\":\"%lx\","
-        "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\"},\"clock\":",
+        "\"mqtt\":{\"state\":\"%s\",\"error\":\"%s\",\"tls\":%s,\"tls_version\":\"%s\",\"tls_until\":\"%s\"},\"clock\":",
         g_fw_id.version, (unsigned long)(HAL_GetTick() / 1000), g_hostname,
         g_mac[0], g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], ip, mask, gw,
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
         s_pending ? "true" : "false", left, on_trial() ? "true" : "false", (int)bkp_get(BKP_SLOT),
         (unsigned long)bkp_get(BKP_BOOTS), (unsigned long)bkp_get(BKP_CRASHES),
-        (unsigned long)bkp_get(BKP_RSTLOG), mqtt_ha_state(), mqtt_ha_error());
+        (unsigned long)bkp_get(BKP_RSTLOG), mqtt_ha_state(), mqtt_ha_error(), mqtt_ha_tls() ? "true" : "false",
+        mqtt_tls_version() ? mqtt_tls_version() : "", mqtt_tls_until() ? mqtt_tls_until() : "");
     if (n >= max) return 0;
     size_t k = clock_json(out + n, max - n);
     if (!k || n + k + 10 >= max) return 0;

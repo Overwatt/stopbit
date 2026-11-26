@@ -14,11 +14,14 @@
 #ifndef WORKER_RENEW_STACK
 #define WORKER_RENEW_STACK 8192u
 #endif
+#ifndef WORKER_MQTT_STACK
+#define WORKER_MQTT_STACK  6144u            /* a client handshake, as renewal's */
+#endif
 #define FILL 0x5AFE57ACu
-static const uint32_t SIZE[WORKERS] = { WORKER_TLS_STACK, WORKER_RENEW_STACK };
+static const uint32_t SIZE[WORKERS] = { WORKER_TLS_STACK, WORKER_RENEW_STACK, WORKER_MQTT_STACK };
 
 /* Only the stacks go in AXI_BSS (D3), which is not zeroed at start-up; the rest must be. */
-static AXI_BSS uint64_t s_stacks[(WORKER_TLS_STACK + WORKER_RENEW_STACK) / 8];
+static AXI_BSS uint64_t s_stacks[(WORKER_TLS_STACK + WORKER_RENEW_STACK + WORKER_MQTT_STACK) / 8];
 
 typedef struct {
     uint32_t *s;                        /* lowest word of its stack */

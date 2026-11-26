@@ -20,5 +20,6 @@ void mqtt_ha_poll(const cfg_t *c);
  * of net_poll() before resetting. */
 void mqtt_ha_shutdown(void);
 const char *mqtt_ha_state(void);       /* off, connecting, connected, ... */
-const char *mqtt_ha_error(void);       /* last connection problem, or "" */
+const char *mqtt_ha_error(void);
+bool mqtt_ha_tls(void);                 /* the connection is (to be) over TLS */       /* last connection problem, or "" */
 #endif

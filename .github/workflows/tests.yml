@@ -1,6 +1,6 @@
 # Every push: the firmware builds, the host tests pass, the simulator passes the HTTPS
-# and install suites, and the fuzz targets replay their seeds and find nothing in a
-# short run. Nothing here can reach a gateway, and images built here are
+# and install suites, MQTT over TLS works against Mosquitto, and the fuzz targets replay
+# their seeds and find nothing in a short run. Nothing here can reach a gateway, and images built here are
 # signed with a throwaway key, so they are not offered for download.
 name: tests
 on:
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Tools
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi ninja-build
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi ninja-build mosquitto mosquitto-clients
       - name: Firmware
         run: |
           cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
@@ -37,6 +37,8 @@ jobs:
           head -5 sim.log
           python3 tests/test_tls.py 127.0.0.1:8541 8543
           python3 tests/test_install.py 127.0.0.1:8541
+      - name: MQTT over TLS, against Mosquitto
+        run: CC=clang tests/mqtt_tls/run.sh
       - name: Fuzzing, briefly
         run: CC=clang FUZZ_OUT=fuzz tests/fuzz/run.sh 30 cfg http hclient acme
       - name: Simulator log

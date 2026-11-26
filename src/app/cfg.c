@@ -189,6 +189,11 @@ static bool apply(cfg_t *c, const char *k, const char *v)
         return false;
     }
     if (!strcmp(k, "mqtt.topic")) return topic_ok(v) && set_str(c->more.topic, sizeof c->more.topic, v, false);
+    if (!strcmp(k, "mqtt.tls")) {
+        if (strcmp(v, "0") && strcmp(v, "1")) return false;
+        c->more.mqtt_tls = *v == '1';
+        return true;
+    }
     if (!strncmp(k, "mqtt.", 5)) {
         for (size_t i = 0; i < NMQTT_F; i++)
             if (!strcmp(MQTT_F[i].key, k + 5)) return set_field(&c->mqtt, &MQTT_F[i], v);
@@ -254,6 +259,10 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
     }
     if (c->mqtt.enabled && !c->mqtt.host[0]) {
         snprintf(err, errlen, "Enter the MQTT broker's host name or address");
+        return false;
+    }
+    if (c->mqtt.enabled && c->more.mqtt_tls && strspn(c->mqtt.host, "0123456789.") == strlen(c->mqtt.host)) {
+        snprintf(err, errlen, "With TLS, enter the broker's name, not its address");
         return false;
     }
     if (c->mqtt.password[0] && !c->mqtt.user[0]) {
@@ -377,8 +386,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
     n += w - 1;                        /* reopen to add one more key */
     ADD(",\"topic\":");
     STR(c->more.topic);
-    ADD(",\"password_set\":%s},\"password_set\":%s,\"ports\":[",
-        c->mqtt.password[0] ? "true" : "false", c->web_set ? "true" : "false");
+    ADD(",\"tls\":%s,\"password_set\":%s},\"password_set\":%s,\"ports\":[",
+        c->more.mqtt_tls ? "true" : "false", c->mqtt.password[0] ? "true" : "false", c->web_set ? "true" : "false");
     for (int i = 0; i < PORTS; i++) {
         if (i) ADD(",");
         if (!(w = cfg_port_json(&c->port[i], out + n, max - n))) return 0;
@@ -422,7 +431,7 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         c->net.gw ? ip[2] : "", c->net.dns ? ip[3] : "", c->more.ntp);
     if (!(w = fields_lines("mqtt", &c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
     n += w;
-    ADD("mqtt.topic=%s\n", c->more.topic);
+    ADD("mqtt.topic=%s\nmqtt.tls=%u\n", c->more.topic, (unsigned)c->more.mqtt_tls);
     for (int i = 0; i < PORTS; i++) {
         snprintf(pre, sizeof pre, "port%d", i + 1);
         if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;

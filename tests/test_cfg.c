@@ -41,6 +41,13 @@ int main(void)
     { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"topic\":\"a.b-c_d/e1\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "mqtt.topic=a.b-c_d/e1\n"));
       static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !strcmp(t.more.topic, "a.b-c_d/e1")); }
     OK("mqtt.topic="); assert(!c.more.topic[0]);
+    assert(!c.more.mqtt_tls); OK("mqtt.tls=1"); assert(c.more.mqtt_tls == 1); BAD("mqtt.tls=2"); BAD("mqtt.tls="); BAD("mqtt.tls=on");
+    { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"tls\":true,")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "mqtt.tls=1\n"));
+      static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && t.more.mqtt_tls == 1); }
+    OK("mqtt.enabled=1\nmqtt.host=broker.example.com");
+    BAD("mqtt.host=10.0.0.5"); assert(strstr(err, "name, not its address"));     /* its certificate names the host */
+    OK("mqtt.tls=0\nmqtt.host=10.0.0.5"); BAD("mqtt.tls=1");
+    OK("mqtt.enabled=0\nmqtt.tls=1"); OK("mqtt.tls=0\nmqtt.host=");
     { char o[32]; assert(json_str("a\nb\t\"\x01", o, sizeof o) && !strcmp(o, "\"a\\nb\\t\\\"?\"")); }   /* a file's line breaks survive */
     OK("# a settings file's note\nport3.baud=4800\n#port3.baud=x\n"); assert(c.port[2].baud == 4800);      /* notes are skipped */
     OK("port3.quiet_min=1\nport1.quiet_min=1440"); assert(cfg_quiet_min(&c, 2) == 1 && cfg_quiet_min(&c, 0) == 1440 && !cfg_quiet_min(&c, 1) && !cfg_quiet_min(&c, 3));
