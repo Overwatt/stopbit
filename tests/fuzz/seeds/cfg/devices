@@ -1,0 +1,15 @@
+port2.enabled=1
+port2.mode=modbus
+port2.local_port=502
+dev1.profile=eg4-bms
+dev1.name=eg4m
+dev1.label=Pack 1
+dev1.port=2
+dev1.address=16
+dev1.controls=1
+dev1.ids=esphome
+dev1.prefix=eg4_bms
+dev2.profile=eg4-bms
+dev2.name=p2
+dev2.port=2
+dev2.address=17

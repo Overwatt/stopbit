@@ -56,6 +56,17 @@ typedef struct {
     uint8_t spare[149];            /* for later settings */
 } more_cfg_t;
 
+/* A device polled on a port, by a profile (device.c). Kept in a record of its own
+ * (cfg_store.c), so older firmware never reads it. */
+#define DEVS 16
+typedef struct {
+    char    profile[25];           /* a profile id; empty: no device here */
+    char    name[25];              /* in MQTT topics and HA IDs: a-z 0-9 _ - */
+    char    label[33];             /* HA's name for the device; empty: the name */
+    char    prefix[25];            /* ids=esphome: the ESP32's entity ID prefix, a-z 0-9 _ */
+    uint8_t port, address, controls, ids;   /* ids: 0 own IDs, 1 the ESP32's */
+} dev_cfg_t;
+
 typedef struct {
     char       device_name[32];
     net_cfg_t  net;
@@ -68,6 +79,7 @@ typedef struct {
     /* --- end of schema 2; what follows is stored apart, see cfg_store.c --- */
     acl_t      access[PORTS];
     more_cfg_t more;
+    dev_cfg_t  dev[DEVS];
 } cfg_t;
 
 /* Minutes without traffic or a client before a port alerts; 0 = never. */
@@ -86,6 +98,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max);
 size_t cfg_port_json(const port_cfg_t *p, char *out, size_t max);
 /* Every setting as "key=value" lines that cfg_parse accepts back (no secrets). */
 size_t cfg_lines(const cfg_t *c, char *out, size_t max);
+/* Device i's lines (devN.*), or "devN.profile=" alone if there is none. 0 if they do not fit. */
+size_t cfg_dev_lines(const cfg_t *c, int i, char *out, size_t max);
 /* "..." with escapes; returns chars written (no NUL counted). */
 size_t json_str(const char *s, char *out, size_t max);
 bool ip4_parse(const char *s, uint32_t *out);

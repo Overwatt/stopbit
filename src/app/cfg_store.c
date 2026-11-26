@@ -30,12 +30,19 @@ static const uint32_t AADDR[2] = { 0x0F2000u, 0x0F3000u };
 #define MSIZE   sizeof(more_cfg_t)
 _Static_assert(sizeof(more_cfg_t) == 256, "later settings fill their spare bytes, never grow");
 static const uint32_t MADDR[2] = { 0x0FA000u, 0x0FB000u };
+/* Devices (devN.*): their own record too. One that cannot be read: no devices. */
+#define DMAGIC  0x56454444u
+#define DSCHEMA 1u
+#define DSIZE   (DEVS * sizeof(dev_cfg_t))
+_Static_assert(sizeof(dev_cfg_t) == 112, "device settings layout must not move");
+static const uint32_t DADDR[2] = { 0x0EE000u, 0x0EF000u };
 
 typedef struct {
     uint32_t magic, schema, seq, size;
     uint8_t  sha[32];                   /* over schema, seq, size and body */
-    uint8_t  body[SIZE2];
+    uint8_t  body[DSIZE > SIZE2 ? DSIZE : SIZE2];
 } rec_t;
+_Static_assert(DSIZE <= sizeof(((rec_t *)0)->body), "record too small");
 _Static_assert(ASIZE <= SIZE2 && MSIZE <= SIZE2, "record too small");
 _Static_assert(sizeof(rec_t) <= 4096, "config record exceeds a sector");
 
@@ -44,11 +51,13 @@ static uint32_t s_seq;
 static int s_cur = -1;
 static acl_t s_saved[PORTS];            /* as last read or written */
 static more_cfg_t s_msaved;
+static dev_cfg_t s_dsaved[DEVS];
 
 /* A record kept apart from the main one, in two alternating sectors. */
 typedef struct { uint32_t magic, schema, size; const uint32_t *addr; int cur; uint32_t seq; } side_t;
 static side_t s_acl  = { AMAGIC, ASCHEMA, ASIZE, AADDR, -1, 0 };
 static side_t s_more = { MMAGIC, MSCHEMA, MSIZE, MADDR, -1, 0 };
+static side_t s_dev  = { DMAGIC, DSCHEMA, DSIZE, DADDR, -1, 0 };
 
 #define HEAD offsetof(rec_t, body)
 
@@ -149,6 +158,18 @@ static void more_load(cfg_t *c)
     s_msaved = c->more;
 }
 
+static void dev_load(cfg_t *c)
+{
+    memset(c->dev, 0, sizeof c->dev);
+    if (side_load(&s_dev, c->dev) != 1) memset(c->dev, 0, sizeof c->dev);
+    for (int i = 0; i < DEVS; i++) {                    /* terminated, whatever was stored */
+        dev_cfg_t *d = &c->dev[i];
+        d->profile[sizeof d->profile - 1] = d->name[sizeof d->name - 1] = 0;
+        d->label[sizeof d->label - 1] = d->prefix[sizeof d->prefix - 1] = 0;
+    }
+    memcpy(s_dsaved, c->dev, sizeof s_dsaved);
+}
+
 bool cfg_load(cfg_t *c)
 {
     char err[96];
@@ -165,6 +186,7 @@ bool cfg_load(cfg_t *c)
     if (!ok) cfg_defaults(c);
     access_load(c);
     more_load(c);
+    dev_load(c);
     return ok;
 }
 
@@ -194,6 +216,10 @@ bool cfg_save(const cfg_t *c)
     if (memcmp(&s_msaved, &c->more, sizeof s_msaved)) {
         if (!side_save(&s_more, &c->more)) return false;
         s_msaved = c->more;
+    }
+    if (memcmp(s_dsaved, c->dev, sizeof s_dsaved)) {
+        if (!side_save(&s_dev, c->dev)) return false;
+        memcpy(s_dsaved, c->dev, sizeof s_dsaved);
     }
     return main_save(c);
 }

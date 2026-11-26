@@ -129,6 +129,38 @@ int main(void)
     assert(!strstr(j, "web_key") && !strstr(j, "salt") && !strstr(j, "hunter2"));
     assert(strstr(j, "\"password_set\":true},\"password_set\":false"));
     for (size_t k = 0; k < l; k++) assert(cfg_json(&c, j, k) == 0);     /* never overruns */
+    /* Devices: devN.* (N = 1..16). Their port need not be a Modbus gateway (checked when they run). */
+    OK("port2.enabled=1\nport2.mode=modbus\nport2.local_port=502");
+    OK("dev1.profile=eg4-bms\ndev1.name=eg4m\ndev1.port=2\ndev1.address=16");
+    assert(!strcmp(c.dev[0].profile, "eg4-bms") && !strcmp(c.dev[0].name, "eg4m") && c.dev[0].port == 2 && c.dev[0].address == 16);
+    BAD("dev2.profile=eg4-bms");                                                   /* no name */
+    BAD("dev2.profile=eg4-bms\ndev2.name=eg4m\ndev2.port=2\ndev2.address=1");      /* the name is taken */
+    BAD("dev2.profile=eg4-bms\ndev2.name=p1\ndev2.port=2\ndev2.address=16");       /* so is the address */
+    OK("dev2.profile=eg4-bms\ndev2.name=p1\ndev2.port=1\ndev2.address=1");        /* port 1 is no Modbus gateway: accepted */
+    OK("dev2.profile=");
+    BAD("dev3.name=lonely");                                                       /* no profile */
+    BAD("dev2.profile=EG4"); BAD("dev2.name=Big Name"); BAD("dev2.address=248"); BAD("dev2.port=5");
+    BAD("dev17.name=x"); BAD("dev0.name=x"); BAD("dev2.ids=maybe"); BAD("dev2.x=1");
+    BAD("dev1.ids=esphome");                                                       /* needs the ESP32's prefix */
+    OK("dev1.ids=esphome\ndev1.prefix=eg4_bms");
+    OK("dev16.profile=eg4-bms\ndev16.name=p1\ndev16.port=2\ndev16.address=1\ndev16.label=Pack 1");
+    OK("port2.mode=server");                                                       /* devices on it: accepted */
+    OK("port2.mode=modbus");
+    {
+        char l[600];
+        cfg_t t2 = c;
+        assert(cfg_dev_lines(&c, 0, l, sizeof l) && strstr(l, "dev1.profile=eg4-bms\n") && strstr(l, "dev1.ids=esphome\n") &&
+               strstr(l, "dev1.prefix=eg4_bms\n") && strstr(l, "dev1.address=16\n"));
+        assert(cfg_dev_lines(&c, 5, l, sizeof l) == strlen("dev6.profile=\n") && !strcmp(l, "dev6.profile=\n"));
+        memset(t2.dev, 0, sizeof t2.dev);
+        cfg_dev_lines(&c, 15, l, sizeof l);
+        assert(cfg_parse(&t2, l, err, sizeof err) && !memcmp(&t2.dev[15], &c.dev[15], sizeof c.dev[15]));
+        for (size_t k = 0; k < 40; k++) assert(!cfg_dev_lines(&c, 0, l, k));      /* never cut short */
+    }
+    OK("dev16.profile=");
+    assert(!c.dev[15].name[0] && !c.dev[15].port && !c.dev[15].label[0]);
+    OK("dev1.profile=\nport2.mode=server\nport2.local_port=4002\nport2.enabled=0");
+
     /* Worst case must fit the HTTP response buffer alongside its headers. */
     for (int i = 0; i < PORTS; i++) {
         memset(c.port[i].name, '"', 23); memset(c.port[i].remote_host, 'a', 47);

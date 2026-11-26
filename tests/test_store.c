@@ -15,7 +15,7 @@ static void is(const cfg_t *c, int p, const char *want)
 int main(void)
 {
     cfg_t c, d;
-    f_no[f_nno++] = (range_t){ 1, 0, 0x0F0000 };
+    f_no[f_nno++] = (range_t){ 1, 0, 0x0EE000 };
     f_no[f_nno++] = (range_t){ 1, 0x0F4000, 0x0FA000 };          /* HTTPS and renewal records */
     f_no[f_nno++] = (range_t){ 1, 0x0FC000, 0x200000 };
     f_no[f_nno++] = (range_t){ 0, 0, 0x200000 };
@@ -105,6 +105,16 @@ int main(void)
             }
         printf("power cut at each of %ld operations: old or new, never neither\n", total);
     }
+    /* Devices: their own record, 0x0EE000 / 0x0EF000; a damaged one means none. */
+    set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\ndev3.profile=eg4-bms\ndev3.name=eg4m\ndev3.port=2\ndev3.address=16");
+    assert(cfg_save(&c) && cfg_load(&d) && !memcmp(&c, &d, sizeof c) && !strcmp(d.dev[2].name, "eg4m"));
+    {
+        int at = ((const uint32_t *)(F[1] + 0xEE000))[0] == 0x56454444u ? 0xEE000 : 0xEF000;
+        const uint32_t *h = (const uint32_t *)(F[1] + at);
+        assert(h[0] == 0x56454444u && h[1] == 1 && h[3] == DEVS * sizeof(dev_cfg_t));
+        F[1][at + 100] ^= 1;
+    }
+    assert(cfg_load(&d) && !d.dev[2].profile[0] && d.port[1].mode == MODE_MODBUS);   /* the rest as it was */
     (void)ops;
     puts("ok");
     return 0;

@@ -186,7 +186,8 @@ static bool on_trial(void)
 static int get_one(const char *path, char *out, size_t max)
 {
     if (!strcmp(path, "/api/config")) {
-        cfg_t c = s_cfg;
+        static cfg_t c;
+        c = s_cfg;
         if (s_pending) c.net = s_trial;
         return (int)cfg_json(&c, out, max);
     }
@@ -302,7 +303,8 @@ static const char *post_config(api_req_t *rq, char *out, size_t max)
 
 static const char *change(cfg_t *cp, char *body, char *out, size_t max)
 {
-    cfg_t c = *cp;
+    static cfg_t c;
+    c = *cp;
     net_cfg_t shown = s_pending ? s_trial : s_cfg.net;
     c.net = shown;                       /* edit what the page is showing */
     if (!cfg_parse(&c, body, out, max) || !cfg_validate(&c, out, max)) return "400 Bad Request";

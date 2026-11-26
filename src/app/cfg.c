@@ -173,8 +173,44 @@ static bool topic_ok(const char *v)
     return true;
 }
 
+static bool chars_ok(const char *v, const char *extra, size_t max)
+{
+    if (strlen(v) > max) return false;
+    for (; *v; v++) if (!((*v >= 'a' && *v <= 'z') || (*v >= '0' && *v <= '9') || strchr(extra, *v))) return false;
+    return true;
+}
+
+/* devN.key=value. An empty profile removes the device. */
+static bool dev_apply(dev_cfg_t *d, const char *k, const char *v)
+{
+    uint32_t n;
+    if (!strcmp(k, "profile")) {
+        if (!*v) { memset(d, 0, sizeof *d); return true; }
+        return chars_ok(v, "-", 24) && set_str(d->profile, sizeof d->profile, v, false);
+    }
+    if (!strcmp(k, "name")) return chars_ok(v, "_-", 24) && set_str(d->name, sizeof d->name, v, false);
+    if (!strcmp(k, "label")) return set_str(d->label, sizeof d->label, v, false);
+    if (!strcmp(k, "prefix")) return chars_ok(v, "_", 24) && set_str(d->prefix, sizeof d->prefix, v, false);
+    if (!strcmp(k, "ids")) {
+        if (strcmp(v, "own") && strcmp(v, "esphome")) return false;
+        d->ids = v[0] == 'e';
+        return true;
+    }
+    if (!parse_u32(v, &n)) return false;
+    if (!strcmp(k, "port") && n >= 1 && n <= PORTS) { d->port = (uint8_t)n; return true; }
+    if (!strcmp(k, "address") && n >= 1 && n <= 247) { d->address = (uint8_t)n; return true; }
+    if (!strcmp(k, "controls") && n <= 1) { d->controls = (uint8_t)n; return true; }
+    return false;
+}
+
 static bool apply(cfg_t *c, const char *k, const char *v)
 {
+    if (!strncmp(k, "dev", 3) && k[3] >= '1' && k[3] <= '9') {
+        char *e;
+        long n = strtol(k + 3, &e, 10);
+        if (n < 1 || n > DEVS || *e != '.') return false;
+        return dev_apply(&c->dev[n - 1], e + 1, v);
+    }
     if (!strncmp(k, "port", 4) && k[4] >= '1' && k[4] < '1' + PORTS && k[5] == '.') {
         for (size_t i = 0; i < NPORT_F; i++)
             if (!strcmp(PORT_F[i].key, k + 6))
@@ -331,6 +367,27 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             }
         }
     }
+    for (int i = 0; i < DEVS; i++) {
+        const dev_cfg_t *d = &c->dev[i];
+        if (!d->profile[0]) {                           /* settings of no device would not survive cfg_dev_lines() */
+            static const dev_cfg_t none;
+            if (memcmp(d, &none, sizeof none)) { snprintf(err, errlen, "Device %d: choose its profile", i + 1); return false; }
+            continue;
+        }
+        if (!d->name[0]) { snprintf(err, errlen, "Device %d: give it a name", i + 1); return false; }
+        if (d->port < 1 || d->port > PORTS) { snprintf(err, errlen, "Device %d: choose its port", i + 1); return false; }
+        if (!d->address) { snprintf(err, errlen, "Device %d: give its address, 1 to 247", i + 1); return false; }
+        if (d->ids && !d->prefix[0]) { snprintf(err, errlen, "Device %d: ESPHome naming needs the ESP32's prefix", i + 1); return false; }
+        for (int j = 0; j < i; j++) {
+            const dev_cfg_t *o = &c->dev[j];
+            if (!o->profile[0]) continue;
+            if (!strcmp(o->name, d->name)) { snprintf(err, errlen, "Devices %d and %d are both called %s", j + 1, i + 1, d->name); return false; }
+            if (o->port == d->port && o->address == d->address) {
+                snprintf(err, errlen, "Devices %d and %d both use address %d on port %d", j + 1, i + 1, d->address, d->port);
+                return false;
+            }
+        }
+    }
     return true;
 }
 
@@ -460,5 +517,18 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%u\n", pre, cfg_quiet_min(c, i), pre, t,
             pre, cfg_modbus_timeout(c, i), pre, (unsigned)(c->more.modbus_broadcast >> i & 1));
     }
+    return n;
+}
+
+size_t cfg_dev_lines(const cfg_t *c, int i, char *out, size_t max)
+{
+    const dev_cfg_t *d = &c->dev[i];
+    size_t n = 0;
+    if (!max) return 0;
+    if (!d->profile[0]) { ADD("dev%d.profile=\n", i + 1); return n; }
+    ADD("dev%d.profile=%s\ndev%d.name=%s\ndev%d.label=%s\ndev%d.port=%u\ndev%d.address=%u\n"
+        "dev%d.controls=%u\ndev%d.ids=%s\ndev%d.prefix=%s\n",
+        i + 1, d->profile, i + 1, d->name, i + 1, d->label, i + 1, d->port, i + 1, d->address,
+        i + 1, d->controls, i + 1, d->ids ? "esphome" : "own", i + 1, d->prefix);
     return n;
 }

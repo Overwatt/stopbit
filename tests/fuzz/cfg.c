@@ -11,7 +11,7 @@
 int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
 {
     static cfg_t c, t;
-    static char body[8192], err[128], text[8192], json[4344];
+    static char body[8192], err[128], text[16384], json[4344];
     if (n >= sizeof body) return 0;
     memcpy(body, d, n);
     body[n] = 0;
@@ -20,6 +20,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
     if (!cfg_validate(&c, err, sizeof err)) { assert(err[0]); return 0; }
     size_t k = cfg_lines(&c, text, sizeof text);
     assert(k && k < sizeof text);
+    for (int i = 0; i < DEVS; i++) {                  /* cfg_lines() has no devices */
+        size_t w = cfg_dev_lines(&c, i, text + k, sizeof text - k);
+        assert(w);
+        k += w;
+    }
     cfg_defaults(&t);
     assert(cfg_parse(&t, text, err, sizeof err));
     assert(cfg_validate(&t, err, sizeof err));
