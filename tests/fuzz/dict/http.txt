@@ -1,0 +1,39 @@
+GET 
+POST 
+HEAD 
+ HTTP/1.1\r\n
+ HTTP/1.0\r\n
+\r\n
+\r\n\r\n
+Host: gateway.example.com\r\n
+Host: x\r\n
+Content-Length: 
+Content-Length: 0\r\n
+Content-Length: 4294967295\r\n
+Connection: close\r\n
+Connection: keep-alive\r\n
+X-Auth: 
+X-Body-SHA256: 
+/
+/status
+/nonce
+/api/config
+/api/library
+/api/big
+/api/state
+/api/tls
+/install
+/rollback
+/confirm
+/reboot
+/loader
+/flash/0?off=0&len=16
+/flash/1?off=
+&len=
+sha=
+listen_only
+port1.baud=
+%00
+..
+?
+#

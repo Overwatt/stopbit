@@ -1,0 +1,14 @@
+device.name=Solar
+net.mode=static
+net.ip=10.20.1.210
+net.mask=255.255.254.0
+net.gateway=10.20.0.1
+net.dns=10.20.0.53
+net.ntp=10.20.0.53
+mqtt.enabled=1
+mqtt.host=broker.example
+mqtt.port=1883
+mqtt.user=energy
+mqtt.control=1
+mqtt.announce=1
+mqtt.topic=solar/gw

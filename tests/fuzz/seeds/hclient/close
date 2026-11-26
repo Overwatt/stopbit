@@ -1,0 +1,4 @@
+HTTP/1.1 400 Bad Request
+Connection: close
+
+<ErrorResponse><Error><Code>InvalidChangeBatch</Code></Error></ErrorResponse>

@@ -1,0 +1,41 @@
+# Every push: the firmware builds, the host tests pass, and the simulator passes the
+# HTTPS and install suites. Nothing here can reach a gateway, and images built here are
+# signed with a throwaway key, so they are not offered for download.
+name: tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host tests
+        run: CC=clang tests/host.sh
+  firmware-and-simulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi ninja-build
+      - name: Firmware
+        run: |
+          cmake -B build -G Ninja
+          cmake --build build
+          arm-none-eabi-size build/app.elf
+      - name: Simulator
+        run: |
+          CC=clang ASAN_OPTIONS=detect_stack_use_after_return=0:detect_leaks=0 tests/sim/run.sh > sim.log 2>&1 &
+          for i in $(seq 600); do curl -s -m 2 http://127.0.0.1:8541/status >/dev/null && break; sleep 1; done
+          head -5 sim.log
+          python3 tests/test_tls.py 127.0.0.1:8541 8543
+          python3 tests/test_install.py 127.0.0.1:8541
+      - name: Simulator log
+        if: failure()
+        run: tail -100 sim.log

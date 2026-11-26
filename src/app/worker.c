@@ -52,8 +52,13 @@ __asm__(
 #define FRAME_LR 25
 typedef uint32_t reg_t;
 #elif defined(__aarch64__)              /* so the host tests run the real thing */
+#ifdef __APPLE__
+#define SWAP "_worker_swap"             /* Mach-O names C symbols with an underscore */
+#else
+#define SWAP "worker_swap"
+#endif
 __asm__(
-    ".text\n.align 2\n.global _worker_swap\n_worker_swap:\n"
+    ".text\n.align 2\n.global " SWAP "\n" SWAP ":\n"
     "  sub sp, sp, #176\n"
     "  stp x19, x20, [sp, #0]\n  stp x21, x22, [sp, #16]\n  stp x23, x24, [sp, #32]\n  stp x25, x26, [sp, #48]\n"
     "  stp x27, x28, [sp, #64]\n  stp x29, x30, [sp, #80]\n  stp d8, d9, [sp, #96]\n  stp d10, d11, [sp, #112]\n"
@@ -65,6 +70,20 @@ __asm__(
     "  add sp, sp, #176\n  ret\n");
 #define FRAME 22
 #define FRAME_LR 11
+typedef uint64_t reg_t;
+#elif defined(__x86_64__)               /* the simulator on Linux, as GitHub's machines run it */
+#ifdef __APPLE__
+#define SWAP "_worker_swap"
+#else
+#define SWAP "worker_swap"
+#endif
+__asm__(
+    ".text\n.p2align 4\n.globl " SWAP "\n" SWAP ":\n"
+    "  pushq %rbp\n  pushq %rbx\n  pushq %r12\n  pushq %r13\n  pushq %r14\n  pushq %r15\n"
+    "  movq %rsp, (%rdi)\n  movq %rsi, %rsp\n"
+    "  popq %r15\n  popq %r14\n  popq %r13\n  popq %r12\n  popq %rbx\n  popq %rbp\n  ret\n");
+#define FRAME 7                         /* r15 .. rbp, then where to return to */
+#define FRAME_LR 6
 typedef uint64_t reg_t;
 #endif
 
@@ -96,7 +115,7 @@ bool worker_start(int w, void (*fn)(void *), void *arg)
     j->size = SIZE[w];
     for (uint32_t i = 0; i < j->size / 4; i++) j->s[i] = FILL;
     reg_t *sp = (reg_t *)(void *)((uint8_t *)j->s + j->size) - 2 - FRAME;   /* 8-byte aligned on entry */
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__x86_64__)
     sp = (reg_t *)((uintptr_t)sp & ~(uintptr_t)15);
 #endif
     memset(sp, 0, FRAME * sizeof *sp);

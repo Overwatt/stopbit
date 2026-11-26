@@ -305,8 +305,12 @@ uint32_t sim_tick(void)          /* moves on while the code runs, as a real one 
 }
 static uint32_t ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000 + t.tv_nsec / 1000000); }
 
+#ifdef __APPLE__
 #include <mach-o/getsect.h>
 #include <mach-o/ldsyms.h>
+#else
+extern uint8_t __start_nozero[], __stop_nozero[];   /* the linker names a section's bounds */
+#endif
 /* Across the whole section, the checker's guard bytes between variables included. */
 __attribute__((no_sanitize("address"))) static void junk_fill(volatile uint8_t *p, unsigned long n)
 {
@@ -316,7 +320,12 @@ int main(int argc, char **argv)
 {
     /* On the board these are not zeroed at start-up; here they start as junk too. */
     unsigned long nz = 0;
+#ifdef __APPLE__
     uint8_t *junk = getsectiondata(&_mh_execute_header, "__DATA", "__nozero", &nz);
+#else
+    uint8_t *junk = __start_nozero;
+    nz = (unsigned long)(__stop_nozero - __start_nozero);
+#endif
     junk_fill(junk, nz);
     printf("%lu bytes start as junk\n", nz);
     for (int w = 0; w < WORKERS; w++)                /* a job nobody started would be run */
