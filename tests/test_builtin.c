@@ -16,7 +16,7 @@ static int F(const char *id) { int i = profile_field(&P, id); if (i < 0) printf(
 static float V(const char *id) { int i = F(id); assert(pf_ok(&S, i)); return S.val[i].v; }
 static bool near(float a, float b) { return fabsf(a - b) < 1e-4f * (fabsf(b) > 1 ? fabsf(b) : 1); }
 static size_t regs(uint8_t *d, const uint16_t *r, int n) { for (int k = 0; k < n; k++) { d[2 * k] = (uint8_t)(r[k] >> 8); d[2 * k + 1] = (uint8_t)r[k]; } return (size_t)n * 2; }
-static const char *text(const char *id) { static char b[160]; pf_text(&P, F(id), &S, b, sizeof b); return b; }
+static const char *text(const char *id) { static char b[400]; pf_text(&P, F(id), &S, b, sizeof b); return b; }
 static size_t str(uint8_t *d, const char *s, int nregs) { memset(d, 0, (size_t)nregs * 2); memcpy(d, s, strlen(s)); return (size_t)nregs * 2; }
 
 int main(void)
@@ -53,8 +53,28 @@ int main(void)
     assert(V("pcb_temperature") == 31 && V("avg_temperature") == 25 && V("max_temperature") == 33 && V("remaining_capacity") == 150);
     assert(V("max_charge_current") == 100 && V("state_of_health") == 98 && V("state_of_charge") == 76 && V("cycle_count") == 65538);
     assert(!strcmp(text("status"), "Charging") && V("heating") == 1);
-    assert(!strcmp(text("warnings"), "Pack OV; Cell OV") && !strcmp(text("protection"), "Charge OC; Charge UT; Low capacity"));
-    assert(!strcmp(text("error"), "Voltage error"));
+    /* Expected strings are eg4_bms.cpp's (decode_status, warnings, protection, error) except for
+     * the documented differences: set bits are joined by "; " not ";"; no "Heating+" prefix on
+     * status (heating is its own binary sensor); an unknown status reads "Unknown (N)". */
+    assert(!strcmp(text("warnings"), "Pack OV; Cell OV") && !strcmp(text("protection"), "Charge OC; Charge UT; Low Capacity"));
+    assert(!strcmp(text("error"), "Voltage Error"));
+    {   /* every label, exactly as eg4_bms.cpp spells it (same documented differences) */
+        uint16_t m[21]; memcpy(m, l2, sizeof m);
+        m[7] = 0x0008; m[8] = 0x3FFF; m[9] = 0x3FFF; m[10] = 0x0017;
+        assert(pf_decode(&P, profile_block(&P, "live2"), d, regs(d, m, 21), &S));
+        assert(!strcmp(text("status"), "Charging Limited"));
+        assert(!strcmp(text("warnings"), "Pack OV; Cell OV; Pack UV; Cell UV; Charge OC; Discharge OC; Abnormal Temp; MOS Overheat; "
+                                         "Charge OT; Discharge OT; Charge UT; Discharge UT; Low Capacity; Float Stopped"));
+        assert(!strcmp(text("protection"), "Pack OV; Cell OV; Pack UV; Cell UV; Charge OC; Discharge OC; Abnormal Temp; MOS Overheat; "
+                                           "Charge OT; Discharge OT; Charge UT; Discharge UT; Low Capacity; Discharge SC"));
+        assert(!strcmp(text("error"), "Voltage Error; Temperature Error; Current Flow Error; Cell Unbalance"));
+        const char *st[] = { "Standby", "Charging", "Discharging", 0, "Protect" };
+        for (int k = 0; k < 5; k++) if (st[k]) {
+            m[7] = (uint16_t)k;
+            assert(pf_decode(&P, profile_block(&P, "live2"), d, regs(d, m, 21), &S) && !strcmp(text("status"), st[k]));
+        }
+        assert(pf_decode(&P, profile_block(&P, "live2"), d, regs(d, l2, 21), &S));   /* back to the first frame */
+    }
     assert(V("charging") == 0 && V("discharging") == 1);              /* 0x1410 & 0x0513: blocked from charging only */
     assert(V("temperature_1") == 25 && V("temperature_2") == -25 && V("temperature_3") == 26 && V("temperature_6") == 29);
     assert(near(V("full_capacity"), 200.0f));

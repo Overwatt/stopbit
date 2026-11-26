@@ -84,3 +84,13 @@ reject live1 if pack_voltage == 0
 
 A `profiles/<id>.txt` whose first statement is `profile <id> 1`; it is embedded at the next
 build, and `tests/test_builtin.c` checks it parses.
+
+## Differences from the ESPHome component (eg4-bms)
+
+`eg4-bms` follows github.com/RAR/esphome-eg4-bms: the same registers, entity ids, names,
+label text and display attributes. Three differences remain because the format cannot
+remove them: set bits are joined by "; " (the component uses ";"); the component prefixes
+status with "Heating+" when bit 15 is set, where the profile has heating as its own binary
+sensor; and an unknown status reads "Unknown (N)" where the component says "Unknown". The
+state_of_charge icon and the component's online status, bitmask and rejected-frame sensors
+are not carried over.
