@@ -288,9 +288,13 @@ int main(void)
     /* The gateway's own requests: replies to the callback, not to a client. */
     M.broadcast = false;
     Lk = 0;
+    assert(!modbus_local_pending(&M));
     assert(modbus_local(&M, 0x10, (const uint8_t[]){ 3, 0x00, 0x00, 0x00, 0x02 }, 5, 300, 0x0102));
+    assert(modbus_local_pending(&M));
     poll(GAP); assert(on_linec("10 03 00 00 00 02")); poll(GAP);
+    assert(modbus_local_pending(&M));                       /* on the line */
     hearc("10 03 04 14 c0 ff 85");
+    assert(!modbus_local_pending(&M));
     assert(Lk == 1 && Lst[0] == 0 && Ltag[0] == 0x0102 && Lpn[0] == 6 && !memcmp(Lpdu[0], (const uint8_t[]){ 3, 4, 0x14, 0xc0, 0xff, 0x85 }, 6));
     assert(An[0] == 0 && An[1] == 0);                       /* no client heard of it */
     /* Its own timeout: 300 ms, not the port's 1000. */

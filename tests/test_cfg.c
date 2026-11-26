@@ -48,6 +48,14 @@ int main(void)
     BAD("mqtt.host=10.0.0.5"); assert(strstr(err, "name, not its address"));     /* its certificate names the host */
     OK("mqtt.tls=0\nmqtt.host=10.0.0.5"); BAD("mqtt.tls=1");
     OK("mqtt.enabled=0\nmqtt.tls=1"); OK("mqtt.tls=0\nmqtt.host=");
+    { char o[32];                                                  /* UTF-8 passes; anything else >= 0x80 is '?' */
+      assert(json_str("\xC2\xB0" "C", o, sizeof o) && !strcmp(o, "\"\xC2\xB0" "C\""));
+      assert(json_str("\xE2\x82\xAC\xF0\x9F\x98\x80", o, sizeof o) && !strcmp(o, "\"\xE2\x82\xAC\xF0\x9F\x98\x80\""));
+      assert(json_str("a\xB0", o, sizeof o) && !strcmp(o, "\"a?\""));
+      assert(json_str("a\xC2", o, sizeof o) && !strcmp(o, "\"a?\""));
+      assert(json_str("\xC0\x80", o, sizeof o) && !strcmp(o, "\"??\""));
+      assert(json_str("\xF5\x80\x80\x80", o, sizeof o) && !strcmp(o, "\"????\""));
+      assert(json_str("\xE2\x82", o, sizeof o) && !strcmp(o, "\"??\"")); }
     { char o[32]; assert(json_str("a\nb\t\"\x01", o, sizeof o) && !strcmp(o, "\"a\\nb\\t\\\"?\"")); }   /* a file's line breaks survive */
     OK("# a settings file's note\nport3.baud=4800\n#port3.baud=x\n"); assert(c.port[2].baud == 4800);      /* notes are skipped */
     OK("port3.quiet_min=1\nport1.quiet_min=1440"); assert(cfg_quiet_min(&c, 2) == 1 && cfg_quiet_min(&c, 0) == 1440 && !cfg_quiet_min(&c, 1) && !cfg_quiet_min(&c, 3));

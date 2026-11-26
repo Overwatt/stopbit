@@ -59,7 +59,7 @@ static const profile_t *load(device_t *d, const char *id)
     if (free_ < 0) { snprintf(d->error, sizeof d->error, "More than %d different profiles are in use", LOADED); return NULL; }
     s_loaded[free_] = false;
     if (!profile_parse(&s_prof[free_], t, n, err, sizeof err)) {
-        snprintf(d->error, sizeof d->error, "Profile %s: %s", id, err);
+        snprintf(d->error, sizeof d->error, "Profile %.20s: %.40s", id, err);
         return NULL;
     }
     s_loaded[free_] = true;
@@ -85,7 +85,6 @@ void device_configure(const cfg_t *c)
         const port_cfg_t *p = &c->port[i];
         s_baud[i] = p->baud ? p->baud : 9600;
         snprintf(s_frame[i], sizeof s_frame[i], "%u%c%u", p->data_bits % 10u, p->parity == PARITY_EVEN ? 'E' : p->parity == PARITY_ODD ? 'O' : 'N', p->stop_bits % 10u);
-        s_port[i].busy = false;                /* a port re-init drops queued requests without a callback */
     }
     for (int i = 0; i < DEVS; i++) {
         device_t *d = &s_dev[i];
@@ -222,8 +221,14 @@ void device_poll(void)
                 any = true;
                 if (s_dev[i].p->turn_ms > turn) turn = s_dev[i].p->turn_ms;
             }
-        if (!any) continue;
         modbus_t *m = bridge_modbus_port(port);
+        if (!any) {                                  /* nothing of ours: no extra quiet, no use */
+            if (m) m->turn_us = 0;
+            s_port[port].use = 0;
+            s_port[port].busy_ms = 0;
+            s_port[port].win_at = now;
+            continue;
+        }
         for (int i = 0; i < DEVS; i++)               /* say why it is not polled, or that it is again */
             if (s_dev[i].p && s_dev[i].cfg.port == port + 1) {
                 char e[sizeof s_dev[i].error];
@@ -232,7 +237,15 @@ void device_poll(void)
                 if (strcmp(s_dev[i].error, e)) { memcpy(s_dev[i].error, e, sizeof e); s_dev[i].seq++; }
             }
         window(port, now);
-        if (!m) continue;
+        if (!m) {                                    /* keep what is overdue overdue, whatever the time */
+            for (int i = 0; i < DEVS; i++)
+                if (s_dev[i].p && s_dev[i].cfg.port == port + 1)
+                    for (int b = 0; b < s_dev[i].p->nblock; b++)
+                        if ((int32_t)(now - s_dev[i].due[b]) > 0) s_dev[i].due[b] = now;
+            s_port[port].busy = false;
+            continue;
+        }
+        if (s_port[port].busy && !modbus_local_pending(m)) s_port[port].busy = false;   /* dropped by a re-init */
         m->turn_us = (uint32_t)turn * 1000u;
         if (s_port[port].busy && now - s_port[port].since < LOST_MS) continue;
         s_port[port].busy = false;
@@ -261,7 +274,7 @@ size_t device_json(int i, char *out, size_t max)
     size_t n = 0;
     char s[3][80];
 #define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); \
-        if (w_ < 0 || (size_t)w_ >= max - n) return 0; n += (size_t)w_; } while (0)
+        if (w_ < 0 || (size_t)w_ >= max - n) { return 0; } n += (size_t)w_; } while (0)
     if (!d || !max) return 0;
     if (!json_str(d->cfg.label, s[0], sizeof s[0]) || !json_str(d->error, s[1], sizeof s[1]) || !json_str(d->why, s[2], sizeof s[2])) return 0;
     OUT("{\"n\":%d,\"profile\":\"%s\",\"name\":\"%s\",\"label\":%s,\"port\":%u,\"address\":%u,\"controls\":%s,"

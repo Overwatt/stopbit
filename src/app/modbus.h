@@ -82,6 +82,8 @@ bool modbus_from_client(modbus_t *m, int client, const uint8_t *d, size_t n, uin
 /* The gateway's own request: unit, PDU (function and data). Its reply or timeout goes to
  * io.local with `tag`. False: queue full, bad length, or unit not 1-247 (0 is a broadcast,
  * which has no reply). */
+/* True if any of the gateway's own requests is queued or on the line. */
+bool modbus_local_pending(const modbus_t *m);
 bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, uint16_t timeout_ms, uint32_t tag);
 /* Bytes heard on the line. */
 void modbus_from_line(modbus_t *m, const uint8_t *d, size_t n);

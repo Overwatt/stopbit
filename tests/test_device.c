@@ -20,7 +20,7 @@ static size_t line(void *ctx, const uint8_t *d, size_t n) { (void)ctx; memcpy(L 
 static void reply(void *ctx, int c, const uint8_t *d, size_t n) { (void)ctx; (void)c; (void)d; (void)n; }
 static void local(void *ctx, uint32_t tag, int st, const uint8_t *pdu, size_t n) { device_reply((int)(intptr_t)ctx, tag, st, pdu, n); }
 static int gone_n; static char gone_name[25];
-static void gone(int i, const device_t *d) { gone_n++; assert(i == 1); snprintf(gone_name, sizeof gone_name, "%s", d->cfg.name); }
+static void gone(int i, const device_t *d) { gone_n++; assert(i >= 0 && (i == 1 || gone_n > 1)); snprintf(gone_name, sizeof gone_name, "%s", d->cfg.name); }
 
 static void run(void) { device_poll(); modbus_poll(&M[1], t_now, 1000000, true); modbus_poll(&M[1], t_now, 1000000, true); }
 static void answer(const uint8_t *f, size_t n)             /* a frame without its CRC */
@@ -125,21 +125,28 @@ int main(void)
     device_configure(&c);
     assert(gone_n == 1 && !strcmp(gone_name, "p1") && device_get(1)->polls == 0 && known(0, "total_voltage"));
 
-    /* A request whose end never comes: the port is free again after 90 s. */
+    /* A request whose end never comes (still queued): the backstop frees the port after 90 s. */
     Ln = 0;
     t_now += 20000;
     device_poll();                                       /* queued */
-    M[1].qn = 0; M[1].state = MB_IDLE;                   /* ... and lost */
-    run(); assert(Ln == 0);
     t_now += 89000;
-    run(); assert(Ln == 0);
+    device_poll();
+    assert(M[1].qn == 1);
     t_now += 2000;
-    run(); assert(Ln == 8);
-
-    /* A port re-init drops queued requests without a callback: device_configure frees the port. */
-    Ln = 0;
+    device_poll();
+    assert(M[1].qn == 2);
     M[1].qn = 0; M[1].state = MB_IDLE;
+    run(); assert(Ln == 8);                              /* it polls on */
+    Ln = 0;
+
+    /* A configure with our request still on the line must not add another. */
+    Ln = 0;
     device_configure(&c);
+    t_now += 10000;
+    device_poll();
+    { int nl = 0; for (int q = 0; q < M[1].qn; q++) nl += M[1].q[q].client == MB_LOCAL; assert(nl == 1); }
+    /* A re-init drops the queue without a callback: the next poll polls again. */
+    M[1].qn = 0; M[1].state = MB_IDLE;
     t_now += 10000;
     run(); assert(Ln == 8);
     Ln = 0;
@@ -183,6 +190,28 @@ int main(void)
     assert(n && json_ok(j) && strstr(j, "\"name\":\"eg4m\"") && strstr(j, "\"total_voltage\""));
     for (size_t k = 0; k < n; k += 97) assert(!device_json(0, j, k));
     assert(device_json(2, j, sizeof j) > 0 && json_ok(j) && strstr(j, "No profile 'nope'") && !strstr(j, "\"values\""));
+
+    n = device_json(0, j, sizeof j);                                  /* the unit keeps its UTF-8 */
+    assert(n && strstr(j, ",\"\xC2\xB0" "C\"]") && !strstr(j, "??C"));
+
+    /* The port off for more than 2^31 ms: the device still polls when it is back. */
+    on[1] = false;
+    device_poll();
+    for (int k = 0; k < 3; k++) { t_now += 740000000u; device_poll(); }   /* 25.7 days */
+    on[1] = true;
+    M[1].qn = 0; M[1].state = MB_IDLE; Ln = 0;
+    run(); assert(Ln == 8);
+    Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
+
+    /* The last device on a port removed: no extra quiet, no line use. */
+    device_reply(1, tag(0, 0), -1, NULL, 0);
+    t_now += 61000;
+    device_poll();
+    assert(M[1].turn_us == 50000 && device_line_use(1) > 0);
+    for (int k = 0; k < 3; k++) c.dev[k].profile[0] = 0;
+    device_configure(&c);
+    device_poll();
+    assert(M[1].turn_us == 0 && device_line_use(1) == 0);
 
     /* A long bits text comes out whole. */
     {

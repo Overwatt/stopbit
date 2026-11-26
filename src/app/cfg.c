@@ -398,6 +398,16 @@ size_t json_str(const char *s, char *out, size_t max)
 #define PUT(ch) do { if (n + 1 >= max) return 0; out[n++] = (ch); } while (0)
     PUT('"');
     for (; *s; s++) {
+        unsigned char u = (unsigned char)*s;
+        if (u >= 0xC2 && u <= 0xF4) {                      /* a well-formed UTF-8 sequence passes as it is */
+            int k = u >= 0xF0 ? 3 : u >= 0xE0 ? 2 : 1, j = 1;
+            while (j <= k && ((unsigned char)s[j] & 0xC0) == 0x80) j++;
+            if (j > k) {
+                for (j = 0; j <= k; j++) PUT(s[j]);
+                s += k;
+                continue;
+            }
+        }
         if (*s == '"' || *s == '\\') PUT('\\');
         if (*s == '\n' || *s == '\r' || *s == '\t') { PUT('\\'); PUT(*s == '\n' ? 'n' : *s == '\r' ? 'r' : 't'); continue; }
         PUT((*s >= 0x20 && *s < 0x7f) ? *s : '?');

@@ -143,6 +143,12 @@ bool modbus_local(modbus_t *m, uint8_t unit, const uint8_t *pdu, uint16_t len, u
     return true;
 }
 
+bool modbus_local_pending(const modbus_t *m)
+{
+    for (int i = 0; i < m->qn; i++) if (m->q[i].client == MB_LOCAL) return true;
+    return false;
+}
+
 void modbus_from_line(modbus_t *m, const uint8_t *d, size_t n)
 {
     if (m->state != MB_WAITING) return;                 /* our own echo, or nobody asked */
