@@ -52,7 +52,10 @@ the gateway and is reached through signed requests, so there is no telnet port.
 sent, errors), kept in memory and lost on restart. Noise is not counted as an error.
 
 The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no password. The
-temperature is the processor's own sensor, so it reads above room temperature.
+temperature is the processor's own sensor, so it reads above room temperature. `loop` is the
+main loop's longest pause, recently (10 to 20 s) and since the start: which step of the pass
+took longest and how much of that was AES-GCM, and which API reply took longest to make.
+`aes` says whether the crypto engine encrypts TLS records ([HTTPS.md](HTTPS.md)).
 
 ## Updating from the web page
 

@@ -44,6 +44,10 @@ between requests for a minute; idle ones give way to new ones.
   1 ms between passes of the main loop (`src/app/worker.c`). It is cooperative: the calls it
   spends its time in are renamed at build time to ones that yield (`CMakeLists.txt`).
 - **Records** are handled in the main loop, pieces of an upload as fast as flash takes them.
+  Their AES-GCM runs on the processor's crypto engine (`src/app/gcm_hw.c`, for MQTT over TLS
+  too): 0.09 ms in the busiest pass instead of 1.1 ms in software. At every start the engine is checked against the GCM paper's test case 4 and 96
+  random cases each way against mbedTLS in software; if it ever disagrees, or later stops
+  answering, software does it. The Hardware page shows which.
 - **Storage:** keys and certificate in two copies at `0x0F4000` / `0x0F6000` of external
   flash 1. The flash is not encrypted: whoever holds the board has the key. `/flash` in the
   app blanks that range; the loader's does not, so treat loader dumps as secret.
@@ -59,6 +63,7 @@ between requests for a minute; idle ones give way to new ones.
 | On the gateway: full handshake, resumed, four at once | 91 ms in 67 slices, 4.8 ms, 364 ms (mbedTLS 3.6: 77, 2.2, 305) |
 | On the gateway: page (25 KB), status, on an open connection | 13 ms, 1.6 ms |
 | On the gateway: longest pause of the main loop meanwhile | 3.9 ms; saves no longer pause the ports |
+| With a browser open on it, 2026-11-26 | 5.8 to 7.1 ms every 30 s, mostly reading the event log from flash; 2.0 ms once the newest events were kept in memory and AES-GCM moved to the engine |
 | On the gateway: longest slice, arithmetic stack | 2.2 ms, 2.2 KB of 12 KB |
 | Let's Encrypt's chain, November 2026 | 4 certificates, 3.4 KB; up to 4 KB can be stored and sent |
 
