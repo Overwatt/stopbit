@@ -139,6 +139,9 @@ int main(void)
     for (size_t k = 0; k < l; k++) assert(cfg_json(&c, j, k) == 0);     /* never overruns */
     /* Devices: devN.* (N = 1..16). Their port need not be a Modbus gateway (checked when they run). */
     OK("port2.enabled=1\nport2.mode=modbus\nport2.local_port=502");
+    OK("port2.local_port=0");                             /* polled only: no TCP */
+    BAD("port1.local_port=0");                            /* a TCP server needs one */
+    OK("port2.local_port=502");
     OK("dev1.profile=eg4-bms\ndev1.name=eg4m\ndev1.port=2\ndev1.address=16");
     assert(!strcmp(c.dev[0].profile, "eg4-bms") && !strcmp(c.dev[0].name, "eg4m") && c.dev[0].port == 2 && c.dev[0].address == 16);
     BAD("dev2.profile=eg4-bms");                                                   /* no name */

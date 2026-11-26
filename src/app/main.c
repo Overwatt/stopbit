@@ -20,6 +20,7 @@
 #include "events.h"
 #include "fw_id.h"
 #include "bridge.h"
+#include "device.h"
 #include "api.h"
 
 #define HEALTHY_MS  30000u     /* uptime that clears the crash counter */
@@ -102,6 +103,7 @@ int main(void)
     CRUMB(1); net_init();        /* marks the Ethernet memory uncacheable */
     CRUMB(2); SCB_EnableDCache();    /* nothing else here uses DMA */
     CRUMB(3); bridge_init();
+    device_init();                   /* before any configure: api_init applies the settings */
     CRUMB(4); api_init();
     extflash_meanwhile(meanwhile);
     CRUMB(5); http_init();
@@ -117,6 +119,7 @@ int main(void)
         STEP(13, "https"); tls_poll();
         STEP(14, "renewal"); acme_poll();
         STEP(15, "bridge"); bridge_poll();
+        STEP(19, "devices"); device_poll();
         STEP(16, "api"); api_poll();
         STEP(17, "supervise"); supervise(); clock_poll();
         STEP(18, "events"); events_poll();

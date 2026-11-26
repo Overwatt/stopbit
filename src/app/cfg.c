@@ -340,7 +340,7 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             }
             continue;                                       /* local port unused */
         }
-        if (!p->local_port) {
+        if (!p->local_port && p->mode != MODE_MODBUS) {
             snprintf(err, errlen, "Port %d: enter a local port", i + 1);
             return false;
         }
@@ -360,7 +360,7 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
         }
         for (int j = 0; j < i; j++) {
             const port_cfg_t *q = &c->port[j];
-            if (q->enabled && q->mode != MODE_CLIENT && (q->mode == MODE_UDP) == (p->mode == MODE_UDP) &&
+            if (q->enabled && q->mode != MODE_CLIENT && p->local_port && (q->mode == MODE_UDP) == (p->mode == MODE_UDP) &&
                 q->local_port == p->local_port) {
                 snprintf(err, errlen, "Ports %d and %d both use local port %u", j + 1, i + 1, p->local_port);
                 return false;

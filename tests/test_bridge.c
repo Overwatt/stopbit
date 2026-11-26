@@ -31,6 +31,9 @@ size_t uart485_tx_room(int p) { (void)p; return 4096; }
 static bool busy;                                               /* the line takes nothing */
 size_t uart485_write(int p, const uint8_t *b, size_t n) { if (busy) return 0; memcpy(L[p] + Ln[p], b, n); Ln[p] += n; return n; }
 bool uart485_tx_idle(int p) { (void)p; return true; }
+#include "device.h"
+static uint32_t dr_tag; static int dr_st = 9; static size_t dr_n;
+void device_reply(int port, uint32_t tag, int st, const uint8_t *pdu, size_t n) { (void)port; (void)pdu; dr_tag = tag; dr_st = st; dr_n = n; }
 
 /* ---- the event log: counted ---- */
 static int ev_away, ev_alert;
@@ -420,6 +423,19 @@ int main(void)
     bridge_poll();
     assert(mr->closed);
     set("port2.listen_only=0\nport2.enabled=0\nport2.access=");
+
+    /* A Modbus port polled only: no listener, ready; the engine's requests reach the line,
+     * and their replies reach device_reply(). */
+    cfg_defaults(&C);
+    set("port3.enabled=1\nport3.mode=modbus\nport3.local_port=0");
+    assert(!strcmp(info(2).state, "ready") && bridge_modbus_port(2) && !bridge_modbus_port(0) && !bridge_modbus_port(3));
+    assert(modbus_local(bridge_modbus_port(2), 5, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 42));
+    bridge_poll();
+    assert(lineb(2, "05 03 00 00 00 01 85 8e"));
+    heardb(2, "05 03 02 00 07 08 46");
+    assert(dr_tag == 42 && dr_st == 0 && dr_n == 4);
+    set("port3.enabled=0\nport3.mode=server\nport3.local_port=4003");
+    assert(!bridge_modbus_port(2));
 
     /* the widest state JSON still fits what /api/state leaves for it */
     cfg_defaults(&C); set("port1.enabled=1");
