@@ -41,6 +41,7 @@ int main(void)
     { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"topic\":\"a.b-c_d/e1\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "mqtt.topic=a.b-c_d/e1\n"));
       static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !strcmp(t.more.topic, "a.b-c_d/e1")); }
     OK("mqtt.topic="); assert(!c.more.topic[0]);
+    { char o[32]; assert(json_str("a\nb\t\"\x01", o, sizeof o) && !strcmp(o, "\"a\\nb\\t\\\"?\"")); }   /* a file's line breaks survive */
     OK("# a settings file's note\nport3.baud=4800\n#port3.baud=x\n"); assert(c.port[2].baud == 4800);      /* notes are skipped */
     OK("port3.quiet_min=1\nport1.quiet_min=1440"); assert(cfg_quiet_min(&c, 2) == 1 && cfg_quiet_min(&c, 0) == 1440 && !cfg_quiet_min(&c, 1) && !cfg_quiet_min(&c, 3));
     BAD("port1.quiet_min=4"); BAD("port1.quiet_min=-1"); BAD("port1.quiet_min="); BAD("port5.quiet_min=1");

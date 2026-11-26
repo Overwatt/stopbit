@@ -315,6 +315,7 @@ size_t json_str(const char *s, char *out, size_t max)
     PUT('"');
     for (; *s; s++) {
         if (*s == '"' || *s == '\\') PUT('\\');
+        if (*s == '\n' || *s == '\r' || *s == '\t') { PUT('\\'); PUT(*s == '\n' ? 'n' : *s == '\r' ? 'r' : 't'); continue; }
         PUT((*s >= 0x20 && *s < 0x7f) ? *s : '?');
     }
     PUT('"');
