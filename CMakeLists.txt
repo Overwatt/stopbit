@@ -167,8 +167,13 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/web_page.h
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/embed.py
             ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_BINARY_DIR}/gen/web_page.h
     DEPENDS ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/tools/embed.py)
+file(GLOB PROFILE_TXT CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/profiles/*.txt")
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/profiles_gen.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/embed_profiles.py
+            ${CMAKE_BINARY_DIR}/gen/profiles_gen.h ${PROFILE_TXT}
+    DEPENDS ${PROFILE_TXT} ${CMAKE_SOURCE_DIR}/tools/embed_profiles.py)
 n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
-    ${CMAKE_BINARY_DIR}/gen/web_page.h
+    ${CMAKE_BINARY_DIR}/gen/web_page.h ${CMAKE_BINARY_DIR}/gen/profiles_gen.h
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
 target_include_directories(app.elf SYSTEM PRIVATE ${MBEDTLS_PUBLIC})
 target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h" TF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h")

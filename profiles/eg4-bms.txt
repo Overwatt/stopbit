@@ -1,0 +1,66 @@
+# EG4 LifePower4 / LL battery BMS, over RS485 (Modbus RTU, function 3).
+# From github.com/RAR/esphome-eg4-bms: registers as eg4_bms.cpp reads them, entity names
+# as its esp32-example.yaml has them (so devN.ids=esphome, prefix eg4_bms, matches).
+# The master pack answers at 0x10, the others at 0x01-0x0F (DIP switches).
+profile eg4-bms 1
+name "LifePower4 / LL"
+maker "EG4"
+line 9600 8N1
+stale 5
+timeout 1000ms
+turnaround 50ms                     # packs miss a request that starts within a few ms of another's reply
+
+block live1    hold 0x0000 18 10s
+block live2    hold 0x0012 21 10s
+block model    hold 0x0069 11 15m info
+block firmware hold 0x0075 3  15m info
+block serial   hold 0x0078 8  15m info
+
+sensor total_voltage      "Total voltage"      live1 0x0000 u16 *0.01 V dc=voltage sc=measurement
+sensor current            "Current"            live1 0x0001 s16 *0.01 A dc=current sc=measurement
+sensor cell_voltage_1..16 "Cell voltage #"     live1 0x0002 u16 *0.001 V dc=voltage sc=measurement
+
+sensor pcb_temperature    "Pcb temperature"    live2 0x0012 s16 °C dc=temperature sc=measurement
+sensor avg_temperature    "Avg temperature"    live2 0x0013 s16 °C dc=temperature sc=measurement
+sensor max_temperature    "Max temperature"    live2 0x0014 s16 °C dc=temperature sc=measurement
+sensor remaining_capacity "Remaining capacity" live2 0x0015 u16 Ah sc=measurement
+sensor max_charge_current "Max charge current" live2 0x0016 u16 A dc=current sc=measurement
+sensor state_of_health    "State of health"    live2 0x0017 u16 % sc=measurement
+sensor state_of_charge    "State of charge"    live2 0x0018 u16 % dc=battery sc=measurement
+text   status             "Status"             live2 0x0019 enum mask=0x000F 0=Standby 1=Charging 2=Discharging 4=Protect 8="Charging limited"
+binary heating            "Heating"            live2 0x0019 bit 15 dc=heat
+text   warnings           "Warnings"           live2 0x001A bits 0="Pack OV" 1="Cell OV" 2="Pack UV" 3="Cell UV" 4="Charge OC" 5="Discharge OC" 6="Abnormal temp" 7="MOS overheat" 8="Charge OT" 9="Discharge OT" 10="Charge UT" 11="Discharge UT" 12="Low capacity" 13="Float stopped"
+text   protection         "Protection"         live2 0x001B bits 0="Pack OV" 1="Cell OV" 2="Pack UV" 3="Cell UV" 4="Charge OC" 5="Discharge OC" 6="Abnormal temp" 7="MOS overheat" 8="Charge OT" 9="Discharge OT" 10="Charge UT" 11="Discharge UT" 12="Low capacity" 13="Discharge SC"
+text   error              "Error"              live2 0x001C bits 0="Voltage error" 1="Temperature error" 2="Current flow error" 4="Cell unbalance"
+sensor cycle_count        "Cycle count"        live2 0x001D u32 sc=total_increasing
+sensor temperature_1      "Temperature 1"      live2 0x0021 s8h °C dc=temperature sc=measurement
+sensor temperature_2      "Temperature 2"      live2 0x0021 s8l °C dc=temperature sc=measurement
+sensor temperature_3      "Temperature 3"      live2 0x0022 s8h °C dc=temperature sc=measurement
+sensor temperature_4      "Temperature 4"      live2 0x0022 s8l °C dc=temperature sc=measurement
+sensor temperature_5      "Temperature 5"      live2 0x0023 s8h °C dc=temperature sc=measurement
+sensor temperature_6      "Temperature 6"      live2 0x0023 s8l °C dc=temperature sc=measurement
+sensor full_capacity      "Full capacity"      live2 0x0025 u16 *0.1 Ah sc=measurement
+
+text   model              "Model"              model    0x0069 ascii 11 diag
+text   firmware_version   "Firmware version"   firmware 0x0075 ascii 3 diag
+text   serial_number      "Serial number"      serial   0x0078 ascii 8 diag
+
+calc power                "Power"              mul total_voltage current W dc=power sc=measurement prec=1
+calc charging_power       "Charging power"     pos power W dc=power sc=measurement prec=1
+calc discharging_power    "Discharging power"  neg power W dc=power sc=measurement prec=1
+calc min_cell_voltage     "Min cell voltage"     min cell_voltage_1..16 within 0.001..4.999 V dc=voltage sc=measurement
+calc max_cell_voltage     "Max cell voltage"     max cell_voltage_1..16 within 0.001..4.999 V dc=voltage sc=measurement
+calc delta_cell_voltage   "Delta cell voltage"   delta cell_voltage_1..16 within 0.001..4.999 V dc=voltage sc=measurement
+calc cell_average_voltage "Average cell voltage" avg cell_voltage_1..16 within 0.001..4.999 V dc=voltage sc=measurement
+calc min_voltage_cell     "Min voltage cell"     argmin cell_voltage_1..16 within 0.001..4.999
+calc max_voltage_cell     "Max voltage cell"     argmax cell_voltage_1..16 within 0.001..4.999
+calc cell_count           "Cell count"           count cell_voltage_1..16 within 0.001..4.999 diag
+# Charging is blocked by pack and cell OV, charge OC, OT, UT; discharging by pack and
+# cell UV, discharge OC, OT, UT and short circuit (eg4_bms.cpp).
+calc charging             "Charging"             nobits protection 0x0513
+calc discharging          "Discharging"          nobits protection 0x2A2C
+
+reject live1 if zero
+reject live1 if total_voltage == 0
+reject live2 if zero
+reject live2 if zero remaining_capacity state_of_health full_capacity
