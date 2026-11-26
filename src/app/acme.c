@@ -173,10 +173,14 @@ static void wait_s(uint32_t s)
     while (HAL_GetTick() - t0 < s * 1000u) worker_yield();
 }
 
+/* The path of a URL that Let's Encrypt gave, if it is on `host`; nothing that could
+ * break the request line (a space, a line break) gets through. */
 static const char *path_of(const char *url, const char *host)
 {
-    const char *p = strstr(url, host);
-    return p ? p + strlen(host) : NULL;
+    size_t n = strlen(host);
+    if (strncmp(url, "https://", 8) || strncmp(url + 8, host, n) || url[8 + n] != '/') return NULL;
+    for (const char *c = url + 8 + n; *c; c++) if ((unsigned char)*c <= ' ' || *c == 0x7f) return NULL;
+    return url + 8 + n;
 }
 
 static const char *get_nonce(job_t *j)
