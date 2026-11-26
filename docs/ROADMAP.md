@@ -73,7 +73,8 @@ flash and emergencies. See [NETWORK-UPDATE.md](NETWORK-UPDATE.md).
 - [ ] Modbus ports without TCP: only the devices use the line
       ([design](superpowers/specs/2026-11-26-modbus-tcp-off-design.md)).
 - [ ] Device profiles, phase 2: controls (number, select, switch, button over MQTT);
-      SRNE inverter and SmartGen HSC941 profiles; uploaded profiles.
+      SRNE inverter and SmartGen HSC941 profiles; uploaded profiles
+      ([phase 1 follow-ups](superpowers/specs/2026-11-26-device-profiles-followups.md)).
 - [ ] Device profiles, phase 3: a JBD-protocol driver; Ecoworthy BMS.
 - [ ] Embedded scripting (Lua / MicroPython) for edge logic.
 
