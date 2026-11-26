@@ -168,9 +168,12 @@ static bool range(const char *t, char *base, size_t bmax, int *from, int *to)
     if (d == dd || d == t || (size_t)(d - t) >= bmax) return false;
     memcpy(base, t, (size_t)(d - t));
     base[d - t] = 0;
-    *from = (int)strtol(d, NULL, 10);
-    *to = (int)strtol(dd + 2, &e, 10);
-    return !*e && e != dd + 2 && *to >= *from && *to - *from < 64;
+    if (dd - d > 4) return false;                      /* numbers of up to 4 digits: no overflow */
+    long lo = strtol(d, NULL, 10), hi = strtol(dd + 2, &e, 10);
+    if (*e || e == dd + 2 || e - (dd + 2) > 4 || hi < lo || hi - lo >= 64) return false;
+    *from = (int)lo;
+    *to = (int)hi;
+    return true;
 }
 
 static pf_field_t *field_new(ps_t *s, const char *id, const char *name)
@@ -247,8 +250,12 @@ static bool mods(ps_t *s, pf_field_t *f, int from, unsigned allow)
         } else if (!strcmp(t, "within") && (allow & M_WITHIN)) {
             char *dd = i + 1 < s->ntok ? strstr(s->tok[i + 1], "..") : NULL;
             if (!dd) return fail(s, "within needs lo..hi");
-            *dd = 0;
-            if (!num_f(s->tok[i + 1], &f->lo) || !num_f(dd + 2, &f->hi) || f->hi < f->lo) return fail(s, "within needs lo..hi");
+            char lo[24];
+            size_t ln = (size_t)(dd - s->tok[i + 1]);
+            if (ln >= sizeof lo) return fail(s, "within needs lo..hi");
+            memcpy(lo, s->tok[i + 1], ln);
+            lo[ln] = 0;
+            if (!num_f(lo, &f->lo) || !num_f(dd + 2, &f->hi) || f->hi < f->lo) return fail(s, "within needs lo..hi");
             f->flags |= PFF_WITHIN;
             i++;
         } else if ((allow & M_UNIT) && !unit && !keyword(t) && t[0] != '"' && !strchr(t, '=') && strlen(t) <= 15) {

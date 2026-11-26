@@ -81,6 +81,10 @@ int main(void)
     assert(P.nreject == 3 && P.reject[0].kind == RJ_ZERO && P.reject[1].kind == RJ_ZEROS && P.reject[1].nfield == 2 &&
            P.reject[2].kind == RJ_CMP && P.reject[2].op == OP_GT && P.reject[2].k == 100.0f && P.reject[2].block == 1);
 
+    /* A list calc with within: every field gets the range. */
+    if (!parse(HEAD "sensor a1..2 \"A #\" b 0x10 u16\ncalc s1..2 \"S #\" sum a1 a2 within 0..9\n")) { puts(err); assert(0); }
+    assert(F("s1")->lo == 0 && F("s1")->hi == 9 && F("s2")->hi == 9 && (F("s2")->flags & PFF_WITHIN));
+
     /* Mistakes, each with its line. */
     bad("", "the profile is empty");
     bad("# nothing\n\n", "the profile is empty");
@@ -108,6 +112,10 @@ int main(void)
     bad(HEAD "sensor x \"X\" b 0x10 u16 *zz\n", "line 3: bad scale '*zz'");
     bad(HEAD "sensor x \"X\" b 0x10 u16 V A\n", "line 3: unknown word 'A'");
     bad(HEAD "sensor c1..4 \"Cell\" b 0x10 u16\n", "line 3: a list's name needs # for its number");
+    bad(HEAD "sensor c5..3 \"C #\" b 0x10 u16\n", "line 3: bad id");
+    bad(HEAD "sensor c3..x \"C #\" b 0x10 u16\n", "line 3: bad id");
+    bad(HEAD "sensor c3.. \"C #\" b 0x10 u16\n", "line 3: bad id");
+    bad(HEAD "sensor c2147483647..2147483647 \"C #\" b 0x10 u16\n", "line 3: bad id");
     bad(HEAD "sensor x \"X\" b 0x10 coil\n", "line 3: coils are read from a coil or discrete block");
     bad(HEAD "binary x \"X\" b 0x10 bit 16\n", "line 3: bit must be 0 to 15");
     bad(HEAD "binary x \"X\" b 0x10 u16 >= 2\n", "line 3: unknown comparison '>='");
