@@ -160,7 +160,9 @@ As the gateway's own: `HOST` is the base topic, `HOST/status` the gateway's avai
 - **Discovery:** one retained config per entity, `homeassistant/<component>/HOST_<name>/<field>/config`,
   sent a few per pass after connecting (EG4 master and 15 packs: about 900). Each device is
   an HA device with the profile's maker and model, `via_device` the gateway. `unique_id`
-  `HOST_<name>_<field>`. The entity ID suggested: `n540_<name>_<field>`, or with
+  `HOST_<name>_<field>`, or with `devN.ids=esphome` `HOST_<name>_<prefix>_<field>` (a switch of
+  naming, or a new prefix, is then a new entity to HA and takes the free entity ID rather than
+  the registry restoring the old one). Templates read `value_json['<field>']`. The entity ID suggested: `n540_<name>_<field>`, or with
   `devN.ids=esphome` `<prefix>_<name as ESPHome makes it>` (lower case, other characters
   `_`). Profiles take their entity names from the component's example YAML, so these match
   an ESP32 set up from it; a renamed entity there will not match. Removing or renaming a device clears

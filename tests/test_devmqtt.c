@@ -73,7 +73,7 @@ int main(void)
            strstr(tv, "\"state_class\":\"measurement\"") && strstr(tv, "\"suggested_display_precision\":2") &&
            strstr(tv, "\"name\":\"EG4 master\"") && strstr(tv, "\"manufacturer\":\"EG4\""));
     const char *ht = find("homeassistant/binary_sensor/n540-test_eg4m/heating/config");
-    assert(strstr(ht, "'ON' if value_json.heating else 'OFF'") && !strstr(ht, "device_class"));   /* the profile gives heating none (as the ESPHome component) */
+    assert(strstr(ht, "'ON' if value_json['heating'] else 'OFF'") && !strstr(ht, "device_class"));   /* the profile gives heating none (as the ESPHome component) */
     assert(strstr(find("homeassistant/sensor/n540-test_eg4m/min_voltage_cell/config"), "\"entity_category\":\"diagnostic\""));
     assert(!strcmp(find("solar/dev/eg4m/status"), "online"));
     const char *s = find("solar/dev/eg4m/state");
@@ -130,6 +130,15 @@ int main(void)
     assert(strstr(find("homeassistant/sensor/n540-test_eg4m/total_voltage/config"), "\"default_entity_id\":\"sensor.eg4_bms_total_voltage\""));
     assert(strstr(find("homeassistant/binary_sensor/n540-test_eg4m/heating/config"), "\"default_entity_id\":\"binary_sensor.eg4_bms_heating\""));
     assert(strstr(find("homeassistant/sensor/n540-test_eg4m/cell_voltage_3/config"), "\"default_entity_id\":\"sensor.eg4_bms_cell_voltage_3\""));
+
+    {   /* esphome ids: the unique_id carries the prefix, so HA treats it as a new entity */
+        const char *tv2 = find("homeassistant/sensor/n540-test_eg4m/total_voltage/config");
+        assert(strstr(tv2, "\"unique_id\":\"n540-test_eg4m_eg4_bms_total_voltage\"") && !strstr(tv2, "\"unique_id\":\"n540-test_eg4m_total_voltage\""));
+        int emptied = 0;                                    /* the old config (own ids) was emptied first */
+        for (int k = 0; k < Pn; k++) emptied += !strcmp(Pb[k].topic, "homeassistant/sensor/n540-test_eg4m/total_voltage/config") && !Pb[k].payload[0];
+        assert(emptied == 1);
+        assert(strstr(tv2, "value_json['total_voltage']") && !strstr(tv2, "value_json."));
+    }
 
     /* Removed: every config, the state and the status emptied. */
     int nf = d->p->nfield;

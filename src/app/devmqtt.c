@@ -54,21 +54,22 @@ static size_t config(char *b, size_t max, const device_t *d, int fi, const char 
     const profile_t *p = d->p;
     const pf_field_t *f = &p->field[fi];
     const char *id = pf_str(p, f->id);
-    char nm[96], dn[80], mk[64], md[96], un[40], ent[80], own[40];
+    char nm[96], dn[80], mk[64], md[96], un[40], ent[80], own[40], pre[sizeof d->cfg.prefix + 1] = "";
     size_t n = 0;
     bool bin = f->kind == PF_BINARY || f->kind == PF_CALCBIN;
     if (!json_str(pf_str(p, f->name), nm, sizeof nm) || !json_str(d->cfg.label[0] ? d->cfg.label : d->cfg.name, dn, sizeof dn) ||
         !json_str(pf_str(p, p->maker), mk, sizeof mk) || !json_str(pf_str(p, p->name), md, sizeof md) ||
         !json_str(pf_str(p, f->unit), un, sizeof un)) return 0;
+    if (d->cfg.ids) snprintf(pre, sizeof pre, "%s_", d->cfg.prefix);   /* ESPHome ids: a new unique_id, so HA gives the ESP32's entity id */
     if (d->cfg.ids) object(ent, sizeof ent, d->cfg.prefix, pf_str(p, f->name));
     else { snprintf(own, sizeof own, "n540_%s", d->cfg.name); object(ent, sizeof ent, own, id); }
-    ADD("{\"~\":\"%s/dev/%s\",\"name\":%s,\"unique_id\":\"%s_%s_%s\",\"default_entity_id\":\"%s.%s\","
+    ADD("{\"~\":\"%s/dev/%s\",\"name\":%s,\"unique_id\":\"%s_%s_%s%s\",\"default_entity_id\":\"%s.%s\","
         "\"availability\":[{\"topic\":\"%s/status\"},{\"topic\":\"~/status\"},"
-        "{\"topic\":\"~/state\",\"value_template\":\"{{ 'online' if value_json.%s is not none else 'offline' }}\"}],"
+        "{\"topic\":\"~/state\",\"value_template\":\"{{ 'online' if value_json['%s'] is not none else 'offline' }}\"}],"
         "\"availability_mode\":\"all\",\"state_topic\":\"~/state\"",
-        base, d->cfg.name, nm, host, d->cfg.name, id, comp(f), ent, base, id);
-    if (bin) ADD(",\"value_template\":\"{{ 'ON' if value_json.%s else 'OFF' }}\"", id);
-    else ADD(",\"value_template\":\"{{ value_json.%s }}\"", id);
+        base, d->cfg.name, nm, host, d->cfg.name, pre, id, comp(f), ent, base, id);
+    if (bin) ADD(",\"value_template\":\"{{ 'ON' if value_json['%s'] else 'OFF' }}\"", id);
+    else ADD(",\"value_template\":\"{{ value_json['%s'] }}\"", id);
     if (f->unit) ADD(",\"unit_of_measurement\":%s", un);
     if (f->dc) ADD(",\"device_class\":\"%s\"", pf_str(p, f->dc));
     if (f->sc) ADD(",\"state_class\":\"%s\"", pf_str(p, f->sc));
