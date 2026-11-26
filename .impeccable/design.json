@@ -772,7 +772,7 @@
    {
     "name": "colour-change",
     "value": ".15s",
-    "purpose": "Colour on hover and press: buttons, stations, field feet, tabs. Removed under reduced motion."
+    "purpose": "Colour on hover and press: buttons, stations, field feet. Removed under reduced motion."
    }
   ],
   "breakpoints": [
@@ -844,12 +844,12 @@
    "css": ".ds-c{font:16px/1.45 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;display:flex;gap:12px;align-items:flex-start;color:var(--ink,#0b2230);max-width:62ch}.ds-c input{width:20px;height:20px;margin:2px 0 0;flex:none;accent-color:var(--accent,#0d4a68)}.ds-c input:focus-visible{outline:2px solid var(--sea,#1683b8);outline-offset:2px}.ds-c span span{display:block;color:var(--soft,#2d5468);font-size:.875rem}"
   },
   {
-   "name": "Tabs",
+   "name": "Station groups",
    "kind": "nav",
-   "refersTo": "nav-link",
-   "description": "Pages, on the shell.",
-   "html": "<nav class=\"ds-n\"><a href=\"#\" aria-current=\"page\">Status</a><a href=\"#\">Network</a><a href=\"#\">Hardware</a></nav>",
-   "css": ".ds-n{font:16px/1.45 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;display:flex;gap:6px;padding:0 16px;background:var(--shell,#0d4a68)}.ds-n a{color:var(--shell-soft,#bfe0ee);font-weight:600;text-decoration:none;padding:14px 10px 11px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}.ds-n a:hover{color:#fff;border-color:var(--shell-soft,#bfe0ee)}.ds-n a[aria-current]{color:#fff;border-color:#fff}.ds-n a:focus-visible{outline:2px solid #fff;outline-offset:-2px}"
+   "refersTo": "station-group",
+   "description": "The list is the navigation: ports, then config.",
+   "html": "<div class=\"ds-g\"><h2>Ports</h2><a href=\"#\" aria-current=\"true\"><b>1 TigoBus</b><em>Idle</em></a><a href=\"#\"><b>2 Port 2</b><em>Off</em></a><h2>Config</h2><a href=\"#\"><b>MQTT</b><em>Connected</em></a></div>",
+   "css": ".ds-g{font:16px/1.45 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-variant-numeric:tabular-nums;max-width:360px}.ds-g h2{font-size:.875rem;font-weight:650;color:var(--soft,#2d5468);margin:22px 16px 6px}.ds-g h2:first-child{margin-top:0}.ds-g a{display:flex;justify-content:space-between;min-height:50px;align-items:center;padding:8px 16px;margin-bottom:4px;border-radius:8px;color:var(--ink,#0b2230);text-decoration:none;transition:background .15s}.ds-g a[aria-current]{background:var(--sheet,#ffffff)}.ds-g b{font-weight:650;font-size:1.0625rem}.ds-g em{font-style:normal;color:var(--soft,#2d5468)}.ds-g a:focus-visible{outline:2px solid var(--sea,#1683b8);outline-offset:2px}"
   },
   {
    "name": "Traffic chart",

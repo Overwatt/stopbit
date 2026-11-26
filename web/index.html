@@ -23,8 +23,6 @@ body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 system-ui
 header{background:var(--shell);color:#fff}header .in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 30px;min-height:72px;padding:10px 32px}
 header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
 .logo{width:40px;height:40px;flex:none;margin-right:-18px}
-nav{display:flex;gap:6px;align-self:stretch}nav a{color:var(--shell-soft);font-weight:600;text-decoration:none;padding:14px 10px 11px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
-nav a:hover{color:#fff;border-color:var(--shell-soft)}nav a[aria-current]{color:#fff;border-color:#fff}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
 .meta{color:var(--shell-soft);margin:0}.grow{flex:1}
 header button,header button.primary{background:#fff;color:#0d4a68}header button:hover,header button.primary:hover,header button:active,header button.primary:active{background:var(--shell-soft)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
@@ -47,6 +45,7 @@ aside{padding:30px 20px 30px 32px}
 .vd{min-height:152px}#verdict,#vsub{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 aside h1 a{color:inherit;text-decoration:none}aside h1 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 #vsub{margin:8px 0 20px;font-size:1.0625rem;color:var(--soft)}
+.gh{font-size:.875rem;font-weight:650;letter-spacing:0;color:var(--soft);margin:22px 16px 6px}.gh:first-child{margin-top:0}
 .it{display:grid;grid-template-columns:18px minmax(4.5rem,1fr) fit-content(72%);gap:12px;align-items:center;min-height:50px;padding:8px 16px;margin-bottom:4px;border-radius:8px;color:var(--ink);text-decoration:none;transition:background .15s}
 .it b{font-size:1.0625rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.it em{font-style:normal;color:var(--soft);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .it:hover{background:color-mix(in srgb,var(--sheet) 55%,transparent)}.it.bad{background:var(--bad-bg);color:var(--bad)}.it.bad em{color:var(--bad)}.it.warn em{color:var(--warn)}
@@ -65,6 +64,9 @@ main>div{max-width:1000px}
 .chart .grid{stroke:var(--rule)}.chart text{fill:var(--soft);font-size:13px}.chart .ln{fill:none;stroke:var(--sea);stroke-width:2;stroke-linejoin:round}.chart .ar{fill:var(--sea);opacity:.14}.chart .er{fill:var(--warn)}.chart .xh{stroke:var(--soft)}.chart .pt{fill:var(--sea);stroke:var(--well);stroke-width:2}
 .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--sheet);border-radius:6px;padding:5px 10px;font-size:.875rem;white-space:nowrap;transform:translateX(-50%)}
 details{margin-top:12px;color:var(--soft)}summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:600}
+details.more{margin-top:30px;color:inherit}
+details.more>summary{font-size:1.25rem;font-weight:750;letter-spacing:-.01em;line-height:1.1}
+details.more[open]>summary{margin-bottom:4px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.two>section>h3:first-child{margin-top:30px}
 dl.list{display:grid;grid-template-columns:max-content 1fr;gap:7px 22px;margin:0}dl.list dt{color:var(--soft)}dl.list dd{margin:0;font-weight:600;overflow-wrap:anywhere}dl.list .sub{font-weight:400}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th{font-weight:500;color:var(--soft);font-size:.9375rem;text-align:left;padding:0 14px 8px 0}td{padding:11px 14px 11px 0;border-top:1px solid var(--rule);vertical-align:top;overflow-wrap:anywhere}
@@ -84,7 +86,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 [hidden]{display:none!important}
 @media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:860px){
- header .in{padding:10px 16px 0;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}nav{order:9;flex-basis:100%;gap:0;margin:0 -5px;justify-content:space-between}nav a{padding:11px 5px 9px;font-size:.9375rem}
+ header .in{padding:10px 16px;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
  aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
@@ -105,7 +107,6 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <body data-view="list">
 <header><div class="in">
  <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111A33"/><path d="M26 56V27a13 13 0 0 1 26 0v29Z" fill="#1D2A63"/><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 26c8 0 8 18 17 18" stroke="#C6D0E2" stroke-width="6"/><path d="M26 56V27a13 13 0 0 1 26 0v29" stroke="#C6D0E2" stroke-width="6"/><path d="M8 46c8 0 8-18 17-18 10 0 9 10 18 10h13" stroke="#F4B23C" stroke-width="7"/></g></svg><b id="dname">N540 gateway</b>
- <nav aria-label="Pages"><a href="#status">Status</a><a href="#network">Network</a><a href="#mqtt">MQTT</a><a href="#hardware">Hardware</a><a href="#firmware">Firmware</a></nav>
  <span class="grow"></span>
  <p class="meta" id="dmeta">Connecting…</p>
  <form id="login" class="acts" hidden>
@@ -129,7 +130,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <div id="report"><p class="say" id="psay"></p><div id="charts"></div><dl class="facts" id="pfacts"></dl><div id="away" hidden><h3>Turned away</h3><table class="stack"><thead><tr><th>Address</th><th>Times</th><th>Last</th></tr></thead><tbody id="awayt"></tbody></table><p class="hint">By the access list. The last 8 addresses since the start.</p></div>
   <details id="ptable"><summary>Traffic as a table</summary><table><thead><tr><th>Minutes ago</th><th>Heard</th><th>Sent</th><th>Errors</th></tr></thead><tbody id="ptrows"></tbody></table></details></div>
   <div id="edit" hidden></div></div>
- <div id="p-network" hidden><h2>Network</h2><p class="say" id="nsay"></p><div class="two">
+ <div id="p-network" hidden><a class="back" href="#status">All stations</a><h2>Network</h2><p class="say" id="nsay"></p><div class="two">
   <section><h3>Now</h3><dl class="list" id="netinfo"></dl></section>
   <section><h3>Address</h3><form id="net">
   <div class="grid-f" style="margin-bottom:16px">
@@ -147,22 +148,21 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
  <div class="two"><section><h3>HTTPS</h3><dl class="list" id="tlsinfo"></dl>
   <div class="acts" style="margin-top:18px"><button id="tlson" type="button">Turn on</button><button id="tlsforget" type="button" hidden>Forget certificate</button><p class="msg" id="tlsmsg" role="status"></p></div>
   <p class="hint">Port 80 keeps working, so a bad certificate cannot lock you out.</p></section>
- <section><h3>Certificate</h3><form id="tlsreq"><div class="grid-f" style="margin-bottom:16px"><label class="wide">Host name<input name="name" autocomplete="off" spellcheck="false" maxlength="63" placeholder="gateway.example.com"></label></div>
-  <div class="acts"><button class="primary">Make signing request</button><p class="msg" role="status"></p></div>
-  <p class="hint">The key is made here and stays here. Public certificates list the name publicly.</p></form>
-  <form id="tlscert" style="margin-top:22px" hidden><label>Signing request<textarea id="tlscsr" rows="8" readonly spellcheck="false"></textarea></label>
-  <label style="margin:16px 0">Certificate chain (PEM)<input type="file" name="file" accept=".pem,.crt,.cer" required></label>
-  <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div>
- <div class="two"><section><h3>Renewal</h3><dl class="list" id="acmeinfo"></dl>
-  <div class="acts" style="margin-top:18px"><button id="acmetest" type="button">Test on staging</button><button id="acmenow" type="button">Renew now</button><p class="msg" id="acmemsg" role="status"></p></div>
-  <p class="hint">Let's Encrypt, proving the name with a DNS record in Route 53. The key should be allowed that one record and nothing else.</p></section>
- <section><h3>Route 53</h3><form id="acme"><div class="grid-f" style="margin-bottom:14px">
+ <section><h3>Renewal</h3><form id="acme"><div class="grid-f" style="margin-bottom:14px">
   <label>Hosted zone ID<input name="zone" autocomplete="off" spellcheck="false" maxlength="31" placeholder="Z0123456789ABC"></label>
   <label>Access key ID<input name="key_id" autocomplete="off" spellcheck="false" maxlength="31"></label>
   <label class="wide">Secret access key<input name="secret" type="password" autocomplete="off" maxlength="63"></label></div>
   <div class="checks" style="margin-bottom:16px"><label class="check"><input type="checkbox" name="auto"><span>Renew automatically<span>When a third of the certificate's life is left.</span></span></label></div>
-  <div class="acts"><button class="primary">Save renewal</button><p class="msg" role="status"></p></div></form></section></div></div>
- <div id="p-mqtt" hidden><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
+  <div class="acts"><button class="primary">Save renewal</button><button id="acmetest" type="button">Test on staging</button><button id="acmenow" type="button">Renew now</button><p class="msg" id="acmemsg" role="status"></p></div>
+  <p class="hint">Let's Encrypt, proving the name with a DNS record in Route 53. The key should be allowed that one record and nothing else.</p></form></section></div>
+ <details class="more" id="byhand"><summary>Certificate by hand</summary><div class="two">
+  <section><form id="tlsreq"><div class="grid-f" style="margin-bottom:16px"><label class="wide">Host name<input name="name" autocomplete="off" spellcheck="false" maxlength="63" placeholder="gateway.example.com"></label></div>
+  <div class="acts"><button class="primary">Make signing request</button><p class="msg" role="status"></p></div>
+  <p class="hint">The key is made here and stays here. Public certificates list the name publicly.</p></form></section>
+  <section><form id="tlscert" hidden><label>Signing request<textarea id="tlscsr" rows="8" readonly spellcheck="false"></textarea></label>
+  <label style="margin:16px 0">Certificate chain (PEM)<input type="file" name="file" accept=".pem,.crt,.cer" required></label>
+  <div class="acts"><button class="primary">Install certificate</button><p class="msg" role="status"></p></div></form></section></div></details></div>
+ <div id="p-mqtt" hidden><a class="back" href="#status">All stations</a><h2>MQTT</h2><p class="say" id="msay"></p><div class="two"><section><h3>Broker</h3><form id="mqtt">
   <div class="checks" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="enabled"><span>Connect to an MQTT broker<span>Publishes the ports' state and traffic.</span></span></label></div>
   <div data-mqtt><div class="grid-f" style="margin-bottom:16px">
    <label class="wide">Broker<input name="host" maxlength="47" autocomplete="off" placeholder="homeassistant.local"></label>
@@ -175,7 +175,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label class="check" id="mqclear" hidden><input type="checkbox" name="clear"><span>Remove the saved password</span></label></div></div>
   <div class="acts"><button class="primary">Save MQTT</button><p class="msg" role="status"></p></div>
  </form></section><section><h3>Topics</h3><dl class="list" id="topics"></dl></section></div></div>
- <div id="p-hardware" hidden><h2>Hardware</h2><p class="say" id="hsay"></p>
+ <div id="p-hardware" hidden><a class="back" href="#status">All stations</a><h2>Hardware</h2><p class="say" id="hsay"></p>
   <h3>Board</h3><table class="stack" id="board-t"><thead><tr><th>Part</th><th>Model</th><th>Status</th></tr></thead><tbody id="board"><tr><td colspan="3">Reading the hardware…</td></tr></tbody></table>
   <h3>Serial port pins</h3><table class="stack"><thead><tr><th>Port</th><th>UART</th><th>Transmit</th><th>Receive</th><th>Direction</th></tr></thead><tbody id="wiring"><tr><td colspan="5">Reading the hardware…</td></tr></tbody></table>
   <div class="two"><section><h3>Memory in use</h3><dl class="list" id="meminfo"></dl></section><section><h3>Device</h3>
@@ -188,7 +188,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
    <label>Repeat it<input name="b" type="password" autocomplete="new-password"></label></div>
    <div class="acts"><button class="primary">Set password</button><button type="button" id="pwcancel">Cancel</button><p class="msg" role="status"></p></div></form>
 </section></div></div>
- <div id="p-firmware" hidden><h2>Firmware</h2><p class="say" id="fsay"></p><div class="two">
+ <div id="p-firmware" hidden><a class="back" href="#status">All stations</a><h2>Firmware</h2><p class="say" id="fsay"></p><div class="two">
   <section><h3>Update</h3><form id="fw">
   <label style="margin-bottom:16px">Firmware file (app.bin)<input type="file" name="file" accept=".bin" required></label>
   <dl class="list" id="fwfile" style="margin-bottom:16px" hidden></dl>
@@ -260,7 +260,7 @@ function authUI(){const open=!$("login").hidden&&!key&&pwset;
  for(const id of ["keepmsg","fwkeepmsg"])if(!key)$(id).textContent=pwset?"Sign in to keep.":"Set a web password to keep.";else if(/to keep\.$/.test($(id).textContent))$(id).textContent="";
  if(!key)$("pwform").hidden=true;
  for(const m of document.querySelectorAll("#net .msg,#dev .msg,#mqtt .msg,#fw .msg,#edit .msg,#tlsreq .msg,#tlscert .msg,#acme .msg")){if(!key)say(m,lock(),"warn lock");else if(m.classList.contains("lock"))say(m,"")}}
-const lock=()=>pwset?"Sign in at the top of the page to save.":"Set a web password first; see the top of the page.";
+const lock=()=>pwset?"Sign in to save.":"Set a web password first; see the top of the page.";
 
 /* ---- port settings ---- */
 const MODES={server:"TCP server",client:"TCP client",udp:"UDP"};
@@ -376,7 +376,7 @@ async function tick(){clearTimeout(timer);
   failing=0;okAt=now;document.body.classList.remove("stale");$("offline").hidden=true;
   $("dmeta").textContent=s.ip+", up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
-  fillDl($("netinfo"),[["Address",s.ip],["Name",s.host+".local"],["Subnet mask",s.mask],["Gateway",s.gateway],["Ethernet",s.speed+" Mb/s "+(s.full_duplex?"full":"half")+" duplex"],["MAC",s.mac]]);
+  fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[])]); /* the rest is in the sentence or the form */
   paint();hardware();https()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not answering")}}
  timer=setTimeout(tick,document.hidden?5000:failing?2000:1000)}
@@ -418,7 +418,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
   [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
   [nm("Reload button"),[],[h.button.pressed?"Pressed":"Released",h.button.presses?sub(num(h.button.presses)+(h.button.presses===1?" press":" presses")+(h.button.held_ms?", last held "+(h.button.held_ms/1000).toFixed(1)+" s":"")):null]],
   [nm("Watchdog"),"UM706SS","1.6 s timeout"],
-  [nm("Main loop"),[],h.loop?["Longest pause "+ms(h.loop.recent_us),sub(ms(h.loop.max_us)+" since the start")]:[]]]);
+  [nm("Main loop"),[],h.loop?["Longest pause "+ms(h.loop.recent_us),h.loop.max_us>h.loop.recent_us?sub(ms(h.loop.max_us)+" since the start"):null]:[]]]);
  fillRows($("wiring"),["Port","UART","Transmit","Receive","Direction"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
  const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?i===h.slot?", on trial":", not kept":"")};
@@ -463,8 +463,11 @@ const hwFaults=()=>{if(!hw)return [];const L=[];hw.flash.forEach((id,i)=>{if(FLA
 const MQ={"Broker refused the protocol version":"Refused","Broker refused the client name":"Refused","Broker is unavailable":"Broker unavailable","Wrong user name or password":"Wrong login","Broker did not authorise this user":"Not authorised","Broker did not answer":"No answer","Could not connect, or the connection was lost":"Cannot connect","Could not start the connection":"Cannot connect","Broker name not found":"Name not found"};
 const items=[];
 function buildList(){$("list").replaceChildren();items.length=0;
- const add=(href,label)=>{const a=el("a",{class:"it",href},el("span"),el("b",{},label),el("em"));items.push([href,a]);$("list").append(a);return a};
- add("#mqtt","MQTT");for(let i=0;i<4;i++)add("#port"+(i+1),"");add("#network","Network");add("#firmware","Firmware");add("#hardware","Hardware");nav()}
+ /* items keep their numbers (setItem); on the page the ports come first, then the rest */
+ const G={ports:el("div",{role:"group","aria-labelledby":"g-ports"}),config:el("div",{role:"group","aria-labelledby":"g-config"})};
+ const add=(href,label,g)=>{const a=el("a",{class:"it",href},el("span"),el("b",{},label),el("em"));items.push([href,a]);G[g].append(a);return a};
+ add("#mqtt","MQTT","config");for(let i=0;i<4;i++)add("#port"+(i+1),"","ports");add("#network","Network","config");add("#firmware","Firmware","config");add("#hardware","Hardware","config");
+ $("list").append(el("h2",{class:"gh",id:"g-ports"},"Ports"),G.ports,el("h2",{class:"gh",id:"g-config"},"Config"),G.config);nav()}
 function setItem(k,cls,name,text){const a=items[k][1];a.className="it"+(cls==="bad"||cls==="warn"?" "+cls:"");if(a.dataset.m!==cls){a.dataset.m=cls;a.children[0].replaceChildren(mark(cls))}
  if(a.children[1].textContent!==name)a.children[1].textContent=name;if(a.children[2].textContent!==text)a.children[2].textContent=text}
 function paint(){if(!st||!cfg)return;if(!items.length)buildList();
@@ -549,8 +552,7 @@ function chartBox(){const cap=el("div",{class:"cap"},el("b"),el("span")),g=svg("
 
 /* ---- pages ---- */
 function showSheet(){const ed=page==="port"&&editing;$("report").hidden=ed;$("edit").hidden=!ed;$("edit").replaceChildren(...(ed?[editor(cfg.ports[sel],sel)]:[]));$("pedit").textContent=ed?"Back to report":"Edit port";$("pedit").className=ed?"":"primary";if(st&&cfg&&page==="port")report();authUI()}
-function nav(){for(const a of document.querySelectorAll("nav a"))a.getAttribute("href")===(page==="port"?"#status":"#"+page)?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current");
- const cur=page==="port"?"#port"+(sel+1):"#"+route;for(const [h,a] of items)h===cur?a.setAttribute("aria-current","true"):a.removeAttribute("aria-current")}
+function nav(){const cur=page==="port"?"#port"+(sel+1):"#"+route;for(const [h,a] of items)h===cur?a.setAttribute("aria-current","true"):a.removeAttribute("aria-current")}
 let picked=false;
 function show(){const h=location.hash.slice(1);route=PAGES[h]?h:"status";page=PAGES[route];
  if(/^port/.test(route)){sel=+route.slice(4)-1;picked=true}else if(!picked&&cfg){sel=Math.max(0,cfg.ports.findIndex(p=>p.enabled))}
@@ -562,13 +564,15 @@ addEventListener("hashchange",show);
 $("pedit").onclick=()=>{editing=!editing;showSheet();if(editing){const f=$("edit").querySelector("input");f&&f.focus()}};
 
 /* ---- HTTPS ---- */
-let tlsAt=0,tls=null,tlsArm=0;
+let tlsAt=0,tls=null,tlsArm=0,tlsRows=[[],[]],acmeRows=[],byhandSet=false;
+const drawHttps=()=>fillDl($("tlsinfo"),[...tlsRows[0],...acmeRows,...tlsRows[1]]);
 const pem=(b,k)=>"-----BEGIN "+k+"-----\n"+(b.match(/.{1,64}/g)||[]).join("\n")+"\n-----END "+k+"-----\n";
 async function https(force){const now=performance.now();if(page!=="network"||(!force&&tlsAt&&now-tlsAt<5000))return;tlsAt=now;
  try{tls=await getj("/api/tls")}catch(e){tlsAt=0;return}
  const t=tls,K={none:"None",self:"Self-signed; browsers warn",issued:"Issued"},url="https://"+(t.kind==="issued"?t.name:st?st.ip:"")+"/";
- fillDl($("tlsinfo"),[["Status",t.error?el("span",{class:"bad"},t.error):t.busy?"Preparing…":t.live?el("span",{class:"ok"},"On"):"Off"],["Address",t.live?el("a",{href:url},url):"None"],["Certificate",K[t.kind],t.name?sub(t.name+(t.until?", until "+t.until.replace(/-/g,"\u2011"):"")):null],["Fingerprint",t.sha256?el("code",{},t.sha256):"None"],
-  ["Handshakes",num(t.handshakes),t.handshakes?sub("last "+t.last_ms+" ms"+(t.failed?", "+num(t.failed)+" failed":"")):null]]);
+ tlsRows=[[["Status",t.error?el("span",{class:"bad"},t.error):t.busy?"Preparing…":t.live?el("span",{class:"ok"},"On"):"Off"],["Address",t.live?el("a",{href:url},url):"None"],["Certificate",K[t.kind],t.name?sub(t.name+(t.until?", until "+t.until.replace(/-/g,"\u2011"):"")):null]],
+  [["Fingerprint",t.sha256?el("code",{},t.sha256):"None"],["Handshakes",num(t.handshakes),t.handshakes?sub("last "+t.last_ms+" ms"+(t.failed?", "+num(t.failed)+" failed":"")):null]]];drawHttps();
+ if(!byhandSet){byhandSet=true;$("byhand").open=t.kind!=="issued"} /* by hand is how it starts; then renewal takes over */
  $("tlson").textContent=t.on?"Turn off":"Turn on";$("tlsforget").hidden=t.kind==="none"&&!t.request;
  $("tlscert").hidden=!t.csr;
  if(t.csr&&$("tlscsr").dataset.n!==t.request){try{$("tlscsr").value=pem((await getj("/api/tls/csr")).csr,"CERTIFICATE REQUEST");$("tlscsr").dataset.n=t.request}catch(e){}}
@@ -576,9 +580,9 @@ async function https(force){const now=performance.now();if(page!=="network"||(!f
 let acme=null,acmeWatch=0;
 async function renewal(){try{acme=await getj("/api/acme")}catch(e){return}const a=acme,e=$("acme").elements,ago=s=>s<0?"":" "+dur(s)+" ago";
  const due=a.name?(a.due_in_s<=0?"Due now":"In "+dur(a.due_in_s)):"No issued certificate";
- fillDl($("acmeinfo"),[["Clock",a.clock?a.clock.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC"):el("span",{class:"warn"},"Not set yet"),a.clock?sub("synced"+ago(a.clock_s)):null],
-  ["Automatic",a.auto?"On":"Off"],["Next renewal",a.auto?due:"Off",a.auto&&a.name?sub(a.name):null],
-  ["Now",a.running?(a.staging?"Testing: ":"")+a.step+"…":"Idle"],["Last result",a.result?el("span",{class:/^(Renewed|Test passed)/.test(a.result)?"ok":"bad"},a.result):"None yet",a.result_s>=0?sub(dur(a.result_s)+" ago"):null]]);
+ acmeRows=[["Renewal",a.running?(a.staging?"Testing: ":"Renewing: ")+a.step+"…":a.auto?due:"Off"],
+  ["Last result",a.result?el("span",{class:/^(Renewed|Test passed)/.test(a.result)?"ok":"bad"},a.result):"None yet",a.result_s>=0?sub(dur(a.result_s)+" ago"):null],
+  ["Clock",a.clock?a.clock.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC"):el("span",{class:"warn"},"Not set yet"),a.clock?sub("synced"+ago(a.clock_s)):null]];drawHttps();
  for(const k of ["zone","key_id"])if(document.activeElement!==e[k]&&!e[k].dataset.edited)e[k].value=a[k];
  if(!e.auto.dataset.edited)e.auto.checked=a.auto;e.secret.placeholder=a.secret_set?"Saved; type to replace":"";
  $("acmenow").disabled=$("acmetest").disabled=!key||a.running;

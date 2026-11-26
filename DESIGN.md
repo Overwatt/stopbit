@@ -154,11 +154,10 @@ components:
     rounded: "{rounded.control}"
     padding: "9px 12px"
     height: "44px"
-  nav-link:
-    textColor: "{colors.shell-soft}"
-    padding: "14px 10px 11px"
-  nav-link-current:
-    textColor: "{colors.on-shell}"
+  station-group:
+    textColor: "{colors.soft}"
+    typography: "{typography.small}"
+    padding: "22px 16px 6px"
   station:
     textColor: "{colors.ink}"
     typography: "{typography.station}"
@@ -224,7 +223,7 @@ look like a marketing dashboard (big number tiles, gradients, charts for show).
 Sea blues from near-black to pale, with green, amber and red kept for state.
 
 ### Primary
-- **Deep Sea** (#0d4a68, dark #0d3a50): the shell. White on it for the name and current tab;
+- **Deep Sea** (#0d4a68, dark #0d3a50): the shell. White on it for the name;
   **Spray** (#bfe0ee, dark #a9cfdf) for everything quieter there.
 - **Operable Blue** (#0d4a68, dark #5bb8e2): the primary button, checkbox fill and text
   selection. In light it is Deep Sea itself; in dark it turns bright with dark ink (#06212d).
@@ -286,7 +285,7 @@ with no internet.
 - **Reading** (650, 1.25rem): a value under its label in the report.
 - **Station** (650, 1.0625rem): names in the list. The device name is 700, 1.1875rem.
 - **Body** (400, 16px, 1.45): list readings, table cells, messages. Prose stops at 66ch.
-  Buttons and tabs are 600.
+  Buttons are 600.
 - **Label** (400, .9375rem, soft ink): field and reading labels. Table heads use 500.
 - **Small** (400, .875rem, soft ink): second lines and hints. Chart axes are 13px.
 
@@ -297,13 +296,14 @@ connected to, what it hears, what went wrong.
 
 ## Layout
 
-A shell bar across the top (72px): logo, name, five tabs, address and uptime, sign-in. Notices
+A shell bar across the top (72px): logo, name, address and uptime, sign-in. Notices
 come under it, on the ground. Then two columns: the list (400px) and the sheet, which runs to
 the right and bottom edges and starts 26px below whatever is above it. Sheet content stops at
 1000px, inside 34px by 44px padding. The outer gutter is 32px.
 
 The list opens with the verdict and one line, in a block at least 152px tall. Stations are
-50px rows, 4px apart, in a fixed order: MQTT, ports 1 to 4, Network, Firmware, Hardware.
+50px rows, 4px apart, in two groups in a fixed order: Ports (1 to 4), then Config (MQTT,
+Network, Firmware, Hardware), each under a small soft label.
 
 In the sheet: the name with its one action at the right, the sentence (two lines reserved),
 charts, then readings four across, 24px by 20px apart. Sections sit 40px apart; pairs sit in
@@ -312,8 +312,8 @@ apart. Tables have fixed layouts.
 
 Below 1240px the list narrows to 320px, pairs stack, and readings go three across. Below 860px
 it is one column and one view at a time: the list, or a sheet with "All stations" above its
-name. Gutters become 16px, readings two across, the sentence reserves three lines, tabs get
-their own row, and table rows become two-column blocks with their headings repeated.
+name. Gutters become 16px, readings two across, the sentence reserves three lines, and table
+rows become two-column blocks with their headings repeated.
 
 ### Named Rules
 **The Still List Rule.** Live values change in place. Stations never reorder or move by
@@ -338,7 +338,7 @@ separated by space and a heading.
 The sheet has a single rounded corner, top left (16px), and runs off the other edges; on a
 phone both top corners round. Stations and notices are 8px, charts 10px, buttons 6px, the file
 picker's inner button 4px. Fields are 6px at the top and 2px at the foot, where they carry
-their 2px edge. Tabs are text with a 3px underline.
+their 2px edge.
 
 State marks are 14px: a filled disc, an open ring, a triangle, a square with barely eased
 corners. Those shapes are reserved for state. The same triangle marks errors on the chart.
@@ -371,9 +371,9 @@ Cut in, with a firm foot.
   the consequence.
 
 ### Navigation
-Five text tabs on the shell, at least 44px tall. Spray at rest; white with a Spray underline on
-hover; white with a white 3px underline when current. Below 860px they take a row of their own.
-In-page links are ink with an underline, not coloured.
+The station list is the navigation; the shell carries no tabs. Its two groups, Ports and
+Config, are labelled in Small weight 650, soft ink. Below 860px every sheet starts with "All
+stations", back to the list. In-page links are ink with an underline, not coloured.
 
 ### Station list
 The signature component. A mark, a bold name, and a reading at the right, each on one line;
