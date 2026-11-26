@@ -32,6 +32,7 @@ void  device_poll(void);                  /* main loop */
 void  device_reply(int port, uint32_t tag, int status, const uint8_t *pdu, size_t n);
 const device_t *device_get(int i);        /* NULL: no device i */
 uint16_t device_line_use(int port);       /* the line's use by our requests, permille, last minute */
+void  device_count(int up[PORTS], int all[PORTS]);   /* each port's devices, and how many are online */
 /* Field f's value as JSON: a number, true/false, a string, or null if not known. 0 if it does not fit. */
 size_t device_value(const device_t *d, int f, char *out, size_t max);
 size_t device_json(int i, char *out, size_t max);   /* settings, state and values; 0 if it does not fit */

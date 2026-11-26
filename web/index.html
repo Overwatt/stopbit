@@ -287,6 +287,7 @@ const lock=()=>pwset?"Sign in to save.":"Set a web password first; see the top o
 const MODES={server:"TCP server",client:"TCP client",udp:"UDP",modbus:"Modbus gateway"};
 const line=p=>p.baud.toLocaleString()+" baud, "+p.data_bits+p.parity[0].toUpperCase()+p.stop_bits;
 const devOnly=p=>p.mode==="modbus"&&p.modbus_tcp===false;   /* no listener: only its devices use the line */
+const devsOn=i=>st.devices&&st.devices[i]||[0,0];              /* [online, configured] */
 function where(p){if(devOnly(p))return "No TCP clients";
  if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
  return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
@@ -484,7 +485,9 @@ function portState(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],n=s.pe
  if(s.err_10m)return ["warn",plural(s.err_10m,"error")];
  if(away(s))return ["warn",away(s)];
  if(s.state==="retrying"||s.state==="connecting")return ["warn",s.state==="retrying"?"Retrying":"Connecting"];
- if(devOnly(p))return ["idle","Devices only"];
+ const [du,dn]=devsOn(i);
+ if(dn)return du===dn?["ok",dn===1?"Device online":dn+" devices online"]:["warn",dn===1?"Device offline":du?(dn-du)+" of "+dn+" offline":"Devices offline"];
+ if(devOnly(p))return ["idle","No devices"];
  if(!up)return ["idle",p.mode==="udp"?"Ready":"No client"];
  if(quiet(s))return ["idle",quiet(s)];
  return ["ok",r[0]>=1?rt(r[0]):r[1]>=1?rt(r[1]):"Idle"]}
@@ -494,7 +497,8 @@ function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
   if(s.state==="error")L.push(["bad",pn(i)+" cannot open its network port",h]);
   else if(s.alert)L.push(["bad",pn(i)+(s.alert==="silent"?" is silent":s.alert==="turned_away"?" turned away "+s.denied_ip:" has no client"),h]);
   else if(s.err_10m)L.push(["warn",pn(i)+" had "+plural(s.err_10m,"error"),h]);
-  else if(s.state==="retrying")L.push(["warn",pn(i)+" cannot reach "+cfg.ports[i].remote_host,h])});
+  else if(s.state==="retrying")L.push(["warn",pn(i)+" cannot reach "+cfg.ports[i].remote_host,h]);
+  else if(s.state!=="off"){const [du,dn]=devsOn(i);if(du<dn)L.push(["warn",pn(i)+": "+(dn===1?"its device is offline":(dn-du)+" of "+dn+" devices offline"),"#devices"])}});
  if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
  if(st.net_pending)L.push(["warn","Network settings are on trial","#network"]);
  if(st.crashes-(st.uptime_s<30?1:0)>0)L.push(["warn","The gateway failed to start cleanly","#firmware"]);
@@ -545,6 +549,8 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  else if(p.mode==="udp"&&n)L.push("Exchanging with "+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
  else if(n)L.push(n>1?n+" clients connected.":host(s.peers[0])+" connected.");   /* they connect to us; the list is under Clients */
  else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
+ const [du,dn]=devsOn(i);
+ if(dn)L.push(dn===1?(du?"Its device is online.":"Its device is offline."):du===dn?"All "+dn+" devices are online.":(dn-du)+" of "+dn+" devices are offline.");
  const lim=p.quiet_min;
  L.push(r[0]>=1?"Hearing "+rt(r[0])+tendency()+".":s.heard_ms<0?"Nothing heard since the start.":"Quiet for "+dur(Math.max(1,Math.round(s.heard_ms/1000)))+(s.alert==="silent"?", longer than the "+span(lim*60)+" allowed":"")+".");
  if(s.err_10m)L.push(plural(s.err_10m,"error")+" in 10 minutes.");   /* none: Errors says so below */

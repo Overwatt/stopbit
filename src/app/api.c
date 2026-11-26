@@ -237,9 +237,18 @@ static int get_one(const char *path, char *out, size_t max)
     memcpy(out + n, ",\"ports\":", 10);  /* with its NUL */
     n += 9;
     size_t b = bridge_json(out + n, max - n);
-    if (!b || n + b + 3 > max) return 0;
-    memcpy(out + n + b, "}\n", 3);
-    return (int)(n + b + 2);
+    if (!b) return 0;
+    n += b;
+    int up[PORTS], all[PORTS];                          /* each port's devices: [online, configured] */
+    device_count(up, all);
+    for (int i = 0; i < PORTS; i++) {
+        int w = snprintf(out + n, max - n, "%s[%d,%d]", i ? "," : ",\"devices\":[", up[i], all[i]);
+        if (w < 0 || (size_t)w >= max - n) return 0;
+        n += (size_t)w;
+    }
+    if (n + 4 > max) return 0;
+    memcpy(out + n, "]}\n", 4);
+    return (int)(n + 3);
 }
 
 /* Optional "mqtt.password_enc=<128 hex>" line: 64 zero-padded bytes XORed with

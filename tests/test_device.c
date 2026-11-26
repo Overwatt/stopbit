@@ -100,6 +100,9 @@ int main(void)
     const device_t *d0 = device_get(0);
     assert(d0->online && d0->seq > s0 && known(0, "total_voltage") && known(0, "min_cell_voltage"));
     assert(d0->st.val[profile_field(d0->p, "total_voltage")].v > 53.11f);
+    { int up[PORTS], all[PORTS];                                            /* each port's: one of 3 online */
+      device_count(up, all);
+      assert(!all[0] && all[1] == 3 && all[2] == 1 && !all[3] && !up[0] && up[1] == 1 && !up[2] && !up[3]); }
 
     /* Misses: after `stale` (5) in a row the block's values go, and the device is offline. */
     for (int k = 0; k < 4; k++) device_reply(1, tag(0, 0), -1, NULL, 0);

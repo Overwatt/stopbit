@@ -286,7 +286,10 @@ unavailable). A device is offline while none of its blocks, other than `info` on
 values: before its first reply, or once each has missed `stale` times.
 
 The Devices page lists each device with its values, `why` it last missed, and a form to
-add, edit or remove one. `GET /api/devices` gives the same as JSON. Line use is the share
+add, edit or remove one. `GET /api/devices` gives the same as JSON. In the port list, a
+port with devices is green while all of them are online, and amber, listed as a problem,
+while any are offline. `/api/state` has `devices`, giving each port's devices as
+[online, configured]. Line use is the share
 of the last full minute a port's line was busy with the gateway's own reads: a percentage
 on the page, permille (0 to 1000) in `/api/devices` (`line_use`), and a ratio (0 to 1) in
 `/metrics`:

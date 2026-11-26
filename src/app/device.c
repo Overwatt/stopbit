@@ -44,6 +44,17 @@ void device_hold(const profile_t *p, int delta)
 const device_t *device_get(int i) { return i >= 0 && i < DEVS && s_dev[i].used ? &s_dev[i] : NULL; }
 uint16_t device_line_use(int port) { return port >= 0 && port < PORTS ? s_port[port].use : 0; }
 
+void device_count(int up[PORTS], int all[PORTS])
+{
+    for (int i = 0; i < PORTS; i++) up[i] = all[i] = 0;
+    for (int i = 0; i < DEVS; i++) {
+        const device_t *d = device_get(i);
+        if (!d || d->cfg.port < 1 || d->cfg.port > PORTS) continue;
+        all[d->cfg.port - 1]++;
+        up[d->cfg.port - 1] += d->online;
+    }
+}
+
 /* The device's profile: already loaded, or parsed into a free place. */
 static const profile_t *load(device_t *d, const char *id)
 {
