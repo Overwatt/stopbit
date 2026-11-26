@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """HTTPS.  tests/test_tls.py HOST:PORT TLSPORT   (simulator: 127.0.0.1:8541 8543)
 Turns HTTPS on and off and replaces its certificate. Simulator only: it also restarts."""
-import base64, hashlib, hmac, http.client, json, os, random, socket, ssl, struct, subprocess, sys, tempfile, threading, time
+import base64, concurrent.futures as cf, hashlib, hmac, http.client, json, os, random, socket, ssl, struct, subprocess, sys, tempfile, threading, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 import n540
 d = n540.Device(sys.argv[1]); TP = int(sys.argv[2]); H = d.host
@@ -304,6 +304,27 @@ for i in range(5): s = conn(good, N); get(s, "/status"); s.close()
 cmd("request " + N); csr = base64.b64decode(json.loads(d.get("/api/tls/csr"))["csr"]); open(T + "/r.der", "wb").write(csr)
 cmd(b"cert\n" + sign([N])); time.sleep(2); t = tls(); assert t["live"] and not t["error"], t
 s = conn(good, N); assert get(s, "/status")[0] == 200; s.close(); ok("a new certificate goes live straight after connections closed")
+
+# long replies share a few buffers: many at once, plain and secure, each whole or "busy"
+def big_plain(n):
+    c = http.client.HTTPConnection(H, d.port, timeout=10); c.request("GET", f"/api/big?n={n}"); r = c.getresponse(); b = r.read(); c.close()
+    assert r.status == 503 or len(b) == n, (r.status, len(b)); return r.status
+def big_secure(k):
+    s = conn(good, N); out = []
+    for i in range(12):
+        st, h, b = get(s, "/api/big?n=4000"); assert st == 503 or len(b) == 4000, (st, len(b)); out.append(st)
+    s.close(); return out
+def burst():
+    with cf.ThreadPoolExecutor(8) as ex:
+        fs = [ex.submit(big_secure, k) for k in range(4)]; plain = list(ex.map(big_plain, [4000] * 120))
+        r = plain + [x for f in fs for x in f.result()]
+    assert set(r) <= {200, 503} and r.count(200) >= len(r) * 0.9, {k: r.count(k) for k in set(r)}; return r
+burst(); time.sleep(1)
+BASE = tls()["heap"][0] if tls()["connections"] == 0 else BASE   # the ticket key may have turned over meanwhile
+r = burst(); quiet("long replies at once")                        # and nothing more is held after another
+s = conn(good, N); assert get(s, "/api/big?n=4300")[0] == 200 and big_plain(4300) == 200    # the longest that fits
+assert get(s, "/api/big?n=4400")[0] == 500; s.close()                                     # never cut short
+quiet("long replies"); ok(f"long replies share buffers: {r.count(200)} of {len(r)} at once whole, the rest busy")
 # it survives a restart, and so does a pending request
 n = json.loads(d.get("/status"))["boots"]; cmd("request new.example.com"); d.auth("POST", "/reboot"); back(n); time.sleep(1)
 t = tls(); assert t["kind"] == "issued" and t["live"] and t["request"] == "new.example.com" and t["csr"], t

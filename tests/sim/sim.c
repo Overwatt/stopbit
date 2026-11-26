@@ -260,6 +260,11 @@ int api_get(const char *p, char *o, size_t n)
   if (!strcmp(p, "/api/acme")) return (int)acme_json(o, n);
   if (!strcmp(p, "/api/tls/csr")) return (int)tls_csr(o, n);
   if (!strcmp(p, "/api/pbufs")) return snprintf(o, n, "%d", s_pbufs);
+  if (!strncmp(p, "/api/big?n=", 11)) {          /* a reply of n bytes, for the tests */
+      size_t k = strtoul(p + 11, NULL, 10);
+      if (k < 2 || k >= n) return 0;
+      memset(o, 'x', k); o[0] = o[k - 1] = '"'; o[k] = 0; return (int)k;
+  }
   return strcmp(p, "/api/library") ? -1 : (int)fwlib_json((int)bkp_get(BKP_SLOT), o, n); }
 void api_restart(void) { s_reboot = true; http_init(); for (;;) { extern jmp_buf s_loop; longjmp(s_loop, 1); } }
 void NVIC_SystemReset(void) { api_restart(); }

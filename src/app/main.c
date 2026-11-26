@@ -78,6 +78,7 @@ int main(void)
     g_reset_cause = bkp_get(BKP_RSTLOG);   /* the loader cleared RCC_RSR */
     g_last_crumb = bkp_get(BKP_CRUMB);     /* where the last run was when it stopped */
 #define CRUMB(n) bkp_set(BKP_CRUMB, (n))
+#define STEP(n, name) do { CRUMB(n); hwinfo_step(name); } while (0)
     extflash_init();
 #if defined(TEST_HANG)                     /* rollback test: watchdog reset */
     for (;;) { }
@@ -96,13 +97,13 @@ int main(void)
     for (;;) {
         hwinfo_loop();
         wdt_feed();
-        CRUMB(11); net_poll();
-        CRUMB(12); http_poll();
-        CRUMB(13); tls_poll();
-        CRUMB(14); acme_poll();
-        CRUMB(15); bridge_poll();
-        CRUMB(16); api_poll();
-        CRUMB(17); supervise();
-        led_poll();
+        STEP(11, "network"); net_poll();
+        STEP(12, "web"); http_poll();
+        STEP(13, "https"); tls_poll();
+        STEP(14, "renewal"); acme_poll();
+        STEP(15, "bridge"); bridge_poll();
+        STEP(16, "api"); api_poll();
+        STEP(17, "supervise"); supervise();
+        hwinfo_step("led"); led_poll();
     }
 }

@@ -5,22 +5,28 @@
 #ifndef AXI_BSS
 #define AXI_BSS __attribute__((section(".d3_bss")))     /* D3: AXI is for the TLS heap */
 #endif
-#ifndef WORKER_STACK
-#define WORKER_STACK 12288u             /* interrupts use it too while it runs */
+/* Interrupts use them too while a job runs. The simulator cannot say how much the
+ * gateway needs; worker_stats() reports the most each has used since the start. */
+#ifndef WORKER_TLS_STACK
+#define WORKER_TLS_STACK   12288u
+#endif
+#ifndef WORKER_RENEW_STACK
+#define WORKER_RENEW_STACK 12288u
 #endif
 #define FILL 0x5AFE57ACu
+static const uint32_t SIZE[WORKERS] = { WORKER_TLS_STACK, WORKER_RENEW_STACK };
 
 /* Only the stacks go in AXI_BSS (D3), which is not zeroed at start-up; the rest must be. */
-typedef union { uint64_t align; uint32_t w[WORKER_STACK / 4]; uint8_t b[WORKER_STACK]; } stack_t;
-static AXI_BSS stack_t s_stacks[WORKERS];
+static AXI_BSS uint64_t s_stacks[(WORKER_TLS_STACK + WORKER_RENEW_STACK) / 8];
 
 typedef struct {
-    stack_t *s;
+    uint32_t *s;                        /* lowest word of its stack */
+    uint32_t size;                      /* bytes */
     void *sp;
     void (*fn)(void *);
     void *arg;
     bool busy;
-    uint32_t slices, longest;
+    uint32_t slices, longest, peak;     /* peak: most stack any job here has used */
 } job_t;
 static job_t s_w[WORKERS];
 static void *s_main_sp;
@@ -70,13 +76,25 @@ static void entry(void)
     for (;;) { }                        /* never resumed */
 }
 
+static uint32_t used(const job_t *j)
+{
+    uint32_t n = 0;
+    while (j->s && n < j->size / 4 && j->s[n] == FILL) n++;
+    return j->s ? j->size - 4 * n : 0;
+}
+
 bool worker_start(int w, void (*fn)(void *), void *arg)
 {
     job_t *j = &s_w[w];
     if (j->busy) return false;
-    j->s = &s_stacks[w];
-    for (uint32_t i = 0; i < WORKER_STACK / 4; i++) j->s->w[i] = FILL;
-    reg_t *sp = (reg_t *)(void *)(j->s->b + WORKER_STACK) - 2 - FRAME;   /* 8-byte aligned on entry */
+    uint32_t u = used(j);
+    if (u > j->peak) j->peak = u;
+    uint32_t at = 0;
+    for (int i = 0; i < w; i++) at += SIZE[i];
+    j->s = (uint32_t *)(void *)((uint8_t *)s_stacks + at);
+    j->size = SIZE[w];
+    for (uint32_t i = 0; i < j->size / 4; i++) j->s[i] = FILL;
+    reg_t *sp = (reg_t *)(void *)((uint8_t *)j->s + j->size) - 2 - FRAME;   /* 8-byte aligned on entry */
 #if defined(__aarch64__)
     sp = (reg_t *)((uintptr_t)sp & ~(uintptr_t)15);
 #endif
@@ -106,7 +124,7 @@ void worker_poll(int w)
     if (us > j->longest) j->longest = us;
     j->slices++;
     /* Ran off the end of its stack: what lies below it is no longer to be trusted. */
-    if (j->s->w[0] != FILL) NVIC_SystemReset();
+    if (j->s[0] != FILL) NVIC_SystemReset();
 }
 
 void worker_yield(void)
@@ -122,10 +140,9 @@ void worker_breathe(void)
 void worker_stats(int w, worker_stats_t *o)
 {
     const job_t *j = &s_w[w];
-    uint32_t n = 0;
-    while (j->s && n < WORKER_STACK / 4 && j->s->w[n] == FILL) n++;
+    uint32_t u = used(j);
     o->slices = j->slices;
     o->longest_us = j->longest;
-    o->stack_used = j->slices ? WORKER_STACK - 4 * n : 0;
-    o->stack_size = WORKER_STACK;
+    o->stack_used = u > j->peak ? u : j->peak;
+    o->stack_size = SIZE[w];
 }

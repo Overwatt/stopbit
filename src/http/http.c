@@ -50,7 +50,9 @@
 #include "tls.h"
 #include "acme.h"
 #define MAX_CONN   8
-#define RESP_MAX   4600
+#define RESP_MAX   4600            /* the longest reply: borrowed from s_replies */
+#define OWN_MAX    640             /* each connection's own: short replies, headers before data */
+#define REPLIES    3
 #define BODY_MAX   4608            /* a certificate chain */
 #ifndef CONN_MEM
 #define CONN_MEM   __attribute__((section(".axi_bss")))
@@ -58,6 +60,7 @@
 #else
 #define MAX_CONN   4
 #define RESP_MAX   1460
+#define OWN_MAX    RESP_MAX
 #define CONN_MEM
 #endif
 #define HDR_MAX    1024
@@ -74,8 +77,9 @@ typedef struct {
     uint32_t hdr_len, body_len, body_got;
     uint8_t  body_sha[32];
     sha256_t sha;
-    char     resp[RESP_MAX];
-    uint32_t resp_len, resp_off;
+    char    *resp;               /* own, or borrowed until it is sent */
+    uint32_t resp_cap, resp_len, resp_off;
+    char     own[OWN_MAX];
     int      fl_dev;
     uint32_t fl_off, fl_left;
     const uint8_t *mem;          /* static data still to send */
@@ -110,7 +114,33 @@ static void body_put(conn_t *c)
     for (int i = 0; i < BODIES; i++) if (s_body_of[i] == c) s_body_of[i] = NULL;
     c->body = NULL;
 }
+
+/* Long replies are few and leave at once, mostly, so they share. */
+static CONN_MEM char s_replies[REPLIES][RESP_MAX];
+static conn_t *s_reply_of[REPLIES];
+/* Request handlers write their reply here, to be copied into one of the above. */
+static union { char js[RESP_MAX - 256]; char msg[CLI_OUT]; } s_scratch;
 #endif
+
+static void resp_own(conn_t *c)
+{
+#ifdef APP_IMAGE
+    for (int i = 0; i < REPLIES; i++) if (s_reply_of[i] == c) s_reply_of[i] = NULL;
+#endif
+    c->resp = c->own;
+    c->resp_cap = OWN_MAX;
+}
+
+/* Room for n bytes, borrowing if need be. False only if none is free. */
+static bool resp_room(conn_t *c, size_t n)
+{
+    if (n <= c->resp_cap) return true;
+#ifdef APP_IMAGE
+    for (int i = 0; i < REPLIES; i++)
+        if (!s_reply_of[i]) { s_reply_of[i] = c; c->resp = s_replies[i]; c->resp_cap = RESP_MAX; return true; }
+#endif
+    return false;
+}
 static conn_t  *s_stage_owner;   /* connection currently filling the stage */
 static char     s_nonce[33];
 #ifdef APP_IMAGE
@@ -267,6 +297,7 @@ static void out_go(conn_t *c)
 static void conn_free(conn_t *c)
 {
     if (s_stage_owner == c) s_stage_owner = NULL;
+    resp_own(c);
 #ifdef APP_IMAGE
     body_put(c);
     if (s_fw == c) {                         /* cut off mid-upload; a complete one carries on */
@@ -293,6 +324,7 @@ static err_t conn_close(conn_t *c)
             c->state = ST_HDR;
             c->hdr_len = c->body_len = c->body_got = 0;
             c->resp_len = c->resp_off = c->fl_left = c->mem_left = 0;
+            resp_own(c);
             c->why = NULL;
             c->keep = false;
             body_put(c);
@@ -323,6 +355,7 @@ static err_t pump(conn_t *c)
         if (!n || !out_put(c, c->resp + c->resp_off, n, TCP_WRITE_FLAG_COPY)) goto out;
         c->resp_off += n;
     }
+    if (c->resp != c->own) resp_own(c);      /* all with lwIP or TLS now */
     while (c->fl_left) {
         static uint8_t buf[TCP_MSS];
         uint32_t n = c->fl_left < sizeof buf ? c->fl_left : sizeof buf;
@@ -359,12 +392,17 @@ static err_t reply(conn_t *c, const char *status, const char *type, const char *
 #endif
     c->state = ST_SEND;
     c->resp_off = 0;
-    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+    if (!resp_room(c, strlen(body) + 256)) {
+        status = "503 Service Unavailable";
+        type = "text/plain";
+        body = "busy; try again\n";
+    }
+    c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
         "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %u\r\n"
         "Cache-Control: no-store\r\nConnection: %s\r\n\r\n%s",
         status, type, (unsigned)strlen(body), conn_hdr(c), body);
-    if (c->resp_len >= sizeof c->resp) {     /* never send a truncated body */
-        c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+    if (c->resp_len >= c->resp_cap) {        /* never send a truncated body */
+        c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
             "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: %s\r\n\r\n", conn_hdr(c));
     }
     return pump(c);
@@ -445,7 +483,7 @@ static err_t do_flash(conn_t *c, const char *path)
     c->fl_off = off;
     c->fl_left = len;
     c->resp_off = 0;
-    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+    c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
         "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
         "Content-Length: %lu\r\nConnection: %s\r\n\r\n", (unsigned long)len, conn_hdr(c));
     return pump(c);
@@ -457,7 +495,7 @@ static err_t do_page(conn_t *c)
     c->mem = api_page(&c->mem_left);
     c->state = ST_SEND;
     c->resp_off = 0;
-    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+    c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\n"
         "Content-Length: %lu\r\nCache-Control: no-cache\r\nX-Frame-Options: DENY\r\n"
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; "
@@ -499,7 +537,7 @@ static err_t redirect(conn_t *c)
 {
     c->state = ST_SEND;
     c->resp_off = 0;
-    c->resp_len = (uint32_t)snprintf(c->resp, sizeof c->resp,
+    c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
         "HTTP/1.1 302 Found\r\nLocation: https://%s/\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", tls_name());
     return pump(c);
 }
@@ -522,11 +560,11 @@ static err_t body_done(conn_t *c)
     }
 #ifdef APP_IMAGE
     if (c->action == ACT_API) {
-        static char msg[CLI_OUT];
+        char *msg = s_scratch.msg;
         api_req_t rq = { c->key == SECRET_KEY, c->key, c->nonce, c->body, c->body_len };
         c->action = ACT_NONE;
         c->body[c->body_len] = 0;
-        const char *st = api_post(c->path, &rq, msg, sizeof msg);
+        const char *st = api_post(c->path, &rq, msg, sizeof s_scratch.msg);
         bool json = st[0] == '2' && strcmp(c->path, "/api/cli");
         return reply(c, st, json ? "application/json" : "text/plain", msg);
     }
@@ -600,8 +638,8 @@ static err_t on_request(conn_t *c)
 #ifdef APP_IMAGE
         if (!strcmp(path, "/")) return go_secure(c) ? redirect(c) : do_page(c);
         if (!strncmp(path, "/api/", 5)) {
-            static char js[RESP_MAX - 256];
-            int n = api_get(path, js, sizeof js);
+            char *js = s_scratch.js;
+            int n = api_get(path, js, sizeof s_scratch.js);
             if (n == 0) return fail(c, "500 Internal Server Error", "reply too large");
             if (n > 0) return reply(c, "200 OK", "application/json", js);
         }
@@ -741,6 +779,7 @@ void *http_tls_open(tls_t *t)
         conn_t *c = &s_conn[i];
         if (c->state != ST_FREE) continue;
         memset(c, 0, sizeof *c);
+        resp_own(c);
         c->state = ST_HDR;
         c->tls = t;
         return c;
@@ -839,6 +878,7 @@ static err_t cb_accept(void *arg, struct tcp_pcb *pcb, err_t err)
         conn_t *c = &s_conn[i];
         if (c->state != ST_FREE) continue;
         memset(c, 0, sizeof *c);
+        resp_own(c);
         c->state = ST_HDR;
         c->pcb = pcb;
         tcp_arg(pcb, c);
@@ -856,6 +896,7 @@ static err_t cb_accept(void *arg, struct tcp_pcb *pcb, err_t err)
 void http_init(void)
 {
     memset(s_conn, 0, sizeof s_conn);
+    for (int i = 0; i < MAX_CONN; i++) resp_own(&s_conn[i]);
     struct tcp_pcb *l = tcp_new();
     if (!l || tcp_bind(l, IP_ADDR_ANY, 80) != ERR_OK) return;
     tcp_accept(tcp_listen_with_backlog(l, MAX_CONN), cb_accept);

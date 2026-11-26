@@ -18,7 +18,7 @@
 
 enum { WORKER_TLS, WORKER_RENEW, WORKERS };
 
-typedef struct { uint32_t slices, longest_us, stack_used, stack_size; } worker_stats_t;
+typedef struct { uint32_t slices, longest_us, stack_used, stack_size; } worker_stats_t;   /* used: the most yet */
 
 /* Starts `fn` on worker `w`. False if that one is already busy. */
 bool worker_start(int w, void (*fn)(void *), void *arg);

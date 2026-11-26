@@ -586,12 +586,16 @@ size_t acme_json(char *out, size_t max)
     const char *name = tls_issued(&from, &to);
     char iso[17] = "";
     clock_iso(iso, false);
+    worker_stats_t w;
+    worker_stats(WORKER_RENEW, &w);
     int n = snprintf(out, max,
         "{\"auto\":%s,\"zone\":\"%s\",\"key_id\":\"%s\",\"secret_set\":%s,\"running\":%s,\"step\":\"%s\",\"staging\":%s,"
-        "\"result\":\"%s\",\"result_s\":%ld,\"last_ok\":%lu,\"clock\":\"%s\",\"clock_s\":%lu,\"name\":\"%s\",\"due_in_s\":%ld,\"tls_out\":%lu}\n",
+        "\"result\":\"%s\",\"result_s\":%ld,\"last_ok\":%lu,\"clock\":\"%s\",\"clock_s\":%lu,\"name\":\"%s\",\"due_in_s\":%ld,\"tls_out\":%lu,"
+        "\"slice_us\":%lu,\"stack\":[%lu,%lu]}\n",
         b->automatic ? "true" : "false", b->zone, b->key_id, b->has_secret ? "true" : "false", s_running ? "true" : "false",
         s_step, s_staging ? "true" : "false", s_result, s_result_at && now ? (long)(now - s_result_at) : -1L,
         (unsigned long)b->last_ok, iso, (unsigned long)clock_synced_ago(), name ? name : "",
-        name && now ? (long)((int64_t)to - (int64_t)(to - from) / 3 - (int64_t)now) : 0L, (unsigned long)hc_handshakes());
+        name && now ? (long)((int64_t)to - (int64_t)(to - from) / 3 - (int64_t)now) : 0L, (unsigned long)hc_handshakes(),
+        (unsigned long)w.longest_us, (unsigned long)w.stack_used, (unsigned long)w.stack_size);
     return n > 0 && (size_t)n < max ? (size_t)n : 0;
 }

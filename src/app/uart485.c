@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define RX_SZ 8192u             /* powers of two */
-#define TX_SZ 4096u
+/* Powers of two. 4 KB is 44 ms at 921600 baud; the main loop comes round in a few. */
+#define RX_SZ 4096u
+#define TX_SZ 2048u
 #define D2 __attribute__((section(".d2_bss")))
 
 typedef struct {

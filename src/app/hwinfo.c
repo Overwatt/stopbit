@@ -104,16 +104,39 @@ static bool measure(void)
 /* Longest time between passes: since the start, and in the last 10 to 20 s. */
 static uint32_t s_loop_at, s_loop_max, s_loop[2], s_loop_turn;
 static bool s_loop_on;
+/* And which step of the pass was longest: since the start, and in the same window.
+ * A save that keeps the ports moving counts as a new pass, so splits a step. */
+typedef struct { uint32_t us; const char *in; } step_t;
+static step_t s_step_max, s_steps[2];
+static const char *s_step;
+static uint32_t s_step_at;
+
+static void step_end(uint32_t now)
+{
+    uint32_t us = (now - s_step_at) / (SystemCoreClock / 1000000u);
+    if (s_step && us > s_steps[0].us) s_steps[0] = (step_t){ us, s_step };
+    if (s_step && us > s_step_max.us) s_step_max = (step_t){ us, s_step };
+    s_step_at = now;
+}
+
+void hwinfo_step(const char *name)
+{
+    step_end(DWT->CYCCNT);
+    s_step = name;
+}
 
 void hwinfo_loop(void)
 {
     uint32_t now = DWT->CYCCNT, us = (now - s_loop_at) / (SystemCoreClock / 1000000u);
     s_loop_at = now;
+    step_end(now);
     if (!s_loop_on) { s_loop_on = true; return; }
     if (HAL_GetTick() - s_loop_turn >= 10000u) {
         s_loop_turn = HAL_GetTick();
         s_loop[1] = s_loop[0];
         s_loop[0] = 0;
+        s_steps[1] = s_steps[0];
+        s_steps[0] = (step_t){ 0, NULL };
     }
     if (us > s_loop[0]) s_loop[0] = us;
     if (us > s_loop_max) s_loop_max = us;
@@ -162,7 +185,10 @@ size_t hwinfo_json(char *out, size_t max)
         U((uint32_t)&_eaxi - D1_AXISRAM_BASE + peak), U(512u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
         U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10), U((uint32_t)&_ed3bss - D3_SRAM_BASE), U(64u << 10));
 
-    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu}", U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max));
+    const step_t *r = s_steps[0].us > s_steps[1].us ? &s_steps[0] : &s_steps[1];
+    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"max_us\":%lu,\"max\":\"%s\"}}",
+        U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max),
+        U(r->us), r->in ? r->in : "", U(s_step_max.us), s_step_max.in ? s_step_max.in : "");
     const fw_id_t *ld = (const fw_id_t *)(FLASH_BASE + FW_ID_OFFSET);
     OUT(",\"loader\":\"%.23s\",\"slot\":%d,\"slots\":[", ld->magic == FW_ID_MAGIC_LOADER ? ld->version : "", run);
     for (int i = 0; i < SLOT_COUNT; i++)
