@@ -182,7 +182,8 @@ Serial data does not go over MQTT; use the TCP/UDP ports for that.
 
 Tick **Encrypt the connection (TLS)** (`mqtt.tls=1`); the port moves to 8883. The broker
 needs a certificate for the name the gateway is given (not an address) from Let's Encrypt
-or Amazon, the roots the gateway carries (`src/app/roots.c`). It is checked: name, chain
+(either hierarchy: X1/X2 or the newer YE/YR) or Amazon, the roots the gateway carries
+(`src/app/roots.c`). It is checked: name, chain
 and dates. A failed check is a failed connection, with the reason on the MQTT page and in
 the log; there is no falling back to plain MQTT.
 

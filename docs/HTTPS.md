@@ -94,8 +94,9 @@ the time server set on the Network page (`net.ntp`), else the DHCP server's, the
 `pool.ntp.org`, every hour. A restart carries the time over in backup registers, to within a
 few seconds, but renewal waits for a time server: AWS refuses a clock more than 5 minutes
 out. The board has no watch crystal, so the RTC could do no better. Outgoing connections check the server
-against four roots compiled in (`src/app/roots.c`): ISRG Root X1 and X2, Amazon Root CA 1
-and 3. **A root that is withdrawn needs new firmware.**
+against six roots compiled in (`src/app/roots.c`): ISRG Root X1 and X2, ISRG Root YE and YR
+(Let's Encrypt's newer hierarchy, so a server sending only YE1 or YR1 and the like still
+verifies), Amazon Root CA 1 and 3. **A root that is withdrawn needs new firmware.**
 
 The AWS key should be able to do nothing else. This is the policy, for one name:
 

@@ -1,5 +1,6 @@
 #!/bin/sh
-# MQTT over TLS against Mosquitto (tests/test_mqtt_tls.c). Makes a test CA and broker
+# The gateway's trusted roots (tests/test_roots.c), then MQTT over TLS against Mosquitto
+# (tests/test_mqtt_tls.c). Makes a test CA and broker
 # certificates (ECDSA and RSA, for mqtt.test), starts Mosquitto on 127.0.0.1, retains a
 # 40000-byte message, and runs the test. Needs mosquitto, mosquitto_pub, openssl,
 # python3, and the mbedTLS objects tests/sim/run.sh builds (run it once, same CC).
@@ -11,6 +12,14 @@ SO="${TMPDIR:-/tmp}/n540sim4.o$(echo "$CC" | tr -c "a-z0-9\n" _ | sed "s/^cc//")
 [ -f "$SO/done" ] || { echo "run tests/sim/run.sh once first, with the same CC, for the mbedTLS objects"; exit 1; }
 MOSQ=$(command -v mosquitto || echo /opt/homebrew/sbin/mosquitto); [ -x "$MOSQ" ] || MOSQ=/usr/sbin/mosquitto
 rm -rf "${W:?}"; mkdir -p "$W"
+L=build/_deps/lwip-src/src; M=build/_deps/mbedtls4-src; P=$M/tf-psa-crypto
+MB="-I$M/include -I$P/include -I$P/drivers/builtin/include"
+MBCFG='-DTF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h"'
+
+$CC -g -O1 -fsanitize=address,undefined -fno-sanitize=alignment -fno-sanitize-recover=all -w \
+  '-DMBEDTLS_CONFIG_FILE="mbedtls_cfg.h"' "$MBCFG" -Isrc/app $MB \
+  tests/test_roots.c src/app/roots.c "$SO"/*.o -o "$W/test_roots" || exit 1
+ASAN_OPTIONS=detect_leaks=0 "$W/test_roots" tests/roots || exit 1
 
 ( cd "$W" || exit 1
   openssl ecparam -name prime256v1 -genkey -noout -out ca.key
@@ -47,7 +56,6 @@ EOF
 broker=$!
 for i in $(seq 50); do mosquitto_pub -p 11883 -t n540test/big -r -f "$W/big.bin" 2>/dev/null && break; sleep 0.2; done
 
-L=build/_deps/lwip-src/src; M=build/_deps/mbedtls4-src; P=$M/tf-psa-crypto
 $CC -g -O1 -fsanitize=address,undefined -fno-sanitize=alignment -fno-sanitize-recover=all -w -DAXI_BSS= \
   -DWORKER_TLS_STACK=8 -DWORKER_RENEW_STACK=8 -DWORKER_MQTT_STACK=131072 \
   '-DMBEDTLS_CONFIG_FILE="mbedtls_cfg.h"' '-DTF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h"' \
