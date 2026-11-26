@@ -271,3 +271,11 @@ counted, and the count is kept. `GET /api/events` gives the newest 30,
 `/api/events?before=SEQ` the 30 before that: `[seq, unix time or 0, seconds since that
 start, start number, kind, port, number, note]`.
 
+## Settings file
+
+Hardware → Settings file: **Download settings** saves every setting as text, the same
+`key=value` lines the console and `POST /api/config` take, with a note at the top of which
+gateway, firmware and when. Passwords and keys are not in it. **Restore** sends a file's
+lines back, signed like any change, so restored network settings go on trial for two
+minutes. Lines starting `#` are notes. `GET /api/settings` gives the file as `{"text": …}`.
+

@@ -205,10 +205,11 @@ int api_get(const char *path, char *out, size_t max)
     if (!strcmp(path, "/api/settings")) {             /* as a file to keep: lines, no secrets */
         static char text[3200];
         static cfg_t c;
-        char when[17] = "";
+        char iso[17] = "", when[24] = "";
         c = s_cfg;
         if (s_pending) c.net = s_trial;
-        clock_iso(when, false);
+        if (clock_iso(iso, false))                      /* 20261126T031043Z: 2026-11-26 03:10 UTC */
+            snprintf(when, sizeof when, "%.4s-%.2s-%.2s %.2s:%.2s UTC", iso, iso + 4, iso + 6, iso + 9, iso + 11);
         int h = snprintf(text, sizeof text, "# Settings of %s (%s), firmware %s, %s\n"
                          "# Restore them on its Hardware page. Passwords and keys are not here.\n",
                          c.device_name, g_hostname, g_fw_id.version, when[0] ? when : "time unknown");
