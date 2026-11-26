@@ -55,8 +55,8 @@ static const ent_t DEV_E[] = {
 #define NENT (PORTS * NPE + NDE)
 
 /* ---- state --------------------------------------------------------------- */
-enum { M_OFF, M_RESOLVING, M_CONNECTING, M_UP, M_WAIT, M_REMOVING };
-static const char *const NAMES[] = { "off", "connecting", "connecting", "connected", "retrying", "removing" };
+enum { M_OFF, M_RESOLVING, M_CONNECTING, M_UP, M_WAIT, M_REMOVING, M_MOVING };
+static const char *const NAMES[] = { "off", "connecting", "connecting", "connected", "retrying", "removing", "connected" };
 
 static mqtt_client_t s_c;
 static mqtt_cfg_t s_run;                /* what the connection was made with */
@@ -73,6 +73,10 @@ static char     s_reject[96];           /* last refused command */
 static char     s_cmd[160];             /* command waiting for the main loop */
 static bool     s_cmd_ready, s_restart;
 static char     s_buf[1400];
+/* Topics start with s_base: the setting, or the host name. Home Assistant's IDs stay
+ * the host name, so its entities follow a move. s_old: the base being cleared up. */
+static char     s_base[48], s_old[48];
+static int      s_clear;                /* retained topics under s_old cleared so far */
 
 const char *mqtt_ha_state(void) { return NAMES[s_state]; }
 const char *mqtt_ha_error(void) { return s_err; }
@@ -91,13 +95,13 @@ static bool s_in_ok;
 
 static void cb_topic(void *arg, const char *topic, u32_t tot)
 {
-    size_t n = strlen(g_hostname);
+    size_t n = strlen(s_base);
     (void)arg;
     s_in_ok = false;
     s_in_len = 0;
     if (!s_run.control || (s_c.rx_buffer[0] & 1u)) return;      /* retained: stale */
     if (tot >= sizeof s_in_val) return;
-    if (strncmp(topic, g_hostname, n) || topic[n] != '/') return;
+    if (strncmp(topic, s_base, n) || topic[n] != '/') return;
     const char *obj = topic + n + 1, *set = strstr(obj, "/set/");
     if (!set) return;
     const char *field = set + 5;
@@ -183,10 +187,10 @@ static const char *why(mqtt_connection_status_t st)
 
 static void connect_to(const ip_addr_t *ip)
 {
-    static char will[32];
+    static char will[56];
     static struct mqtt_connect_client_info_t ci;
     memset(&ci, 0, sizeof ci);
-    snprintf(will, sizeof will, "%s/status", g_hostname);
+    snprintf(will, sizeof will, "%s/status", s_base);
     ci.client_id = g_hostname;
     ci.client_user = s_run.user[0] ? s_run.user : NULL;
     ci.client_pass = s_run.password[0] ? s_run.password : NULL;
@@ -233,6 +237,19 @@ static void drop(void)
 void mqtt_ha_configure(const cfg_t *c)
 {
     const mqtt_cfg_t *m = &c->mqtt;
+    char base[sizeof s_base];
+    snprintf(base, sizeof base, "%s", c->more.topic[0] ? c->more.topic : g_hostname);
+    if (strcmp(base, s_base)) {
+        /* Up: clear what is retained under the old base, then reconnect, so the last
+         * will moves too. Otherwise it waits for the next connection. */
+        if (s_base[0] && s_state == M_UP && s_run.enabled && m->enabled) {
+            memcpy(s_old, s_base, sizeof s_old);
+            s_clear = 0;
+            s_state = M_MOVING;
+        }
+        memcpy(s_base, base, sizeof s_base);
+        s_sub = false;
+    }
     bool same_conn = m->port == s_run.port && !strcmp(m->host, s_run.host) &&
                      !strcmp(m->user, s_run.user) && !strcmp(m->password, s_run.password);
 
@@ -242,7 +259,7 @@ void mqtt_ha_configure(const cfg_t *c)
         s_sub = false;
         memcpy(s_name, c->device_name, sizeof s_name);
     }
-    if (s_run.enabled && !m->enabled && s_state == M_UP) {
+    if (s_run.enabled && !m->enabled && (s_state == M_UP || s_state == M_MOVING)) {
         s_run.enabled = 0;                      /* take our entities out of HA first */
         s_run.control = 0;
         s_state = M_REMOVING;
@@ -289,7 +306,7 @@ static bool announce(int n, bool remove)
 #define ADD(...) do { int w = snprintf(s_buf + n0, max - n0, __VA_ARGS__); \
         if (w < 0 || (size_t)w >= max - n0) { return true; } n0 += (size_t)w; } while (0)
     ADD("{\"~\":\"%s\",\"name\":\"%s\",\"unique_id\":\"%s_%s\",\"availability_topic\":\"~/status\"",
-        g_hostname, label, g_hostname, obj);
+        s_base, label, g_hostname, obj);
     if (strcmp(e->comp, "button")) {
         ADD(",\"state_topic\":\"~/%s\"", st);
         if (e->flags & BOOL) ADD(",\"value_template\":\"{{'ON' if value_json.%s else 'OFF'}}\"", e->key);
@@ -310,7 +327,7 @@ static bool announce(int n, bool remove)
 static bool publish_port(const cfg_t *c, int i)
 {
     bridge_info_t b;
-    char topic[40];
+    char topic[64];
     bridge_info(i, &b);
     size_t n0 = cfg_port_json(&c->port[i], s_buf, sizeof s_buf), max = sizeof s_buf;
     if (!n0) return true;
@@ -322,7 +339,7 @@ static bool publish_port(const cfg_t *c, int i)
     if (!first && h == s_port_hash[i] && (cnt == s_port_cnt[i] || now - s_port_at[i] < COUNTER_MS)) return true;
     ADD(",\"serial_rx\":%lu,\"serial_tx\":%lu,\"errors\":%lu,\"turned_away\":%lu,\"turned_away_ip\":\"%s\"}",
         (unsigned long)b.serial_rx, (unsigned long)b.serial_tx, (unsigned long)b.errors, (unsigned long)b.denied, b.denied_ip);
-    snprintf(topic, sizeof topic, "%s/port%d", g_hostname, i + 1);
+    snprintf(topic, sizeof topic, "%s/port%d", s_base, i + 1);
     if (!pub(topic, s_buf, true)) return false;
     s_port_hash[i] = h;
     s_port_cnt[i] = cnt;
@@ -333,14 +350,14 @@ static bool publish_port(const cfg_t *c, int i)
 
 static bool publish_device(void)
 {
-    char topic[40], ip[16], name[72], rej[200];
+    char topic[64], ip[16], name[72], rej[200];
     json_str(s_name, name, sizeof name);
     json_str(s_reject[0] ? s_reject : "Nothing", rej, sizeof rej);
     net_ip_str(ip);
     snprintf(s_buf, sizeof s_buf, "{\"name\":%s,\"ip\":\"%s\",\"last_error\":%s}", name, ip, rej);
     uint32_t h = hash(s_buf);
     if (h == s_dev_hash) return true;
-    snprintf(topic, sizeof topic, "%s/device", g_hostname);
+    snprintf(topic, sizeof topic, "%s/device", s_base);
     if (!pub(topic, s_buf, true)) return false;
     s_dev_hash = h;
     return true;
@@ -348,9 +365,9 @@ static bool publish_device(void)
 
 void mqtt_ha_shutdown(void)
 {
-    char topic[40];
+    char topic[64];
     if (s_state == M_UP && mqtt_client_is_connected(&s_c)) {
-        snprintf(topic, sizeof topic, "%s/status", g_hostname);
+        snprintf(topic, sizeof topic, "%s/status", s_base);
         pub(topic, "offline", true);
     }
     if (s_state != M_OFF) drop();       /* queued data still goes out before the FIN */
@@ -359,11 +376,12 @@ void mqtt_ha_shutdown(void)
 
 void mqtt_ha_poll(const cfg_t *c)
 {
-    char topic[40];
+    char topic[64];
     if (s_leaving) return;
     if (s_lost) {
         s_lost = false;
         if (s_state == M_REMOVING) { drop(); return; }
+        if (s_state == M_MOVING) s_state = M_UP;      /* the retry connects under the new base */
         if (s_state != M_OFF) retry(why(s_lost_why));
     }
     if (s_state == M_WAIT && (int32_t)(HAL_GetTick() - s_retry_at) >= 0) start();
@@ -389,11 +407,25 @@ void mqtt_ha_poll(const cfg_t *c)
             if (!announce(s_disc, true)) return;
             s_disc++;
         }
-        snprintf(topic, sizeof topic, "%s/status", g_hostname);
+        snprintf(topic, sizeof topic, "%s/status", s_base);
         if (s_disc == NENT && !pub(topic, "offline", true)) return;
         s_disc = NENT + 1;
         if (s_c.output.get != s_c.output.put) return;       /* let it drain */
         drop();
+        return;
+    }
+    if (s_state == M_MOVING) {                  /* empty and retained: the broker forgets it */
+        static const char *const OLD[] = { "port1", "port2", "port3", "port4", "device", "status" };
+        while (s_clear < (int)(sizeof OLD / sizeof OLD[0])) {
+            snprintf(topic, sizeof topic, "%s/%s", s_old, OLD[s_clear]);
+            if (!pub(topic, "", true)) return;
+            s_clear++;
+        }
+        if (s_c.output.get != s_c.output.put) return;       /* let it drain */
+        drop();
+        s_err = "";
+        s_backoff = 0;
+        start();
         return;
     }
     if (s_state != M_UP || !mqtt_client_is_connected(&s_c)) return;
@@ -406,12 +438,12 @@ void mqtt_ha_poll(const cfg_t *c)
         if (!publish_port(c, i)) return;
     if (!publish_device()) return;
     if (!s_online) {
-        snprintf(topic, sizeof topic, "%s/status", g_hostname);
+        snprintf(topic, sizeof topic, "%s/status", s_base);
         if (!pub(topic, "online", true)) return;
         s_online = true;
     }
     if (!s_sub && s_run.control) {
-        snprintf(topic, sizeof topic, "%s/+/set/+", g_hostname);
+        snprintf(topic, sizeof topic, "%s/+/set/+", s_base);
         if (mqtt_subscribe(&s_c, topic, 0, NULL, NULL) != ERR_OK) return;
         s_sub = true;
     }

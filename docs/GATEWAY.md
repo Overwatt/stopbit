@@ -77,6 +77,11 @@ discovery entries are withdrawn once; everything else stays the same, retained:
 `offline` from the last will). With changes allowed, `HOST/port1/set/KEY` takes any port
 setting except `listen_only` and `access`. Firmware older than this ignores the setting and announces.
 
+`HOST` is the host name unless **Base topic** (`mqtt.topic`) says otherwise, for example
+`solar/gateway`. Changing it while connected clears what is retained under the old topic,
+then reconnects, so the last will moves too; Home Assistant keeps the same entities, which
+follow. Firmware older than this uses the host name again.
+
 ### Being told when a bus goes quiet
 
 Each port has an alert sensor in Home Assistant (`binary_sensor`, on = problem). The gateway

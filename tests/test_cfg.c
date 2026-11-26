@@ -35,6 +35,12 @@ int main(void)
     { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"ntp\":\"10.20.0.1\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "net.ntp=10.20.0.1\n"));
       static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !strcmp(t.more.ntp, "10.20.0.1")); }
     OK("net.ntp="); assert(!c.more.ntp[0]);
+    assert(!c.more.topic[0]); OK("mqtt.topic=solar/gateway"); assert(!strcmp(c.more.topic, "solar/gateway"));
+    OK("mqtt.topic=a.b-c_d/e1"); BAD("mqtt.topic=/lead"); BAD("mqtt.topic=trail/"); BAD("mqtt.topic=a//b"); BAD("mqtt.topic=a/+/b");
+    BAD("mqtt.topic=a/#"); BAD("mqtt.topic=$SYS"); BAD("mqtt.topic=a b"); BAD("mqtt.topic=123456789012345678901234567890123456789012345678");
+    { static char jj[4344]; assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"topic\":\"a.b-c_d/e1\"")); assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "mqtt.topic=a.b-c_d/e1\n"));
+      static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && !strcmp(t.more.topic, "a.b-c_d/e1")); }
+    OK("mqtt.topic="); assert(!c.more.topic[0]);
     OK("port3.quiet_min=1\nport1.quiet_min=1440"); assert(cfg_quiet_min(&c, 2) == 1 && cfg_quiet_min(&c, 0) == 1440 && !cfg_quiet_min(&c, 1) && !cfg_quiet_min(&c, 3));
     BAD("port1.quiet_min=4"); BAD("port1.quiet_min=-1"); BAD("port1.quiet_min="); BAD("port5.quiet_min=1");
     OK("port3.quiet_min=0"); assert(cfg_quiet_min(&c, 2) == 0 && cfg_quiet_min(&c, 0) == 1440); OK("port1.quiet_min=0"); assert(c.quiet == 0);

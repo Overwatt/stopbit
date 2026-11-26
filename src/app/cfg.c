@@ -158,6 +158,19 @@ static bool set_field(void *base, const field_t *f, const char *v)
     return true;
 }
 
+/* Levels of letters, digits, '-', '_' and '.', split by '/'; no wildcards, nothing
+ * reserved ($), no empty level. Blank: the host name. */
+static bool topic_ok(const char *v)
+{
+    if (*v == '/' || *v == '$') return false;
+    for (const char *p = v; *p; p++) {
+        bool ok = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') ||
+                  *p == '-' || *p == '_' || *p == '.' || (*p == '/' && p[1] && p[1] != '/');
+        if (!ok) return false;
+    }
+    return true;
+}
+
 static bool apply(cfg_t *c, const char *k, const char *v)
 {
     if (!strncmp(k, "port", 4) && k[4] >= '1' && k[4] < '1' + PORTS && k[5] == '.') {
@@ -175,6 +188,7 @@ static bool apply(cfg_t *c, const char *k, const char *v)
             }
         return false;
     }
+    if (!strcmp(k, "mqtt.topic")) return topic_ok(v) && set_str(c->more.topic, sizeof c->more.topic, v, false);
     if (!strncmp(k, "mqtt.", 5)) {
         for (size_t i = 0; i < NMQTT_F; i++)
             if (!strcmp(MQTT_F[i].key, k + 5)) return set_field(&c->mqtt, &MQTT_F[i], v);
@@ -360,6 +374,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
     ADD("},\"mqtt\":");
     if (!(w = fields_json(&c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
     n += w - 1;                        /* reopen to add one more key */
+    ADD(",\"topic\":");
+    STR(c->more.topic);
     ADD(",\"password_set\":%s},\"password_set\":%s,\"ports\":[",
         c->mqtt.password[0] ? "true" : "false", c->web_set ? "true" : "false");
     for (int i = 0; i < PORTS; i++) {
@@ -405,6 +421,7 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         c->net.gw ? ip[2] : "", c->net.dns ? ip[3] : "", c->more.ntp);
     if (!(w = fields_lines("mqtt", &c->mqtt, MQTT_F, NMQTT_F, out + n, max - n))) return 0;
     n += w;
+    ADD("mqtt.topic=%s\n", c->more.topic);
     for (int i = 0; i < PORTS; i++) {
         snprintf(pre, sizeof pre, "port%d", i + 1);
         if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;

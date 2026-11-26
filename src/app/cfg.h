@@ -47,7 +47,7 @@ typedef struct {
  * firmware never reads. Zero is each one's default. */
 typedef struct {
     char    ntp[48];               /* time server; blank = the DHCP server's, then pool.ntp.org */
-    char    topic[48];             /* MQTT base topic; blank = the host name. Not used yet */
+    char    topic[48];             /* MQTT base topic; blank = the host name */
     uint8_t spare[160];            /* for later settings */
 } more_cfg_t;
 
