@@ -342,8 +342,8 @@ def burst():
 burst(); time.sleep(1)
 BASE = tls()["heap"][0] if tls()["connections"] == 0 else BASE   # the ticket key may have turned over meanwhile
 r = burst(); quiet("long replies at once")                        # and nothing more is held after another
-s = conn(good, N); assert get(s, "/api/big?n=4300")[0] == 200 and big_plain(4300) == 200    # the longest that fits
-assert get(s, "/api/big?n=4400")[0] == 500; s.close()                                     # never cut short
+s = conn(good, N); assert get(s, "/api/big?n=5300")[0] == 200 and big_plain(5300) == 200    # the longest that fits (http.c: RESP_MAX - 256)
+assert get(s, "/api/big?n=5400")[0] == 500; s.close()                                     # never cut short
 quiet("long replies"); ok(f"long replies share buffers: {r.count(200)} of {len(r)} at once whole, the rest busy")
 # it survives a restart, and so does a pending request
 n = json.loads(d.get("/status"))["boots"]; cmd("request new.example.com"); d.auth("POST", "/reboot"); back(n); time.sleep(1)
