@@ -55,22 +55,6 @@ reject live1 if pack_voltage == 0
 | `switch` | `id "name"` and `reg A on V off V`, `coil A [on V]`, or `reg A bit N` (read-modify-write); `[state field] [hidden]` |
 | `button` | `id "name" reg\|coil address value V [hidden]` |
 
-## Controls
-
-Settings a device keeps, which Home Assistant can change when the device has
-`controls=1`. Each is read from a `hold` block, as a sensor is, and written to the same
-address: one register by function 6, two by function 16. A write reads the register first,
-changes only the control's own bits, and is not made if nothing would change.
-
-| Statement | Form |
-|---|---|
-| `number` | `id "name" block address type [*scale] [+offset] min M max M [step S] [unit] [dc=] [hidden]`; type `u16 s16 u32 s32 u32le s32le`; min and max must fit the register; the step is the scale unless given |
-| `select` | `id "name" block address [mask=M] v=name ... [hidden]`; each value as it is in the register under the mask; names unique |
-| `switch` | `id "name" block address bit N [hidden]`, or `on V off V` for a whole register |
-| `time` | `id "name" block address [hidden]`: HH:MM, the hour in the low byte, the minute in the high |
-
-`hidden`: announced disabled, so it must be enabled in Home Assistant on purpose.
-
 - **Types:** `u16 s16`; `u32 s32` (high word first), `u32le s32le` (low word first); `u8h u8l
   s8h s8l` (one byte of a register); `bit N`; `coil` (a bit of a coil or discrete block).
 - **Value:** `+N` (offset) and `*N` (scale): value = (raw + offset) × scale. `nodata V ...`:
@@ -93,10 +77,26 @@ changes only the control's own bits, and is not made if nothing would change.
 - Uploads come in phase 2. Then a profile id may be built in and uploaded: the uploaded
   one is used, and deleting it brings back the built-in one.
 
+## Controls
+
+Settings a device keeps, which Home Assistant can change when the device has
+`controls=1`. Each is read from a `hold` block, as a sensor is, and written to the same
+address: one register by function 6, two by function 16. A write reads the register first,
+changes only the control's own bits, and is not made if nothing would change.
+
+| Statement | Form |
+|---|---|
+| `number` | `id "name" block address type [*scale] [+offset] min M max M [step S] [unit] [dc=] [hidden]`; type `u16 s16 u32 s32 u32le s32le`; min and max must fit the register; the step is the scale unless given |
+| `select` | `id "name" block address [mask=M] v=name ... [hidden]`; each value as it is in the register under the mask; names unique |
+| `switch` | `id "name" block address bit N [hidden]`, or `on V off V` for a whole register |
+| `time` | `id "name" block address [hidden]`: HH:MM, the hour in the low byte, the minute in the high |
+
+`hidden`: announced disabled, so it must be enabled in Home Assistant on purpose.
+
 ## Phase 1 notes
 
-- Built-in profiles only (below): profiles cannot be uploaded until phase 2.
-- Controls (`number`, `select`, `switch`, `button`) are refused until phase 2.
+- Built-in profiles only (below): profiles cannot be uploaded yet.
+- `button` comes with a later firmware.
 - `reject B if zero f1 f2 ...`: the block's reply is not used when every listed field is 0
   (for example `reject live2 if zero remaining_capacity state_of_health full_capacity`).
 

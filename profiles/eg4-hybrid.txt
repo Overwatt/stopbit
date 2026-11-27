@@ -37,7 +37,7 @@ sensor discharge_power        "Battery discharge power"   live 11 u16 W dc=power
 sensor grid_voltage           "Grid voltage"              live 12 u16 *0.1 V dc=voltage sc=measurement prec=1
 sensor grid_frequency         "Grid frequency"            live 15 u16 *0.01 Hz dc=frequency sc=measurement prec=2
 sensor inverter_power         "Inverter power"            live 16 u16 W dc=power sc=measurement prec=0
-sensor ac_charging_power      "AC charging power"         live 17 u16 W dc=power sc=measurement prec=0
+sensor ac_charge_power        "AC charge power"           live 17 u16 W dc=power sc=measurement prec=0
 sensor eps_voltage            "EPS voltage"               live 20 u16 *0.1 V dc=voltage sc=measurement prec=1
 sensor eps_frequency          "EPS frequency"             live 23 u16 *0.01 Hz dc=frequency sc=measurement prec=2
 sensor eps_power              "EPS power"                 live 24 u16 W dc=power sc=measurement prec=0
@@ -81,7 +81,7 @@ calc pv_energy                "PV energy"                 sum pv_energy_1..3 kWh
 # PV input mode, parallel and lead-acid settings, the 0.1 % settings (138-143), AC-first
 # windows (152-157), generator charging (194-198).
 switch ac_charge               "AC charge"                  ident  21  bit 7
-number ac_charge_power         "AC charge power"            set40  66  u16 *0.1 min 0 max 25 kW dc=power
+number ac_charge_rate          "AC charge rate"             set40  66  u16 *0.1 min 0 max 25 kW dc=power
 number ac_charge_soc_limit     "AC charge SOC limit"        set40  67  u16 min 0 max 100 %
 number ac_charge_start_soc     "AC charge start SOC"        set160 160 u16 min 0 max 90 %
 number ac_charge_stop_soc      "AC charge stop SOC"         set160 161 u16 min 20 max 100 %
@@ -94,7 +94,7 @@ time   ac_charge_end_2         "AC charge 2 end"            set40  71
 time   ac_charge_start_3       "AC charge 3 start"          set40  72
 time   ac_charge_end_3         "AC charge 3 end"            set40  73
 switch charge_first            "Charge first"               ident  21  bit 11
-number charge_first_power      "Charge first power"         set40  74  u16 *0.1 min 0 max 25 kW dc=power
+number charge_first_rate       "Charge first rate"          set40  74  u16 *0.1 min 0 max 25 kW dc=power
 number charge_first_soc_limit  "Charge first SOC limit"     set40  75  u16 min 0 max 100 %
 time   charge_first_start_1    "Charge first 1 start"       set40  76
 time   charge_first_end_1      "Charge first 1 end"         set40  77
@@ -103,7 +103,7 @@ time   charge_first_end_2      "Charge first 2 end"         set40  79
 time   charge_first_start_3    "Charge first 3 start"       set80  80
 time   charge_first_end_3      "Charge first 3 end"         set80  81
 switch forced_discharge        "Forced discharge"           ident  21  bit 10
-number forced_discharge_power  "Forced discharge power"     set80  82  u16 *0.1 min 0 max 25 kW dc=power
+number forced_discharge_rate   "Forced discharge rate"      set80  82  u16 *0.1 min 0 max 25 kW dc=power
 number forced_discharge_soc    "Forced discharge SOC limit" set80  83  u16 min 0 max 100 %
 time   forced_discharge_start_1 "Forced discharge 1 start"  set80  84
 time   forced_discharge_end_1  "Forced discharge 1 end"     set80  85

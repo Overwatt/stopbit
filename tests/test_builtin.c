@@ -1,8 +1,8 @@
 /* test_builtin.c — every built-in profile parses; the EG4 battery's decodes as the ESPHome
  * component does (eg4_bms.cpp), with the identification strings of its REGISTER_MAP.md;
- * the EG4 18kPV's decodes registers laid out as EG4's protocol document has them.
+ * the EG4 hybrid inverters' decodes registers laid out as EG4's protocol document has them.
  *   python3 tools/embed_profiles.py /tmp/profiles_gen.h profiles/*.txt &&
- *   cc -I/tmp -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm -o /tmp/bi && /tmp/bi */
+ *   cc -I/tmp -Isrc/app tests/test_builtin.c src/app/pfwrite.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm -o /tmp/bi && /tmp/bi */
 #include "profiles.h"
 #include "pfdecode.h"
 #include "pfwrite.h"
@@ -162,11 +162,11 @@ int main(void)
     assert(pf_decode(&P, profile_block(&P, "set80"), d, regs(d, H80, 40), &S));
     assert(pf_decode(&P, profile_block(&P, "set120"), d, regs(d, H120, 40), &S));
     assert(pf_decode(&P, profile_block(&P, "set160"), d, regs(d, H160, 40), &S));
-    assert(near(V("ac_charge_power"), 12) && near(V("ac_charge_soc_limit"), 100) && near(V("charge_first_power"), 12));
+    assert(near(V("ac_charge_rate"), 12) && near(V("ac_charge_soc_limit"), 100) && near(V("charge_first_rate"), 12));
     assert(!strcmp(text("ac_charge_start_1"), "01:00") && !strcmp(text("ac_charge_end_1"), "03:00"));
     assert(!strcmp(text("ac_charge_start_2"), "11:00") && !strcmp(text("ac_charge_end_2"), "16:00"));
     assert(!strcmp(text("charge_first_end_1"), "23:59") && !strcmp(text("charge_first_start_3"), "00:00"));
-    assert(near(V("forced_discharge_power"), 12) && near(V("forced_discharge_soc"), 20));
+    assert(near(V("forced_discharge_rate"), 12) && near(V("forced_discharge_soc"), 20));
     assert(near(V("charge_current"), 250) && near(V("discharge_current"), 250) && near(V("export_limit"), 100));
     assert(near(V("discharge_cutoff_soc"), 10) && near(V("off_grid_cutoff_soc"), 0) && near(V("ac_charge_start_soc"), 20));
     assert(!strcmp(text("ac_charge_by"), "Voltage") && !strcmp(text("discharge_control"), "Voltage") && !strcmp(text("output_priority"), "Battery first"));
@@ -177,8 +177,12 @@ int main(void)
     char why[32];
     uint16_t have[2] = { 0xF355, 0 }, out[2];
     assert(pf_command(&P, F("ac_charge"), "ON", &w, why, sizeof why) && w.addr == 21 && pf_merge(&w, have, out) && out[0] == 0xF3D5);
-    assert(pf_command(&P, F("ac_charge_power"), "8.5", &w, why, sizeof why) && w.addr == 66 && w.value[0] == 85);
-    assert(!pf_command(&P, F("ac_charge_power"), "26", &w, why, sizeof why));
+    assert(pf_command(&P, F("ac_charge_rate"), "8.5", &w, why, sizeof why) && w.addr == 66 && w.value[0] == 85);
+    assert(!pf_command(&P, F("ac_charge_rate"), "26", &w, why, sizeof why));
+    assert(pf_command(&P, F("ac_charge_by"), "SOC", &w, why, sizeof why) && w.addr == 120 && w.mask[0] == 0x000E && w.value[0] == 6);
+    uint16_t hv[2] = { 0x0004, 0 };
+    assert(pf_merge(&w, hv, out) && out[0] == 0x0006);
+    assert(pf_command(&P, F("ac_charge_start_1"), "07:30", &w, why, sizeof why) && w.addr == 68 && w.value[0] == 0x1E07);
     puts("builtin: ok");
     return 0;
 }
