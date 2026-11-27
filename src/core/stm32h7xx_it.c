@@ -9,9 +9,10 @@
 #include "stm32h7xx_it.h"
 #include "slots.h"
 
-/* frame: what the core pushed: r0-r3, r12, lr, pc, xpsr. */
+/* frame: what the core pushed: r0-r3, r12, lr, pc, xpsr. Called only from the assembly
+ * below, which a compiler looking at the whole program (-flto) cannot see: hence "used". */
 void fault_record(const uint32_t *frame, uint32_t which);
-void fault_record(const uint32_t *frame, uint32_t which)
+__attribute__((used)) void fault_record(const uint32_t *frame, uint32_t which)
 {
     if (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) for (;;) { }
     bkp_set(BKP_FAULT, FAULT_MAGIC | which);

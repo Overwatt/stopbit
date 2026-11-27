@@ -190,6 +190,15 @@ n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
     ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
 target_include_directories(app.elf SYSTEM PRIVATE ${MBEDTLS_PUBLIC})
 target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h" TF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h")
+# -DAPP_LTO=ON: the application optimised as a whole at link time, which makes it about
+# 15 KB smaller (measured 2026-11-27: 314 KB for 330 KB). Off unless asked for: nothing
+# needs the room yet, and an image built this way has not been run on a gateway. Never the
+# loader, which is to stay byte for byte what is installed.
+option(APP_LTO "Link-time optimisation for the application" OFF)
+if(APP_LTO)
+    target_compile_options(app.elf PRIVATE -flto)
+    target_link_options(app.elf PRIVATE -flto -Os)
+endif()
 # -DAPP_TEST=TEST_HANG or TEST_NONET builds deliberately broken apps.
 set(APP_TEST "" CACHE STRING "broken-app variant for rollback tests")
 target_compile_definitions(app.elf PRIVATE APP_IMAGE ${APP_TEST})
