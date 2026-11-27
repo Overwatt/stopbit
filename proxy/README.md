@@ -42,9 +42,11 @@ and makes `/dev/ttyN540-NAME` (see [example.conf](example.conf)).
 
 - **Baud, parity and the rest are set on the gateway** (`tools/n540.py $H set port1.baud=...`).
   A program setting them on the device changes nothing.
-- **The port must be in server mode**, not `mode=modbus`: the device carries the RS485 bytes
-  themselves, so Modbus RTU programs work as on a USB adapter. Allow a little longer for
-  replies, for the network.
+- **The port must be in server mode, or a Modbus gateway with `modbus_framing=rtu`.** The device
+  carries RTU bytes as they are, so Modbus RTU programs work as on a USB adapter. A Modbus gateway
+  also lets the gateway's own devices poll the same line, in turn with the program; set
+  `modbus_broadcast=answer` if the program asks unit 0 (SolarAssistant does, of EG4 inverters).
+  Allow a little longer for replies, for the network.
 - **There are no modem lines.** A program that sets RTS or DTR through ioctls may complain;
   the gateway switches the line's direction itself.
 - **Port 1 is on the Tigo bus.** Anything a program writes goes onto it; set
