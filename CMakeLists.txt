@@ -115,10 +115,23 @@ execute_process(
             ${CMAKE_SOURCE_DIR}/secrets/n540.key ${CMAKE_BINARY_DIR}/gen/secret_key.h
     COMMAND_ERROR_IS_FATAL ANY)
 
+# Version: the release tag (YEAR.WEEK.N, annotated) when HEAD is one, else the short commit;
+# "-dirty" marks uncommitted changes. It must fit fw_id_t.version: 23 characters.
 execute_process(
-    COMMAND git describe --always --dirty
+    COMMAND git describe --exact-match --dirty --match "[0-9]*.[0-9]*.[0-9]*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE FW_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    OUTPUT_VARIABLE FW_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(NOT FW_VERSION)
+    execute_process(
+        COMMAND git describe --always --dirty --exclude "*"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FW_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+string(LENGTH "${FW_VERSION}" FW_VERSION_LEN)
+if(FW_VERSION_LEN EQUAL 0 OR FW_VERSION_LEN GREATER 23)
+    message(FATAL_ERROR "Firmware version '${FW_VERSION}' must be 1 to 23 characters")
+endif()
+message(STATUS "Firmware version: ${FW_VERSION}")
 
 # ---------------------------------------------------------------------------
 # n540_image(<name> <linker script> <sources...>) -> <name>.elf / <name>.bin
