@@ -52,6 +52,7 @@ void eth_rx_release(void);
 
 /* Free TX buffer (ETH_FRAME_MAX bytes), or NULL if the ring is full. */
 uint8_t *eth_tx_alloc(void);
+bool eth_tx_room(void);          /* eth_tx_alloc() would give one */
 void eth_tx_send(uint32_t len);
 
 bool mdio_read(uint32_t phy, uint32_t reg, uint16_t *val);

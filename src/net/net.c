@@ -86,10 +86,26 @@ static void rx_free(struct pbuf *p)
 }
 #endif
 
+#ifdef APP_IMAGE
+/* The ring is full: eight frames are on their way out, and the oldest is gone within a
+ * frame's time (0.12 ms at 100 Mbit/s, 1.2 at 10). Waiting that long costs less than the
+ * frame: a dropped TCP segment is sent again only after a second or so. Not without the
+ * cycle counter (uart485_init starts it) or a link. */
+static void tx_wait(void)
+{
+    if (!(DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) || !g_eth.link_up) return;
+    uint32_t t0 = DWT->CYCCNT, max = SystemCoreClock / 1000000u * (g_eth.speed100 ? 250u : 1500u);
+    while (!eth_tx_room() && DWT->CYCCNT - t0 < max) { }
+}
+#endif
+
 static err_t link_output(struct netif *n, struct pbuf *p)
 {
     (void)n;
     if (p->tot_len > ETH_FRAME_MAX) return ERR_IF;
+#ifdef APP_IMAGE
+    if (!eth_tx_room()) tx_wait();
+#endif
     uint8_t *b = eth_tx_alloc();
     if (!b) return ERR_MEM;
     pbuf_copy_partial(p, b, p->tot_len, 0);

@@ -383,6 +383,8 @@ void eth_rx_release(void)
 }
 #endif
 
+bool eth_tx_room(void) { return !(s_tx[s_tx_i].d3 & TDES3_OWN); }
+
 uint8_t *eth_tx_alloc(void)
 {
     if (s_tx[s_tx_i].d3 & TDES3_OWN) {
