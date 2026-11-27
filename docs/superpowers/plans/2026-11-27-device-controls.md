@@ -1314,6 +1314,7 @@ enum { W_FREE, W_QUEUED, W_READING, W_WRITING, W_CHECKING };
 enum { WR_OK, WR_UNCHANGED, WR_REFUSED, WR_FAILED, WR_DIFFERS };   /* an EV_WRITE's outcome */
 typedef struct {
     uint8_t    stage, dev, gen, field;
+    uint8_t    port;                 /* the port it went out on, once read (0-based) */
     uint32_t   seq;                  /* arrival: the oldest goes first */
     pf_write_t w;
     uint16_t   want[2];              /* the registers as written */
@@ -1353,7 +1354,7 @@ static void wr_lost(int port)
 {
     for (int k = 0; k < WRITES; k++) {
         wq_t *q = &s_wq[k];
-        if (q->stage <= W_QUEUED || s_dev[q->dev].cfg.port != port + 1) continue;
+        if (q->stage <= W_QUEUED || q->port != port) continue;       /* its device may be gone: the port it went on */
         wr_event(q->dev, WR_FAILED, q->what, "lost");
         q->stage = W_FREE;
     }
@@ -1475,6 +1476,7 @@ static bool write_next(int port, modbus_t *m, uint32_t now)
     const uint8_t pdu[5] = { 3, (uint8_t)(q->w.addr >> 8), (uint8_t)q->w.addr, 0, q->w.regs };
     if (!ask(port, m, q->dev, TAG_READ, best, pdu, 5)) return true;      /* the queue is full: next pass */
     q->stage = W_READING;
+    q->port = (uint8_t)port;
     s_wlast[q->dev] = now;
     return true;
 }
