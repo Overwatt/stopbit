@@ -21,7 +21,7 @@
 #include <string.h>
 
 #ifndef AXI_BSS
-#define AXI_BSS __attribute__((section(".axi_bss")))
+#define AXI_BSS __attribute__((section(".itcm_bss")))    /* ITCM: AXI is for the TLS heap */
 #endif
 #define TLS_MAX      4
 #define SHAKE_MS     20000u
@@ -116,7 +116,7 @@ void tls_mask(int dev, uint32_t addr, uint8_t *buf, uint32_t n)
 }
 
 /* ---- mbedTLS --------------------------------------------------------------- */
-/* The heap is whatever AXI SRAM the image and its buffers leave (linker/app_ram.ld). */
+/* The heap is whatever AXI SRAM the image leaves (linker/app_ram.ld). */
 #ifdef TLS_HEAP
 static uint64_t s_heap[TLS_HEAP / 8];
 #define HEAP_AT   ((unsigned char *)s_heap)

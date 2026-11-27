@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 extern bool g_clock_hse;
-extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi, _ed3bss;
+extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi, _ed3bss, _eitcmbss;
 
 /* Factory calibration, in system memory (DS12556). */
 #define CAL_VREF   (*(const uint16_t *)0x1FF1E860u)     /* raw at 3.3 V */
@@ -221,9 +221,11 @@ size_t hwinfo_json(char *out, size_t max)
     size_t heap = 0, peak = 0;
     tls_heap(&heap, &peak);
     OUT("],\"mem\":[{\"name\":\"AXI\",\"used\":%lu,\"size\":%lu},{\"name\":\"DTCM\",\"used\":%lu,\"size\":%lu},"
-        "{\"name\":\"D2\",\"used\":%lu,\"size\":%lu},{\"name\":\"D3\",\"used\":%lu,\"size\":%lu}]",
+        "{\"name\":\"D2\",\"used\":%lu,\"size\":%lu},{\"name\":\"D3\",\"used\":%lu,\"size\":%lu},"
+        "{\"name\":\"ITCM\",\"used\":%lu,\"size\":%lu}]",
         U((uint32_t)&_eaxi - D1_AXISRAM_BASE + peak), U(512u << 10), U((uint32_t)&_end - D1_DTCMRAM_BASE), U((uint32_t)&_estack - D1_DTCMRAM_BASE),
-        U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10), U((uint32_t)&_ed3bss - D3_SRAM_BASE), U(64u << 10));
+        U((uint32_t)&_ed2bss - D2_AHBSRAM_BASE), U(288u << 10), U((uint32_t)&_ed3bss - D3_SRAM_BASE), U(64u << 10),
+        U((uint32_t)&_eitcmbss), U(64u << 10));            /* ITCM starts at address 0 */
     uint32_t ru, rp, rn, rw, el, ep, es;        /* the shared buffers: now, at most, how many, how often short */
     bridge_rings(&ru, &rp, &rn, &rw);
     eth_rx_stats(&el, &ep, &es);

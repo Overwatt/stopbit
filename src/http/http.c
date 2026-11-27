@@ -56,7 +56,7 @@
 #define REPLIES    3
 #define BODY_MAX   4608            /* a certificate chain */
 #ifndef CONN_MEM
-#define CONN_MEM   __attribute__((section(".axi_bss")))
+#define CONN_MEM   __attribute__((section(".itcm_bss")))   /* ITCM: not zeroed, see http_init */
 #endif
 #else
 #define MAX_CONN   4

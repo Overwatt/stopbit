@@ -33,6 +33,10 @@
 #define KEEP_MS 120000u          /* unconfirmed network settings revert after this */
 
 static cfg_t     s_cfg;          /* what is saved */
+/* A copy to change and then commit, or to show. One for all who need one: each is done
+ * with it before it returns, and none calls another (change() below keeps its own, as
+ * it is handed this one). 3 KB apiece adds up. */
+static cfg_t     s_edit;
 static net_cfg_t s_trial;        /* running but not saved */
 static bool      s_pending;
 static uint32_t  s_deadline;
@@ -103,21 +107,20 @@ void api_restart(void)
 /* The reload button. If flash cannot be written, nothing changes. */
 static void reset_access(void)
 {
-    static cfg_t c;
-    c = s_cfg;
-    cfg_reset_access(&c);
+    s_edit = s_cfg;
+    cfg_reset_access(&s_edit);
     events_add(EV_BUTTON, 0, 0, NULL);
-    if (commit(&c)) api_restart();
+    if (commit(&s_edit)) api_restart();
 }
 
 bool api_set_line(char *line, char *err, size_t errlen)
 {
-    static cfg_t c;
-    c = s_cfg;
-    if (!cfg_parse(&c, line, err, errlen) || !cfg_validate(&c, err, errlen)) return false;
-    if (!memcmp(&c, &s_cfg, sizeof c)) return true;
-    note(&s_cfg, &c);
-    s_cfg = c;
+    cfg_t *c = &s_edit;
+    *c = s_cfg;
+    if (!cfg_parse(c, line, err, errlen) || !cfg_validate(c, err, errlen)) return false;
+    if (!memcmp(c, &s_cfg, sizeof *c)) return true;
+    note(&s_cfg, c);
+    s_cfg = *c;
     s_unsaved = true;
     s_save_at = HAL_GetTick() + SAVE_MS;
     bridge_configure(&s_cfg);
@@ -190,10 +193,9 @@ static bool on_trial(void)
 static int get_one(const char *path, char *out, size_t max)
 {
     if (!strcmp(path, "/api/config")) {
-        static cfg_t c;
-        c = s_cfg;
-        if (s_pending) c.net = s_trial;
-        return (int)cfg_json(&c, out, max);
+        s_edit = s_cfg;
+        if (s_pending) s_edit.net = s_trial;
+        return (int)cfg_json(&s_edit, out, max);
     }
     if (!strcmp(path, "/api/login")) {
         char salt[33] = "";
@@ -284,14 +286,13 @@ static const char *change(cfg_t *c, char *body, char *out, size_t max);
 
 static const char *post_config(api_req_t *rq, char *out, size_t max)
 {
-    static cfg_t c;
     bool pw;
-    c = s_cfg;
-    if (!take_mqtt_password(rq, &c, &pw)) {
+    s_edit = s_cfg;
+    if (!take_mqtt_password(rq, &s_edit, &pw)) {
         snprintf(out, max, "That MQTT password cannot be used");
         return "400 Bad Request";
     }
-    const char *st = change(&c, rq->body, out, max);
+    const char *st = change(&s_edit, rq->body, out, max);
     if (st[0] == '2') snprintf(out, max, "{\"net_pending\":%s}", s_pending ? "true" : "false");
     return st;
 }
@@ -332,18 +333,18 @@ static const char *change(cfg_t *cp, char *body, char *out, size_t max)
  * HMAC(signing key, "newkey\n" nonce), so it is not readable on the wire. */
 static const char *post_password(api_req_t *rq, char *out, size_t max)
 {
-    static cfg_t c;
+    cfg_t *c = &s_edit;
     uint8_t pad[32], key[32], salt[16];
     if (!strcmp(rq->body, "clear")) {
         if (!rq->machine) {
             snprintf(out, max, "Only the update key can clear the password");
             return "403 Forbidden";
         }
-        c = s_cfg;
-        c.web_set = 0;
-        memset(c.web_salt, 0, sizeof c.web_salt);
-        memset(c.web_key, 0, sizeof c.web_key);
-        if (!commit(&c)) {
+        *c = s_cfg;
+        c->web_set = 0;
+        memset(c->web_salt, 0, sizeof c->web_salt);
+        memset(c->web_key, 0, sizeof c->web_key);
+        if (!commit(c)) {
             snprintf(out, max, "Could not write to flash; the password is unchanged");
             return "500 Internal Server Error";
         }
@@ -356,11 +357,11 @@ static const char *post_password(api_req_t *rq, char *out, size_t max)
         return "400 Bad Request";
     }
     hmac_sha256(rq->key, "newkey\n", 7, rq->nonce, strlen(rq->nonce), pad);
-    c = s_cfg;
-    for (int i = 0; i < 32; i++) c.web_key[i] = key[i] ^ pad[i];
-    memcpy(c.web_salt, salt, 16);
-    c.web_set = 1;
-    if (!commit(&c)) {
+    *c = s_cfg;
+    for (int i = 0; i < 32; i++) c->web_key[i] = key[i] ^ pad[i];
+    memcpy(c->web_salt, salt, 16);
+    c->web_set = 1;
+    if (!commit(c)) {
         snprintf(out, max, "Could not write the password to flash; it is unchanged");
         return "500 Internal Server Error";
     }
@@ -381,11 +382,10 @@ bool cli_change(char *lines, char *err, size_t errlen, bool *pending)
 
 bool cli_keep(char *err, size_t errlen)
 {
-    static cfg_t c;
     if (!s_pending) return true;
-    c = s_cfg;
-    c.net = s_trial;
-    if (!commit(&c)) {
+    s_edit = s_cfg;
+    s_edit.net = s_trial;
+    if (!commit(&s_edit)) {
         snprintf(err, errlen, "Could not write settings to flash");
         return false;
     }

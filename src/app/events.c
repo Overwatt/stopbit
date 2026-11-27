@@ -84,10 +84,16 @@ void events_add(ev_kind_t k, int port, uint32_t a, const char *s)
     if (s) snprintf(r->s, sizeof r->s, "%s", s);
 }
 
-/* In one read, so a whole sector lets the ports run between pieces (extflash.c). */
+/* In one read, so a whole sector lets the ports run between pieces (extflash.c). The
+ * buffer is filled before it is looked at, so it needs no zeroed memory. */
+#if defined(__arm__)
+#define COLD __attribute__((section(".itcm_bss")))
+#else
+#define COLD
+#endif
 static bool blank(uint32_t a, uint32_t n)
 {
-    static uint8_t b[4096];
+    static COLD uint8_t b[4096];
     extflash_read(DEV, a, b, n);
     for (uint32_t i = 0; i < n; i++) if (b[i] != 0xFF) return false;
     return true;
