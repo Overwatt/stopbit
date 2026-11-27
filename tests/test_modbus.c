@@ -334,6 +334,44 @@ int main(void)
     assert(!modbus_local(&M, 1, (const uint8_t[]){ 3, 0, 0, 0, 1 }, 5, 0, 0));
     assert(!modbus_local(&M, 1, (const uint8_t[]){ 3 }, 0, 0, 0) && !modbus_local(&M, 1, (const uint8_t[]){ 3 }, MB_PDU + 1, 0, 0));
 
+    /* RTU frames over TCP (SolarAssistant through socat): each taken when its function says it
+     * is whole, in any pieces; answered as RTU frames; unit 0 answered when the port says so. */
+    modbus_init(&M, &IO, 1000, GAP);
+    modbus_set_rtu(&M, true);
+    modbus_open(&M, 0, true);
+    modbus_open(&M, 1, false);
+    assert(ask(0, "01 03 00"));                                 /* a piece */
+    poll(GAP); assert(Ln == 0 && M.qn == 0);
+    assert(ask(0, "00 00 01 84 0a"));
+    poll(GAP); assert(on_line("01 03 00 00 00 01 84 0a"));
+    poll(GAP); hear("01 03 02 00 2a 39 9b");
+    assert(to(0, "01 03 02 00 2a 39 9b"));                      /* as heard, CRC and all */
+    assert(ask(0, "01 10 00 01 00 02 04 00 0a 01 02 92 30"));   /* 16: nine bytes and the count */
+    poll(GAP); assert(on_line("01 10 00 01 00 02 04 00 0a 01 02 92 30"));
+    poll(GAP); hear("01 10 00 01 00 02 10 08");
+    assert(to(0, "01 10 00 01 00 02 10 08"));
+    uint32_t ref = M.s.refused;                                 /* a bad CRC: dropped, nothing sent */
+    assert(ask(0, "01 03 00 00 00 01 84 0b"));
+    poll(GAP); assert(Ln == 0 && M.qn == 0 && An[0] == 0 && M.s.refused == ref + 1);
+    /* A function whose length cannot be told: exception 1, and the rest of that piece dropped. */
+    assert(ask(0, "01 2b 0e 01 00 70 77 01 03 00 00 00 01 84 0a"));
+    assert(to(0, "01 ab 01 9e f0") && M.qn == 0 && M.s.refused == ref + 2);
+    assert(ask(1, "01 06 00 01 00 03 98 0b"));                  /* a reader may not write */
+    assert(to(1, "01 86 01 83 a0") && M.qn == 0);
+    assert(ask(0, "01 03 00 00 00 01 84 0a"));                  /* no reply in time */
+    poll(GAP); Ln = 0; poll(GAP);
+    now += 1000; poll(GAP);
+    assert(to(0, "01 83 0b 00 f7"));
+    M.broadcast = MB_BC_ANSWER;                                 /* unit 0 answers, as EG4 inverters do */
+    assert(ask(0, "00 03 00 00 00 01 85 db"));
+    poll(GAP); assert(on_line("00 03 00 00 00 01 85 db"));
+    poll(GAP); now += 30; hear("00 03 02 00 2a 04 5b");
+    assert(to(0, "00 03 02 00 2a 04 5b") && M.s.broadcasts == 0);
+    assert(ask(0, "01 03 00"));                                 /* back to Modbus TCP: the piece is forgotten */
+    modbus_set_rtu(&M, false);
+    assert(ask(0, "00 60 00 00 00 06 01 03 00 00 00 01"));
+    poll(GAP); assert(on_line("01 03 00 00 00 01 84 0a"));
+
     printf("modbus: ok, average %llu ms over %u replies\n", (unsigned long long)(M.s.total_ms / M.s.replies), (unsigned)M.s.replies);
     return 0;
 }

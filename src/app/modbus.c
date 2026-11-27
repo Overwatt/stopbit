@@ -5,7 +5,8 @@
  * data). On the line: unit, PDU, CRC-16 low byte first. A reply is a frame that ends
  * in a silence of gap_us, has a good CRC and the request's unit and function (or the
  * function | 0x80: an exception). Anything else heard while waiting is counted and
- * ignored; the wait goes on until the timeout.
+ * ignored; the wait goes on until the timeout. Clients may instead send RTU frames over TCP
+ * (unit, PDU, CRC), and are answered in them.
  */
 #include "modbus.h"
 #include <string.h>
@@ -56,11 +57,28 @@ void modbus_close(modbus_t *m, int c)
     m->qn = keep;
 }
 
-/* An answer of our own: the request's header, the function with 0x80, the code. */
+void modbus_set_rtu(modbus_t *m, bool rtu)
+{
+    if (m->rtu == rtu) return;
+    m->rtu = rtu;
+    for (int c = 0; c < MB_CLIENTS; c++) m->cl[c].n = 0;
+}
+
+/* An answer of our own: the request's header, the function with 0x80, the code. For an RTU
+ * client: unit, function | 0x80, code, CRC. */
 static void exception(modbus_t *m, int c, uint16_t tid, uint8_t unit, uint8_t fn, uint8_t code)
 {
+    if (c < 0 || c >= MB_CLIENTS || !m->cl[c].open) return;
+    if (m->rtu) {
+        uint8_t r[5] = { unit, (uint8_t)(fn | 0x80), code, 0, 0 };
+        uint16_t crc = modbus_crc(r, 3);
+        r[3] = (uint8_t)crc;
+        r[4] = (uint8_t)(crc >> 8);
+        m->io.reply(m->io.ctx, c, r, sizeof r);
+        return;
+    }
     uint8_t r[9] = { (uint8_t)(tid >> 8), (uint8_t)tid, 0, 0, 0, 3, unit, (uint8_t)(fn | 0x80), code };
-    if (c >= 0 && c < MB_CLIENTS && m->cl[c].open) m->io.reply(m->io.ctx, c, r, sizeof r);
+    m->io.reply(m->io.ctx, c, r, sizeof r);
 }
 
 static bool may_read_only(const uint8_t *pdu, uint16_t len)
@@ -70,12 +88,8 @@ static bool may_read_only(const uint8_t *pdu, uint16_t len)
     return fn == 43 && len >= 2 && pdu[1] == 0x0E;     /* read device identification */
 }
 
-static void take(modbus_t *m, int c, const uint8_t *a, uint16_t len)
+static void take(modbus_t *m, int c, uint16_t tid, uint8_t unit, const uint8_t *pdu, uint16_t plen)
 {
-    uint16_t tid = (uint16_t)(a[0] << 8 | a[1]);
-    uint8_t unit = a[6];
-    const uint8_t *pdu = a + 7;
-    uint16_t plen = (uint16_t)(len - 1);
     m->s.requests++;
     if (unit == 0 ? !m->broadcast : unit > 247) {     /* a client left at its default must not reach them all */
         m->s.refused++;
@@ -102,10 +116,51 @@ static void take(modbus_t *m, int c, const uint8_t *a, uint16_t len)
     memcpy(r->pdu, pdu, plen);
 }
 
+/* An RTU frame's length from its first bytes: 0 while too few are here to tell, -1 for a
+ * function whose length cannot be told. */
+static int rtu_len(const uint8_t *b, uint16_t have)
+{
+    if (have < 2) return 0;
+    if (b[1] >= 1 && b[1] <= 6) return 8;
+    if (b[1] == 15 || b[1] == 16) return have < 7 ? 0 : 9 + b[6];
+    return -1;
+}
+
+/* RTU frames from a client. A bad CRC, an unknown function or a frame too long: what it has
+ * is dropped, with the rest of this piece, as the frame's end cannot be found inside it. */
+static void from_rtu(modbus_t *m, int c, const uint8_t *d, size_t n)
+{
+    uint8_t *b = m->cl[c].buf;
+    for (;;) {
+        uint16_t have = m->cl[c].n;
+        int want = rtu_len(b, have);
+        if (want < 0 || want > 3 + MB_PDU) {
+            m->s.refused++;
+            if (want < 0) exception(m, c, 0, b[0], b[1], EX_ILLEGAL_FUNCTION);
+            m->cl[c].n = 0;
+            return;
+        }
+        if (want && have == want) {
+            m->cl[c].n = 0;
+            if (modbus_crc(b, have - 2u) != (uint16_t)(b[have - 2] | b[have - 1] << 8)) { m->s.refused++; return; }
+            take(m, c, 0, b[0], b + 1, (uint16_t)(have - 3));
+            continue;
+        }
+        if (!n) return;
+        size_t need = want ? (size_t)want : have < 2 ? 2u : 7u;
+        size_t k = need - have < n ? need - have : n;
+        memcpy(b + have, d, k);
+        m->cl[c].n = (uint16_t)(have + k);
+        d += k;
+        n -= k;
+    }
+}
+
 bool modbus_from_client(modbus_t *m, int c, const uint8_t *d, size_t n, uint32_t now_ms)
 {
     (void)now_ms;
     if (!m->cl[c].open) return false;
+    if (m->rtu) { from_rtu(m, c, d, n); return true; }
     while (n) {
         uint8_t *b = m->cl[c].buf;
         uint16_t have = m->cl[c].n;
@@ -121,7 +176,7 @@ bool modbus_from_client(modbus_t *m, int c, const uint8_t *d, size_t n, uint32_t
             if (pid != 0 || len < 2 || len > 1 + MB_PDU) return false;
         }
         if (have >= 7 && have == 6u + (uint16_t)(b[4] << 8 | b[5])) {
-            take(m, c, b, (uint16_t)(have - 6));
+            take(m, c, (uint16_t)(b[0] << 8 | b[1]), b[6], b + 7, (uint16_t)(have - 7));
             m->cl[c].n = 0;
         }
     }
@@ -222,7 +277,7 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
     case MB_SENDING:
         if (!tx_idle) return;
         m->at = now;
-        if (r->unit == 0) { m->s.broadcasts++; m->state = MB_TURNAROUND; }
+        if (r->unit == 0 && m->broadcast != MB_BC_ANSWER) { m->s.broadcasts++; m->state = MB_TURNAROUND; }
         else m->state = MB_WAITING;
         return;
     case MB_TURNAROUND:
@@ -254,7 +309,10 @@ void modbus_poll(modbus_t *m, uint32_t now, uint32_t quiet_us, bool tx_idle)
                     if (m->io.local) m->io.local(m->io.ctx, tag, 0, a + 7, plen);
                     return;
                 }
-                if (r->client >= 0 && m->cl[r->client].open) m->io.reply(m->io.ctx, r->client, a, 7u + plen);
+                if (r->client >= 0 && m->cl[r->client].open) {
+                    if (m->rtu) m->io.reply(m->io.ctx, r->client, m->rx, m->rxn);   /* as heard: its CRC is good */
+                    else m->io.reply(m->io.ctx, r->client, a, 7u + plen);
+                }
                 done(m);
                 return;
             }

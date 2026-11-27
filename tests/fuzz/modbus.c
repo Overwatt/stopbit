@@ -2,7 +2,8 @@
  * any pieces from any of the four, bytes heard on the line, polls, time passing,
  * clients coming and going, a line with no room. What must hold throughout: a frame put
  * on the line is whole RTU with a good CRC; a reply goes only to an open client and is
- * whole Modbus TCP (protocol 0, the length it says); at most MB_QUEUE wait. */
+ * whole Modbus TCP (protocol 0, the length it says), or a whole RTU frame with a good
+ * CRC for an RTU port; at most MB_QUEUE wait. */
 #include "modbus.h"
 #include <assert.h>
 #include <string.h>
@@ -22,6 +23,11 @@ static void reply(void *ctx, int c, const uint8_t *d, size_t n)
 {
     (void)ctx;
     assert(c >= 0 && c < MB_CLIENTS && open_[c]);
+    if (M.rtu) {
+        assert(n >= 5 && n <= 3 + MB_PDU);
+        assert(modbus_crc(d, n - 2) == (uint16_t)(d[n - 2] | d[n - 1] << 8));
+        return;
+    }
     assert(n >= 9 && n <= 7 + MB_PDU);
     assert(d[2] == 0 && d[3] == 0 && (size_t)(d[4] << 8 | d[5]) == n - 6);
 }
@@ -33,6 +39,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
     if (n < 2) return 0;
     modbus_init(&M, &IO, 1u + (d[0] >> 1) * 16u, 2000);
     M.broadcast = d[0] & 1;
+    if (d[0] & 0x80) M.broadcast = MB_BC_ANSWER;
+    modbus_set_rtu(&M, d[0] & 0x40);
     memset(open_, 0, sizeof open_);
     full = false;
     uint32_t now = 0;

@@ -17,6 +17,7 @@
 #define MB_HIST     8           /* reply times: counts per bucket, the last for longer */
 #define MB_BOUNDS_MS { 10, 25, 50, 100, 250, 500, 1000, 2500 }
 #define MB_LOCAL    MB_CLIENTS  /* the gateway's own requests (device.c): replies go to io.local */
+enum { MB_BC_OFF, MB_BC_ALL, MB_BC_ANSWER };   /* unit 0: refused; sent to every device, unanswered; a device that answers */
 
 typedef struct {
     uint32_t requests;          /* taken from clients, and the gateway's own (modbus_local) */
@@ -26,7 +27,8 @@ typedef struct {
     uint32_t bad;               /* frames heard with a bad CRC, or for another unit or function */
     uint32_t busy;              /* queue full: answered 0x06 */
     uint32_t refused;           /* a function the client may not use (0x01), or a unit no device can
-                                   have (0x0A): 0 without broadcasts, 248 to 255 */
+                                   have (0x0A): 0 without broadcasts, 248 to 255; or an RTU frame from a
+                                   client that will not do (bad CRC, unknown length) */
     uint32_t broadcasts;
     uint32_t last_ms, max_ms;   /* response time */
     uint64_t total_ms;          /* over `replies`, for the average */
@@ -54,7 +56,8 @@ typedef struct {
 typedef struct {
     mb_io_t  io;
     uint32_t timeout_ms, gap_us;
-    bool     broadcast;         /* unit 0 goes to every device; else it is refused (bridge sets it) */
+    uint8_t  broadcast;         /* MB_BC_*: what unit 0 is (bridge sets it) */
+    bool     rtu;               /* clients send RTU frames and are answered in them (modbus_set_rtu) */
     uint32_t turn_us;           /* quiet before any request, beyond gap_us (device.c sets it) */
     struct { uint8_t buf[7 + MB_PDU]; uint16_t n; bool open, may_write; } cl[MB_CLIENTS];
     mb_req_t q[MB_QUEUE];       /* q[0] is the one on the line while state != MB_IDLE */
@@ -75,9 +78,13 @@ uint16_t modbus_crc(const uint8_t *d, size_t n);
 void modbus_init(modbus_t *m, const mb_io_t *io, uint32_t timeout_ms, uint32_t gap_us);
 void modbus_open(modbus_t *m, int client, bool may_write);
 void modbus_may_write(modbus_t *m, int client, bool may_write);    /* its access changed */
+/* Clients' framing: false Modbus TCP, true RTU frames over TCP. A change forgets what each
+ * client has half sent. */
+void modbus_set_rtu(modbus_t *m, bool rtu);
 /* Gone: what it had waiting is dropped; one on the line finishes, unanswered. */
 void modbus_close(modbus_t *m, int client);
-/* Bytes from a client, in any pieces. False: not Modbus TCP; close the connection. */
+/* Bytes from a client, in any pieces: Modbus TCP, or RTU frames when m->rtu. False: not Modbus
+ * TCP; close the connection (never for RTU). */
 bool modbus_from_client(modbus_t *m, int client, const uint8_t *d, size_t n, uint32_t now_ms);
 /* The gateway's own request: unit, PDU (function and data). Its reply or timeout goes to
  * io.local with `tag`. False: queue full, bad length, or unit not 1-247 (0 is a broadcast,
