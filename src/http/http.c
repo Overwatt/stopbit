@@ -51,7 +51,7 @@
 #include "acme.h"
 #include "events.h"
 #define MAX_CONN   8
-#define RESP_MAX   4600            /* the longest reply: borrowed from s_replies */
+#define RESP_MAX   5632            /* the longest reply (a device of 54 values, each at its longest: 5.1 KB): borrowed from s_replies */
 #define OWN_MAX    640             /* each connection's own: short replies, headers before data */
 #define REPLIES    3
 #define BODY_MAX   4608            /* a certificate chain */

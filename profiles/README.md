@@ -47,7 +47,7 @@ reject live1 if pack_voltage == 0
 | `block` | `id kind address count period [info]`; kind `hold` (3), `input` (4), `coil` (1), `discrete` (2); period `Ns`, `Nm`, `Nh`; count up to 125 registers or 2000 bits |
 | `sensor` | `id "name" block address type [value] [shown]`: a number |
 | `binary` | `id "name" block address` and `bit N`, or a type and a comparison (`u16 == 5`, `!= 0`) |
-| `text` | `id "name" block address` and `enum [mask=M] v=name ...`, `bits n=name ...` (set bits' names joined by "; "), `ascii N` or `asciilo N` registers |
+| `text` | `id "name" block address` and `enum [mask=M] v=name ...`, `bits n=name ...` (set bits' names joined by "; "), or `ascii N`, `asciilo N` or `asciile N` registers of text: two characters a register with the high byte's first, one in the low byte, or two with the low byte's first. `enum` and `bits` may follow a type (`u32le bits ...` for 32 named bits) |
 | `calc` | `id "name" function arguments [within lo..hi] [shown]`; a comparison gives a binary, the rest a number |
 | `reject` | `block if zero` (every byte 0) or `block if field op value`: the block's reply is not used |
 | `number` | `id "name" reg\|regs address type [value] min M max M step S [state field] [shown] [hidden]` |
@@ -69,8 +69,12 @@ reject live1 if pack_voltage == 0
   1-based position), `sub mul` (two), `pos neg abs` (one); binary: `eq ne gt lt` (field and
   constant), `anybits nobits` (field and mask). An unavailable input makes the result
   unavailable; `within` leaves out values outside the range (a missing cell reads 0).
-- **Limits:** 16 KB of text, 16 blocks, 160 fields and controls, names 40 characters. A model
-  that differs (SRNE HSI1500S) gets a profile of its own.
+- **Limits:** 16 KB of text, lines of 1024 characters, 16 blocks, 160 fields and controls,
+  names 40 characters. A model that differs (SRNE HSI1500S) gets a profile of its own.
+- **What a device may show:** its values are one MQTT message of at most 3.5 KB and one part
+  of the page's data of at most 5.6 KB, each counted with every value at its longest. That
+  is about 55 values; `tests/test_devmqtt.c` works both out for each built-in profile and
+  fails if either does not fit.
 - Uploads come in phase 2. Then a profile id may be built in and uploaded: the uploaded
   one is used, and deleting it brings back the built-in one.
 

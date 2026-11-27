@@ -157,12 +157,14 @@ int main(void)
      * prints one at its precision, every bit of a bits text set, an enum at its longest name
      * (or "Unknown (4294967295)"), ascii texts full of quotes (each escaped), the device's
      * own strings and counts at their longest. The state must fit devmqtt.c's BUF (3584),
-     * and device_json one part of GET /api/devices: http.c's RESP_MAX 4600 less GEN_HEAD 8
-     * and the chunk's CRLF is 4590, less the ',' api_devices puts before all but the first. */
+     * and device_json one part of GET /api/devices: http.c's RESP_MAX 5632 less GEN_HEAD 8
+     * and the chunk's CRLF is 5622, less the ',' api_devices puts before all but the first. */
     for (int pi = 0; profiles_id(pi); pi++) {
-        static char j[4590 - 1];
+        static char j[5622 - 1];
         char st[80], v[520];
         memset(&c.dev[0], 0, sizeof c.dev[0]);
+        device_configure(&c);                               /* the profile before this one: gone, and cleared from HA */
+        drain(true);
         snprintf(c.dev[0].profile, sizeof c.dev[0].profile, "%s", profiles_id(pi));
         memset(c.dev[0].name, 'z', sizeof c.dev[0].name - 1);
         memset(c.dev[0].label, '"', sizeof c.dev[0].label - 1);
@@ -210,7 +212,7 @@ int main(void)
         assert(s && s[0] && json_ok(s) && strlen(s) < 3584);
         size_t jn = device_json(0, j, sizeof j);
         assert(jn && json_ok(j));
-        printf("worst case %s: state %zu bytes (BUF 3584), device_json %zu (part 4589)\n", profiles_id(pi), strlen(s), jn);
+        printf("worst case %s: state %zu bytes (BUF 3584), device_json %zu (part 5621)\n", profiles_id(pi), strlen(s), jn);
     }
     memset(&c.dev[0], 0, sizeof c.dev[0]);
     device_configure(&c);

@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LINE_MAX 512
+#define LINE_MAX 1024            /* a text of 32 named bits, each named in words, is 800 */
 #define TOK_MAX  96
 
 typedef struct {
@@ -382,7 +382,7 @@ static bool st_binary(ps_t *s)
     return each(s, s->tok[1], name, &t, TYPES[ti].regs, 8, M_SCALE | M_HA | M_DIAG);
 }
 
-/* text id "name" block address [type] enum [mask=M] v=name... | bits n=name... | ascii N | asciilo N */
+/* text id "name" block address [type] enum [mask=M] v=name... | bits n=name... | ascii N | asciilo N | asciile N */
 static bool st_text(ps_t *s)
 {
     pf_build_t *p = s->p;
@@ -392,24 +392,24 @@ static bool st_text(ps_t *s)
     int i = 5, regs = 1;
     tpl_init(&t);
     t.type = T_U16;
-    if (s->ntok < 6) return fail(s, "text needs: id \"name\" block address, then enum, bits, ascii or asciilo");
+    if (s->ntok < 6) return fail(s, "text needs: id \"name\" block address, then enum, bits, ascii, asciilo or asciile");
     if (!where(s, &t, &name)) return false;
     int ti = type_of(s->tok[5]);
     if (ti >= 0 && TYPES[ti].regs) { t.type = TYPES[ti].type; regs = TYPES[ti].regs; i = 6; }
     const char *how = i < s->ntok ? s->tok[i++] : "";
-    if (!strcmp(how, "ascii") || !strcmp(how, "asciilo")) {
+    if (!strcmp(how, "ascii") || !strcmp(how, "asciilo") || !strcmp(how, "asciile")) {
         char base[PF_ID_MAX + 1];
         int a, b;
         if (i >= s->ntok || !num_i(s->tok[i], 1, 24, &l)) return fail(s, "ascii needs a length of 1 to 24 registers");
         if (range(s->tok[1], base, sizeof base, &a, &b)) return fail(s, "ascii cannot be a list");
         if (p->nstr == PF_STRS) return fail(s, "too many ascii texts (%d)", PF_STRS);
         t.kind = PF_ASCII;
-        t.type = how[5] ? T_ASCIILO : T_ASCII;
+        t.type = !how[5] ? T_ASCII : how[6] == 'o' ? T_ASCIILO : T_ASCIILE;
         t.bit = (uint8_t)l;
         t.str = p->nstr++;
         return each(s, s->tok[1], name, &t, (int)l, i + 1, M_DIAG);
     }
-    if (strcmp(how, "enum") && strcmp(how, "bits")) return fail(s, "text needs enum, bits, ascii or asciilo");
+    if (strcmp(how, "enum") && strcmp(how, "bits")) return fail(s, "text needs enum, bits, ascii, asciilo or asciile");
     t.kind = how[0] == 'e' ? PF_ENUM : PF_BITS;
     t.vname = p->nvname;
     for (; i < s->ntok; i++) {

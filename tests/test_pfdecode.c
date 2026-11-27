@@ -30,6 +30,7 @@ static const char *T =
     "sensor cell1..4 \"Cell #\" cells 100 u16 *0.001 V\n"
     "text model \"Model\" txt 200 ascii 4\n"
     "text lo \"Low\" txt 204 asciilo 2\n"
+    "text pair \"Pairs\" txt 204 asciile 2\n"
     "binary c3 \"C3\" c 3 coil\n"
     "calc p \"P\" mul v i W\n"
     "calc pp \"Pp\" pos p\n"
@@ -86,9 +87,11 @@ int main(void)
 
     const uint16_t t[6] = { 0x4142, 0x4300, 0x5859, 0x2020, 0x0048, 0x0069 };   /* "ABC" NUL "XY  "; "Hi" */
     assert(pf_decode(&P, 2, d, regs(d, t, 6), &S));
-    assert(!strcmp(text("model"), "ABC") && !strcmp(text("lo"), "Hi"));
+    assert(!strcmp(text("model"), "ABC") && !strcmp(text("lo"), "Hi") && !strcmp(text("pair"), "H"));
     const uint16_t t2[6] = { 0x4869, 0x2020, 0x2001, 0x2020, 0x0041, 0x0042 };  /* "Hi", spaces, a control byte */
     assert(pf_decode(&P, 2, d, regs(d, t2, 6), &S) && !strcmp(text("model"), "Hi") && !strcmp(text("lo"), "AB"));
+    const uint16_t t3[6] = { 0x4869, 0x2020, 0x2020, 0x2020, 0x4241, 0x4443 };  /* two characters a register, the low byte's first */
+    assert(pf_decode(&P, 2, d, regs(d, t3, 6), &S) && !strcmp(text("pair"), "ABCD") && !strcmp(text("lo"), "AC"));
 
     uint8_t coils[2] = { 0x08, 0x00 };
     assert(pf_decode(&P, 3, coils, 2, &S) && V("c3") == 1.0f);

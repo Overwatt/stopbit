@@ -104,7 +104,7 @@ reject live1 if pack_voltage == 0
 | `block` | `id kind address count period [info]`; kind `hold` (3), `input` (4), `coil` (1), `discrete` (2); period `Ns`, `Nm`, `Nh`; count up to 125 registers or 2000 bits |
 | `sensor` | `id "name" block address type [value] [shown]`: a number |
 | `binary` | `id "name" block address` and `bit N`, or a type and a comparison (`u16 == 5`, `!= 0`) |
-| `text` | `id "name" block address` and `enum [mask=M] v=name ...`, `bits n=name ...` (set bits' names joined by "; "), `ascii N` or `asciilo N` registers |
+| `text` | `id "name" block address` and `enum [mask=M] v=name ...`, `bits n=name ...` (set bits' names joined by "; "), `ascii N`, `asciile N` (added 2026-11-27: two characters a register, the low byte's first) or `asciilo N` registers |
 | `calc` | `id "name" function arguments [within lo..hi] [shown]`; a comparison gives a binary, the rest a number |
 | `reject` | `block if zero` (every byte 0) or `block if field op value`: the block's reply is not used |
 | `number` | `id "name" reg\|regs address type [value] min M max M step S [state field] [shown] [hidden]` |

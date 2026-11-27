@@ -61,14 +61,16 @@ static bool cmp(uint8_t op, float a, float k)
     }
 }
 
-/* Printable characters up to a NUL, trailing spaces trimmed. */
+/* Printable characters up to a NUL, trailing spaces trimmed. Of each register: its high
+ * byte then its low (ascii), its low byte alone (asciilo), or its low byte then its high
+ * (asciile). */
 static void ascii(const pf_block_t *b, const pf_field_t *f, const uint8_t *d, char *out)
 {
     int i = f->addr - b->addr, n = 0;
     bool end = false;
     for (int r = 0; r < f->bit && !end; r++)
-        for (int k = f->type == T_ASCIILO ? 1 : 0; k < 2 && !end; k++) {
-            uint8_t c = d[2 * (i + r) + k];
+        for (int k = 0; k < (f->type == T_ASCIILO ? 1 : 2) && !end; k++) {
+            uint8_t c = d[2 * (i + r) + (f->type == T_ASCII ? k : 1 - k)];
             if (!c) end = true;
             else if (c >= 0x20 && c <= 0x7E && n < PF_STR_LEN - 1) out[n++] = (char)c;
         }

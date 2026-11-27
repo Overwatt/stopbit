@@ -1,0 +1,8 @@
+profile t 1
+line 19200 8N1
+block id hold 0 40 15m info
+block in input 40 40 10s
+text sn "Serial" id 2 asciile 5 diag
+text f "Fault" in 60 u32le bits 0="E000 A" 12="E012 B" 31="E031 C"
+sensor e1..3 "E #" in 40 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+calc e "E" sum e1..3 kWh

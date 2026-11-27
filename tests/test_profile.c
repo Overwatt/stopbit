@@ -149,7 +149,7 @@ int main(void)
     bad(HEAD "text x \"X\" b 0x10 enum\n", "line 3: enum needs at least one value=name");
     bad(HEAD "text x \"X\" b 0x10 bits 32=\"Y\"\n", "line 3: bad value '32'");
     bad(HEAD "text x \"X\" b 0x10 ascii 25\n", "line 3: ascii needs a length of 1 to 24 registers");
-    bad(HEAD "text x \"X\" b 0x10 thing\n", "line 3: text needs enum, bits, ascii or asciilo");
+    bad(HEAD "text x \"X\" b 0x10 thing\n", "line 3: text needs enum, bits, ascii, asciilo or asciile");
     bad(HEAD "sensor x \"X\" b 0x10 u16\ncalc y \"Y\" frob x\n", "line 4: unknown function 'frob'");
     bad(HEAD "calc y \"Y\" pos nope\n", "line 3: no field 'nope'");
     bad(HEAD "sensor x \"X\" b 0x10 u16\ncalc y \"Y\" sub x\n", "line 4: sub needs 2 fields");
@@ -162,8 +162,8 @@ int main(void)
     bad(HEAD "frobnicate\n", "line 3: unknown statement 'frobnicate'");
     {
         static char t[2048];
-        snprintf(t, sizeof t, HEAD "sensor x \"%0600d\" b 0x10 u16\n", 0);
-        bad(t, "line 3: longer than 512 characters");
+        snprintf(t, sizeof t, HEAD "sensor x \"%01100d\" b 0x10 u16\n", 0);
+        bad(t, "line 3: longer than 1024 characters");
         snprintf(t, sizeof t, HEAD "sensor x \"\x01\" b 0x10 u16\n");
         bad(t, "line 3: a control character");
     }
