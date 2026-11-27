@@ -107,7 +107,14 @@ static void dgram(struct udp_pcb *u, const char *src, u16_t port, const char *s)
 }
 static void heard(int p, const char *s) { strcpy((char *)R[p], s); Rn[p] = strlen(s); bridge_poll(); }
 static bool line(int p, const char *s) { bool r = Ln[p] == strlen(s) && !memcmp(L[p], s, Ln[p]); if (!r) printf("line %d: %.*s\n", p + 1, (int)Ln[p], L[p]); Ln[p] = 0; return r; }
-static bridge_info_t info(int p) { bridge_info_t b; bridge_info(p, &b); return b; }
+static bridge_info_t info(int p)                                /* and the short form agrees with it, each time */
+{
+    bridge_info_t b; bridge_brief_t q;
+    bridge_info(p, &b); bridge_brief(p, &q);
+    assert(q.state == b.state && q.alert == b.alert && q.clients == b.clients && q.serial_rx == b.serial_rx &&
+           q.serial_tx == b.serial_tx && q.errors == b.errors && q.denied == b.denied);
+    return b;
+}
 static err_t give(struct tcp_pcb *p, struct pbuf **q, const char *s)  /* *q: kept, as lwIP would, if refused */
 {
     if (!*q) { *q = pbuf_alloc(0, (u16_t)strlen(s), 0); memcpy((*q)->payload, s, strlen(s)); p->unacked += (int)strlen(s); }

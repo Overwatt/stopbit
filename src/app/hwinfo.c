@@ -105,6 +105,7 @@ static bool measure(void)
 /* ---- main loop ----------------------------------------------------------- */
 /* Longest time between passes: since the start, and in the last 10 to 20 s. */
 static uint32_t s_loop_at, s_loop_max, s_loop[2], s_loop_turn;
+static uint32_t s_loop_n, s_loop_avg;             /* passes in this window; a pass in the last one, on average */
 static bool s_loop_on;
 /* And which step of the pass was longest: since the start, and in the same window.
  * A save that keeps the ports moving counts as a new pass, so splits a step. */
@@ -152,7 +153,10 @@ void hwinfo_loop(void)
     s_loop_at = now;
     step_end(now);
     if (!s_loop_on) { s_loop_on = true; return; }
+    s_loop_n++;
     if (HAL_GetTick() - s_loop_turn >= 10000u) {
+        s_loop_avg = (uint32_t)((uint64_t)(HAL_GetTick() - s_loop_turn) * 1000u / s_loop_n);
+        s_loop_n = 0;
         s_loop_turn = HAL_GetTick();
         s_loop[1] = s_loop[0];
         s_loop[0] = 0;
@@ -227,9 +231,9 @@ size_t hwinfo_json(char *out, size_t max)
         U(ru), U(rp), U(rn), U(rw), U(el), U(ep), U(ETH_RX_BUFS), U(es));
 
     const step_t *r = s_steps[0].us > s_steps[1].us ? &s_steps[0] : &s_steps[1];
-    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"recent_gcm_us\":%lu,"
+    OUT(",\"loop\":{\"recent_us\":%lu,\"max_us\":%lu,\"avg_us\":%lu,\"step\":{\"recent_us\":%lu,\"recent\":\"%s\",\"recent_gcm_us\":%lu,"
         "\"max_us\":%lu,\"max\":\"%s\",\"max_gcm_us\":%lu}",
-        U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max),
+        U(s_loop[0] > s_loop[1] ? s_loop[0] : s_loop[1]), U(s_loop_max), U(s_loop_avg),
         U(r->us), r->in ? r->in : "", U(r->gcm_us), U(s_step_max.us), s_step_max.in ? s_step_max.in : "", U(s_step_max.gcm_us));
     const req_t *q = s_reqs[0].us > s_reqs[1].us ? &s_reqs[0] : &s_reqs[1];
     OUT(",\"request\":{\"recent_us\":%lu,\"recent\":\"%s\",\"max_us\":%lu,\"max\":\"%s\"}},\"aes\":",

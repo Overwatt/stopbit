@@ -340,19 +340,33 @@ static bool announce(int n, bool remove)
     return pub(topic, s_buf, true);
 }
 
+/* What a port's message is made from, as a number: making the message costs some thirty
+ * times this, and the main loop asks every pass. */
+static uint32_t port_mark(const port_cfg_t *p, const bridge_brief_t *b)
+{
+    uint32_t h = 2166136261u;
+    for (size_t k = 0; k < sizeof *p; k++) h = (h ^ ((const uint8_t *)p)[k]) * 16777619u;
+    for (const char *s = b->state; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
+    for (const char *s = b->alert; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
+    h = (h ^ (uint32_t)b->clients) * 16777619u;
+    return h | 1u;                              /* 0 means "never published" */
+}
+
 static bool publish_port(const cfg_t *c, int i)
 {
+    bridge_brief_t q;
     bridge_info_t b;
     char topic[64];
+    bridge_brief(i, &q);
+    uint32_t h = port_mark(&c->port[i], &q), cnt = q.serial_rx * 31u + q.serial_tx * 17u + q.errors * 7u + q.denied;
+    uint32_t now = HAL_GetTick();
+    bool first = s_port_hash[i] == 0;
+    if (!first && h == s_port_hash[i] && (cnt == s_port_cnt[i] || now - s_port_at[i] < COUNTER_MS)) return true;
     bridge_info(i, &b);
     size_t n0 = cfg_port_json(&c->port[i], s_buf, sizeof s_buf), max = sizeof s_buf;
     if (!n0) return true;
     n0--;                                       /* reopen the object */
     ADD(",\"state\":\"%s\",\"clients\":%d,\"alert\":\"%s\"", b.state, b.clients, b.alert);
-    uint32_t h = hash(s_buf), cnt = b.serial_rx * 31u + b.serial_tx * 17u + b.errors * 7u + b.denied;
-    uint32_t now = HAL_GetTick();
-    bool first = s_port_hash[i] == 0;
-    if (!first && h == s_port_hash[i] && (cnt == s_port_cnt[i] || now - s_port_at[i] < COUNTER_MS)) return true;
     ADD(",\"serial_rx\":%lu,\"serial_tx\":%lu,\"errors\":%lu,\"turned_away\":%lu,\"turned_away_ip\":\"%s\"}",
         (unsigned long)b.serial_rx, (unsigned long)b.serial_tx, (unsigned long)b.errors, (unsigned long)b.denied, b.denied_ip);
     snprintf(topic, sizeof topic, "%s/port%d", s_base, i + 1);
@@ -367,12 +381,13 @@ static bool publish_port(const cfg_t *c, int i)
 static bool publish_device(void)
 {
     char topic[64], ip[16], name[72], rej[200];
+    net_ip_str(ip);
+    uint32_t h = hash(s_name) * 31u + hash(s_reject) * 17u + hash(ip);     /* as above: not the message itself */
+    h |= 1u;
+    if (h == s_dev_hash) return true;
     json_str(s_name, name, sizeof name);
     json_str(s_reject[0] ? s_reject : "Nothing", rej, sizeof rej);
-    net_ip_str(ip);
     snprintf(s_buf, sizeof s_buf, "{\"name\":%s,\"ip\":\"%s\",\"last_error\":%s}", name, ip, rej);
-    uint32_t h = hash(s_buf);
-    if (h == s_dev_hash) return true;
     snprintf(topic, sizeof topic, "%s/device", s_base);
     if (!pub(topic, s_buf, true)) return false;
     s_dev_hash = h;

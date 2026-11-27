@@ -40,6 +40,10 @@ typedef struct {
 /* A Modbus gateway port's figures and how many wait; NULL for other ports. */
 const mb_stats_t *bridge_modbus(int port, uint8_t *waiting);
 void bridge_info(int port, bridge_info_t *out);
+/* The part of that which says whether anything changed, without the text: cheap enough
+ * to ask every pass of the main loop. */
+typedef struct { const char *state, *alert; int clients; uint32_t serial_rx, serial_tx, errors, denied; } bridge_brief_t;
+void bridge_brief(int port, bridge_brief_t *out);
 /* Who the access list turned away lately, as JSON. 0 if it did not fit. */
 size_t bridge_access_json(int port, char *out, size_t max);
 /* Sends bytes on a port's serial line as if a client had. */

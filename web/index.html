@@ -478,7 +478,7 @@ async function hardware(){const now=performance.now();if(hwAt&&now-hwAt<(page===
   [nm("RS485 drivers"),"4 × TI SN65HVD75",[]],
   [nm("Reload button"),[],[h.button.pressed?"Pressed":"Released",h.button.presses?sub(num(h.button.presses)+(h.button.presses===1?" press":" presses")+(h.button.held_ms?", last held "+(h.button.held_ms/1000).toFixed(1)+" s":"")):null]],
   [nm("Watchdog"),"UM706SS","1.6 s timeout"],
-  [nm("Main loop"),[],h.loop?["Longest pause "+ms(h.loop.recent_us),h.loop.max_us>h.loop.recent_us?sub(ms(h.loop.max_us)+" since the start"):null]:[]]]);
+  [nm("Main loop"),[],h.loop?[(h.loop.avg_us?"A pass takes "+nb(h.loop.avg_us<1000?h.loop.avg_us+" µs":(h.loop.avg_us/1000).toFixed(1)+" ms")+"; longest pause ":"Longest pause ")+ms(h.loop.recent_us),h.loop.max_us>h.loop.recent_us?sub(ms(h.loop.max_us)+" since the start"):null]:[]]]);
  fillRows($("wiring"),["Port","UART","Transmit","Receive","Direction"],h.ports.map((p,i)=>[nm(cfg?cfg.ports[i].name||"Port "+(i+1):"Port "+(i+1)),p.uart,p.tx,p.rx,p.de]));
  const fails=Math.max(0,h.crashes-(st&&st.uptime_s<30?1:0)); /* counted until 30 s of uptime */
  const slot=i=>{const s=h.slots[i];return (s.version?s.version+", "+kb(s.size):"Empty")+(i===h.slot?", running":"")+(s.version&&!s.confirmed?i===h.slot?", on trial":", not kept":"")};

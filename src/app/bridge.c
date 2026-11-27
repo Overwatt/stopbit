@@ -731,6 +731,25 @@ void bridge_poll(void)
     }
 }
 
+static uint32_t errors_of(const port_t *p, volatile uart_stats_t *u)
+{
+    return u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
+}
+
+void bridge_brief(int i, bridge_brief_t *o)
+{
+    port_t *p = &s_p[i];
+    volatile uart_stats_t *u = &g_uart[i];
+    o->state = LS_NAME[p->state];
+    o->alert = ALERT[p->alert];
+    o->clients = 0;
+    for (int k = 0; k < MAX_CLIENTS; k++) o->clients += p->cl[k].pcb && p->cl[k].up;
+    o->serial_rx = u->rx_bytes;
+    o->serial_tx = u->tx_bytes;
+    o->errors = errors_of(p, u);
+    o->denied = p->denied;
+}
+
 void bridge_info(int i, bridge_info_t *o)
 {
     port_t *p = &s_p[i];
@@ -757,7 +776,7 @@ void bridge_info(int i, bridge_info_t *o)
     if (kn) ip4_fmt(kn->ip, o->denied_ip);
     o->serial_rx = u->rx_bytes;
     o->serial_tx = u->tx_bytes;
-    o->errors = u->parity + u->framing + u->noise + u->overrun + u->rx_lost + p->net_lost + p->refused;
+    o->errors = errors_of(p, u);
     o->fwd = p->fwd;
     o->net_rx = p->net_rx;
     o->net_tx = p->net_tx;

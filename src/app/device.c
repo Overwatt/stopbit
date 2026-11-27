@@ -79,15 +79,23 @@ static const profile_t *load(device_t *d, const char *id)
     return &s_prof[free_];
 }
 
+static const char OFF[] = "Its port is off, or not a Modbus gateway", WANTS[] = "The profile wants";
+
+static bool line_differs(const device_t *d)
+{
+    int port = d->cfg.port - 1;
+    return d->p && port >= 0 && port < PORTS && d->p->baud &&
+           (d->p->baud != s_baud[port] || strcmp(d->p->frame, s_frame[port]));
+}
+
 /* "" if the profile's line is the port's, else what differs. */
 static void line_msg(const device_t *d, char *out, size_t max)
 {
     int port = d->cfg.port - 1;
     out[0] = 0;
-    if (!d->p || port < 0 || port >= PORTS || !d->p->baud) return;
-    if (d->p->baud != s_baud[port] || strcmp(d->p->frame, s_frame[port]))
-        snprintf(out, max, "The profile wants %lu %s; the port is %lu %s", (unsigned long)d->p->baud, d->p->frame,
-                 (unsigned long)s_baud[port], s_frame[port]);
+    if (!line_differs(d)) return;
+    snprintf(out, max, "%s %lu %s; the port is %lu %s", WANTS, (unsigned long)d->p->baud, d->p->frame,
+             (unsigned long)s_baud[port], s_frame[port]);
 }
 
 void device_configure(const cfg_t *c)
@@ -119,7 +127,7 @@ void device_configure(const cfg_t *c)
     for (int i = 0; i < DEVS; i++) {           /* the line may differ since the port changed */
         device_t *d = &s_dev[i];
         char e[sizeof d->error];
-        if (!d->used || !d->p || !strncmp(d->error, "Its port", 8)) continue;
+        if (!d->used || !d->p || !strcmp(d->error, OFF)) continue;
         line_msg(d, e, sizeof e);
         if (strcmp(d->error, e)) { memcpy(d->error, e, sizeof e); d->seq++; }
     }
@@ -240,13 +248,20 @@ void device_poll(void)
             s_port[port].win_at = now;
             continue;
         }
-        for (int i = 0; i < DEVS; i++)               /* say why it is not polled, or that it is again */
-            if (s_dev[i].p && s_dev[i].cfg.port == port + 1) {
-                char e[sizeof s_dev[i].error];
-                if (m) line_msg(&s_dev[i], e, sizeof e);
-                else snprintf(e, sizeof e, "Its port is off, or not a Modbus gateway");
-                if (strcmp(s_dev[i].error, e)) { memcpy(s_dev[i].error, e, sizeof e); s_dev[i].seq++; }
+        /* Say why it is not polled, or that it is again. Every pass, so nothing is put
+         * into words unless it changed (device_configure keeps a line's message current). */
+        for (int i = 0; i < DEVS; i++) {
+            device_t *d = &s_dev[i];
+            if (!d->p || d->cfg.port != port + 1) continue;
+            if (!m) {
+                if (strcmp(d->error, OFF)) { memset(d->error, 0, sizeof d->error); memcpy(d->error, OFF, sizeof OFF); d->seq++; }
+            } else if (!line_differs(d)) {
+                if (d->error[0]) { memset(d->error, 0, sizeof d->error); d->seq++; }
+            } else if (strncmp(d->error, WANTS, sizeof WANTS - 1)) {
+                line_msg(d, d->error, sizeof d->error);
+                d->seq++;
             }
+        }
         window(port, now);
         if (!m) {                                    /* keep what is overdue overdue, whatever the time */
             for (int i = 0; i < DEVS; i++)
