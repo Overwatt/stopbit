@@ -16,7 +16,8 @@ extern ev_kind_t ev_kind;
 extern uint32_t ev_a;
 extern char ev_s[64];
 static modbus_t M;
-modbus_t *bridge_modbus_port(int p) { return p == 1 ? &M : NULL; }
+static bool port2_off;
+modbus_t *bridge_modbus_port(int p) { return p == 1 && !port2_off ? &M : NULL; }
 
 static const char *T =
     "profile c 1\n"
@@ -72,6 +73,29 @@ static bool event(int outcome, const char *s)
     return ok;
 }
 static const char *val(const char *id) { static char v[32]; const device_t *d = device_get(0); assert(device_value(d, profile_field(d->p, id), v, sizeof v)); return v; }
+
+static void off_drain(void)                                    /* every waiting command failed, port 2 back on */
+{
+    port2_off = true;
+    device_poll();
+    port2_off = false;
+    modbus_init(&M, &IO, 1000, 2000);
+    Ln = 0;
+}
+static int fill(cfg_t *c)                                      /* commands queued of 20 tried, over 5 devices on port 2 */
+{
+    static const char *const CT[4] = { "lim", "ac", "t1", "big" }, *const PV[4] = { "1", "OFF", "09:00", "5" };
+    int queued = 0;
+    for (int i = 1; i < 5; i++) { c->dev[i] = c->dev[0]; snprintf(c->dev[i].name, sizeof c->dev[i].name, "inv%d", i); c->dev[i].address = (uint8_t)(i + 1); }
+    device_configure(c);
+    for (int i = 0; i < 5; i++)
+        for (int k = 0; k < 4; k++) {
+            char nm[25];
+            if (i) snprintf(nm, sizeof nm, "inv%d", i); else snprintf(nm, sizeof nm, "inv");
+            queued += device_command(nm, CT[k], PV[k], false);
+        }
+    return queued;
+}
 
 int main(void)
 {
@@ -203,6 +227,62 @@ int main(void)
     modbus_init(&M, &IO, 1000, 2000);
     run();
     assert(event(3, "lim=1; lost"));
+
+    /* Fix round 1. Start clean: nothing waiting, one device. */
+    off_drain();
+    for (int i = 1; i < 5; i++) c.dev[i] = (dev_cfg_t){ 0 };
+    device_configure(&c);
+
+    /* A device on an off port (3): refused. */
+    c.dev[1] = c.dev[0];
+    snprintf(c.dev[1].name, sizeof c.dev[1].name, "off3");
+    c.dev[1].port = 3;
+    device_configure(&c);
+    assert(!device_command("off3", "ac", "ON", false) && ev_kind == EV_WRITE && ev_port == 3 && ev_a == (2u | 2u << 8) && !strcmp(ev_s, "ac=ON; port off"));
+    c.dev[1] = (dev_cfg_t){ 0 };
+    device_configure(&c);
+
+    /* Queued, then the port goes off: failed, the places free. */
+    t_now += 600;
+    assert(device_command("inv", "lim", "2", false));
+    port2_off = true;
+    device_poll();
+    assert(event(3, "lim=2; port off"));
+    port2_off = false;
+    modbus_init(&M, &IO, 1000, 2000);
+    assert(fill(&c) == 16);                                    /* all 16 places were free */
+    off_drain();
+    for (int i = 1; i < 5; i++) c.dev[i] = (dev_cfg_t){ 0 };
+    device_configure(&c);
+
+    /* A device changed while its write's read is on the line. */
+    c.dev[0].controls = 0; device_configure(&c); c.dev[0].controls = 1; device_configure(&c);
+    modbus_init(&M, &IO, 1000, 2000);
+    for (int k = 0; k < 4; k++) { run(); Ln = 0; t_now += 600; }
+    assert(device_command("inv", "t1", "09:00", false));
+    t_now += 600;
+    for (int k = 0; k < 5 && Ln == 0; k++) run();
+    assert(sent(PDU(3, 0, 22, 0, 1)));
+    c.dev[0].address = 1;                                      /* same address; change the label instead */
+    snprintf(c.dev[0].label, sizeof c.dev[0].label, "changed");
+    device_configure(&c);
+    answer(PDU(3, 2, 0, 1));
+    assert(event(3, "t1=09:00; device changed"));
+
+    /* The last device on the port removed while its write is on the line, the queue started again. */
+    run(); run(); Ln = 0;
+    t_now += 600;
+    assert(device_command("inv", "t1", "10:00", false));
+    t_now += 600;
+    for (int k = 0; k < 5 && Ln == 0; k++) run();
+    assert(sent(PDU(3, 0, 22, 0, 1)));
+    c.dev[0] = (dev_cfg_t){ 0 };
+    device_configure(&c);
+    modbus_init(&M, &IO, 1000, 2000);
+    run();
+    assert(ev_kind == EV_WRITE && ev_port == 0 && ev_a == (1u | 3u << 8) && !strcmp(ev_s, "t1=10:00; lost"));   /* its device is gone: no port to name */
+    c.dev[0] = (dev_cfg_t){ "c", "inv", "", "", 2, 1, 1, 0 };
+    assert(fill(&c) == 16);                                    /* the slot was freed */
     puts("devctl: ok");
     return 0;
 }

@@ -258,6 +258,28 @@ static void wr_lost(int port)
     }
 }
 
+/* Commands waiting for a device that has changed or gone: said so, and the place freed. */
+static void wr_sweep(void)
+{
+    for (int k = 0; k < WRITES; k++) {
+        wq_t *q = &s_wq[k];
+        if (q->stage != W_QUEUED || (s_dev[q->dev].p && s_dev[q->dev].gen == q->gen)) continue;
+        wr_event(q->dev, WR_FAILED, q->what, "device changed");
+        q->stage = W_FREE;
+    }
+}
+
+/* Commands waiting for a device on a port that is off: they would only be written stale, later. */
+static void wr_off(int port)
+{
+    for (int k = 0; k < WRITES; k++) {
+        wq_t *q = &s_wq[k];
+        if (q->stage != W_QUEUED || s_dev[q->dev].cfg.port != port + 1) continue;
+        wr_event(q->dev, WR_FAILED, q->what, "port off");
+        q->stage = W_FREE;
+    }
+}
+
 /* The registers at addr, from a reply to a read that began at `from`. */
 static bool regs_at(const uint8_t *pdu, size_t n, uint16_t from, uint16_t addr, uint8_t regs, uint16_t out[2])
 {
@@ -297,7 +319,7 @@ static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, con
     if (k >= WRITES) return;
     wq_t *q = &s_wq[k];
     if (q->stage != AT[op] || q->dev != i || q->gen != gen) return;        /* not the one asked for */
-    if (!d->p || d->gen != gen) { q->stage = W_FREE; return; }               /* its device changed meanwhile */
+    if (!d->p || d->gen != gen) { wr_event(i, WR_FAILED, q->what, "device changed"); q->stage = W_FREE; return; }   /* its device changed meanwhile */
     const pf_field_t *f = &d->p->field[q->field];
     const pf_block_t *b = &d->p->block[f->block];
     modbus_t *m = bridge_modbus_port(port);
@@ -396,7 +418,6 @@ static bool write_next(int port, modbus_t *m, uint32_t now)
         wq_t *q = &s_wq[k];
         if (q->stage != W_QUEUED) continue;
         const device_t *d = &s_dev[q->dev];
-        if (!d->p || d->gen != q->gen) { q->stage = W_FREE; continue; }       /* its device changed */
         if (d->cfg.port != port + 1 || now - s_wlast[q->dev] < WRITE_GAP_MS) continue;
         if (best < 0 || (int32_t)(q->seq - s_wq[best].seq) < 0) best = k;
     }
@@ -424,7 +445,8 @@ bool device_command(const char *name, const char *control, const char *payload, 
     snprintf(what, sizeof what, "%s=%s", control, payload);
     if (d->p) f = profile_field(d->p, control);
     const char *why = retained ? "retained" : !d->cfg.controls ? "controls off" :
-                      f < 0 || !pf_control(&d->p->field[f]) ? "no such control" : NULL;
+                      f < 0 || !pf_control(&d->p->field[f]) ? "no such control" :
+                      d->cfg.port < 1 || d->cfg.port > PORTS || !bridge_modbus_port(d->cfg.port - 1) ? "port off" : NULL;
     pf_write_t w;
     if (!why && !pf_command(d->p, f, payload, &w, e, sizeof e)) why = e;
     if (why) { wr_event(i, WR_REFUSED, what, why); return false; }
@@ -447,6 +469,7 @@ bool device_command(const char *name, const char *control, const char *payload, 
 void device_poll(void)
 {
     uint32_t now = HAL_GetTick();
+    wr_sweep();
     for (int port = 0; port < PORTS; port++) {
         uint16_t turn = 0;
         bool any = false;
@@ -461,6 +484,7 @@ void device_poll(void)
             s_port[port].use = 0;
             s_port[port].busy_ms = 0;
             s_port[port].win_at = now;
+            if (!m || !modbus_local_pending(m)) { s_port[port].busy = false; wr_lost(port); }
             continue;
         }
         /* Say why it is not polled, or that it is again. Every pass, so nothing is put
@@ -484,6 +508,7 @@ void device_poll(void)
                     for (int b = 0; b < s_dev[i].p->nblock; b++)
                         if ((int32_t)(now - s_dev[i].due[b]) > 0) s_dev[i].due[b] = now;
             wr_lost(port);
+            wr_off(port);
             s_port[port].busy = false;
             continue;
         }
