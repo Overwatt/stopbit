@@ -1,0 +1,30 @@
+# A gateway port as a local serial device. n540-tty@NAME reads
+# /etc/n540-tty/NAME.conf (HOST, PORT, optional LINK and GROUP) and makes
+# /dev/ttyN540-NAME. See README.md.
+[Unit]
+Description=N540 port %i as a serial device
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Environment=LINK=/dev/ttyN540-%i GROUP=dialout
+EnvironmentFile=/etc/n540-tty/%i.conf
+# wait-slave: connect once a program first opens the device. ignoreeof: stay
+# when it closes, so it can open the device again at once (SolarAssistant closes
+# and reopens within half a second). socat ends only with the connection, and
+# Restart makes the device again a second later. keepidle/keepintvl/keepcnt: a
+# quiet connection the gateway no longer answers ends within a minute.
+# -ly: to syslog at socat's own levels, so errors survive a journal kept at warning.
+ExecStart=/usr/bin/socat -d -d -ly pty,link=${LINK},rawer,wait-slave,ignoreeof,group=${GROUP},mode=660 tcp:${HOST}:${PORT},keepalive,keepidle=30,keepintvl=10,keepcnt=3,nodelay
+Restart=always
+RestartSec=1
+# socat exits 143 on SIGTERM: a stop, not a failure.
+SuccessExitStatus=143
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

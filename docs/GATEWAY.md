@@ -142,7 +142,8 @@ while releasing would act; holding past 15 seconds cancels. Set a new password w
 
 All four ship disabled. Each one is a TCP server (default 4001-4004, up to 4
 connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below).
-**Data ports have no password.**
+**Data ports have no password.** To use a server-mode port from a Linux program that only
+talks to serial devices, [proxy/](../proxy/README.md) makes it one (`/dev/ttyN540-1`).
 
 | Setting | Values |
 |---|---|
