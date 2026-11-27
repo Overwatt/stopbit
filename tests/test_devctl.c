@@ -33,7 +33,18 @@ static const char *T =
     "number big \"Big\" set 23 u32 min 0 max 100000\n"
     "select by \"By\" set 25 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC hidden\n";
 const char *profiles_id(int i) { return i ? NULL : "c"; }
-const char *profiles_text(const char *id, size_t *len) { if (strcmp(id, "c")) return NULL; *len = strlen(T); return T; }
+/* A second profile, for a number whose step is finer than its display precision. */
+static const char *T2 =
+    "profile d 1\n"
+    "name \"Fine\"\n"
+    "block set hold 0 1 1m info\n"
+    "number st \"Step\" set 0 u16 *0.1 min 0 max 25 prec=0 kW\n";
+const char *profiles_text(const char *id, size_t *len)
+{
+    const char *t = !strcmp(id, "c") ? T : !strcmp(id, "d") ? T2 : NULL;
+    if (t) *len = strlen(t);
+    return t;
+}
 
 static uint8_t L[512]; static size_t Ln;
 static size_t line(void *ctx, const uint8_t *d, size_t n) { (void)ctx; memcpy(L + Ln, d, n); Ln += n; return n; }
@@ -337,6 +348,36 @@ int main(void)
     drain();
     assert(!strcmp(got("homeassistant/number/n540-test_inv/lim/config"), "") && !strcmp(got("homeassistant/select/n540-test_inv/by/config"), ""));
     assert(got("homeassistant/sensor/n540-test_inv/v/config")[0] == '{');
+    /* A number's step is announced in full, though it shows no decimals (prec=0). */
+    memset(c.dev, 0, sizeof c.dev);
+    device_configure(&c);
+    c.dev[0] = (dev_cfg_t){ "d", "fine", "", "", 2, 1, 1, 0 };
+    device_configure(&c);
+    devmqtt_init();
+    drain();
+    s = got("homeassistant/number/n540-test_fine/st/config");
+    assert(s && json_ok(s) && strstr(s, "\"min\":0.0,\"max\":25.0,\"step\":0.1,"));
+    /* A device whose profile is unknown: its JSON is whole, with empty values, in parts or together. */
+    memset(c.dev, 0, sizeof c.dev);
+    device_configure(&c);
+    c.dev[0] = (dev_cfg_t){ "nope", "lost", "", "", 2, 1, 0, 0 };
+    device_configure(&c);
+    assert(device_get(0) && !device_get(0)->p);
+    static char j2[4096], j3[4096];
+    size_t tn = device_json(0, j2, sizeof j2);
+    assert(tn && json_ok(j2) && strstr(j2, "\"values\":[]"));
+    size_t pn = 0;
+    for (int k = 0; k < DEV_PARTS; k++) { int w = device_json_part(0, k, j3 + pn, sizeof j3 - pn); assert(w >= 0); pn += (size_t)w; }
+    assert(pn == tn && !strcmp(j2, j3));
+    /* A device removed between part 0 and part 2: part 0 as it was, the rest after. */
+    int w0b = device_json_part(0, 0, j3, sizeof j3);
+    assert(w0b > 0);
+    memset(c.dev, 0, sizeof c.dev);
+    device_configure(&c);
+    assert(!device_get(0));
+    assert(device_json_part(0, 1, j3 + w0b, sizeof j3 - (size_t)w0b) == 0);
+    assert(device_json_part(0, 2, j3 + w0b, sizeof j3 - (size_t)w0b) == 2);
+    assert(json_ok(j3));
     puts("devctl: ok");
     return 0;
 }

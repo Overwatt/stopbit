@@ -40,8 +40,9 @@ void  device_count(int up[PORTS], int all[PORTS]);   /* each port's devices, and
 size_t device_value(const device_t *d, int f, char *out, size_t max);
 #define DEV_PARTS 3                 /* /api/devices gives a device in this many parts */
 /* Part k of device i's JSON: 0 its settings and state and values 0 to 39; 1 values 40 to 79;
- * 2 the rest, and the end. -1 if it does not fit. A device gone, or without a profile, has
- * nothing in parts 1 and 2 but the end. */
+ * 2 the rest, and the end. -1 if it does not fit. Part 0 always opens "values", part 2 always
+ * closes it, so parts need no shared state: a device without a profile has "values":[], and
+ * one gone since part 0 gives only the closing "]}" in part 2. */
 int   device_json_part(int i, int k, char *out, size_t max);
 size_t device_json(int i, char *out, size_t max);   /* all of it; 0 if it does not fit */
 /* Told before device i is removed or changed (devmqtt.c, to clear it from HA). It may

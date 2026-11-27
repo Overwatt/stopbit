@@ -556,9 +556,11 @@ int device_json_part(int i, int k, char *out, size_t max)
             d->cfg.ids ? "esphome" : "own", d->cfg.prefix, s[1], d->online ? "true" : "false",
             (unsigned long)d->polls, (unsigned long)d->misses, s[2],
             d->last_ok ? (long)((HAL_GetTick() - d->last_ok) & 0x7FFFFFFF) : -1L);
-        if (!d->p) { OUT("}"); return (int)n; }
-        if (!json_str(pf_str(d->p, d->p->name), s[0], sizeof s[0]) || !json_str(pf_str(d->p, d->p->maker), s[1], sizeof s[1])) return -1;
-        OUT(",\"model\":%s,\"maker\":%s,\"values\":[", s[0], s[1]);
+        if (d->p) {
+            if (!json_str(pf_str(d->p, d->p->name), s[0], sizeof s[0]) || !json_str(pf_str(d->p, d->p->maker), s[1], sizeof s[1])) return -1;
+            OUT(",\"model\":%s,\"maker\":%s", s[0], s[1]);
+        }
+        OUT(",\"values\":[");
     }
     int from = k * PART_VALUES, to = !d || !d->p ? 0 : k == DEV_PARTS - 1 ? d->p->nfield : from + PART_VALUES;
     for (int f = from; d && d->p && f < to && f < d->p->nfield; f++) {
@@ -580,7 +582,6 @@ size_t device_json(int i, char *out, size_t max)
         int w = device_json_part(i, k, out + n, max - n);
         if (w < 0) return 0;
         n += (size_t)w;
-        if (k == 0 && !device_get(i)->p) break;              /* closed already */
     }
     return n;
 }

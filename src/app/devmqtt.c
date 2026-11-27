@@ -91,6 +91,12 @@ static size_t config(char *b, size_t max, const device_t *d, int fi, const char 
         if (f->kind == PF_NUMBER) {
             char lo[24], hi[24], st[24];
             int pr = pf_prec(f);
+            float sp = f->k < 0 ? -f->k : f->k;                  /* the step's own decimals, so 0.1 is not shown as 0 */
+            for (int q = 0, m = 1; q <= 6; q++, m *= 10) {
+                float x = sp * (float)m, r = x - (float)(int)(x + 0.5f);
+                if ((r < 0 ? -r : r) < 0.001f) { if (q > pr) pr = q; break; }
+                if (q == 6) pr = 6 > pr ? 6 : pr;
+            }
             if (!pf_num(lo, sizeof lo, f->lo, pr) || !pf_num(hi, sizeof hi, f->hi, pr) || !pf_num(st, sizeof st, f->k, pr)) return 0;
             ADD(",\"min\":%s,\"max\":%s,\"step\":%s,\"mode\":\"box\"", lo, hi, st);
         } else if (f->kind == PF_SELECT) {

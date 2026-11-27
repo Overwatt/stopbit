@@ -192,7 +192,7 @@ int main(void)
     n = device_json(0, j, sizeof j);
     assert(n && json_ok(j) && strstr(j, "\"name\":\"eg4m\"") && strstr(j, "\"total_voltage\""));
     for (size_t k = 0; k < n; k += 97) assert(!device_json(0, j, k));
-    assert(device_json(2, j, sizeof j) > 0 && json_ok(j) && strstr(j, "No profile 'nope'") && !strstr(j, "\"values\""));
+    assert(device_json(2, j, sizeof j) > 0 && json_ok(j) && strstr(j, "No profile 'nope'") && strstr(j, "\"values\":[]"));
 
     n = device_json(0, j, sizeof j);                                  /* the unit keeps its UTF-8 */
     assert(n && strstr(j, ",\"\xC2\xB0" "C\"]") && !strstr(j, "??C"));

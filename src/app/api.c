@@ -493,7 +493,6 @@ void cli_wiretest(char *out, size_t max)
 int api_devices(uint32_t part, char *out, size_t max)
 {
     static uint32_t seen;                               /* the devices there were at part 0 */
-    static bool open;                                   /* the device's values were left open by its first part */
     size_t n = 0;
 #define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); if (w_ < 0 || (size_t)w_ >= max - n) return -2; n += (size_t)w_; } while (0)
     if (part == 0) {
@@ -507,12 +506,11 @@ int api_devices(uint32_t part, char *out, size_t max)
     if (part <= DEVS * DEV_PARTS) {
         int i = (int)(part - 1) / DEV_PARTS, k = (int)(part - 1) % DEV_PARTS;
         if (!(seen >> i & 1)) return 0;
-        if (k) { if (!open) return 0; int w = device_json_part(i, k, out, max); return w < 0 ? -2 : w; }
+        if (k) { int w = device_json_part(i, k, out, max); return w < 0 ? -2 : w; }
         if (!device_get(i)) return -2;                  /* removed since part 0: fail, not malformed JSON */
         if (seen & ((1u << i) - 1)) OUT(",");
         int w = device_json_part(i, 0, out + n, max - n);
         if (w < 0) return -2;
-        open = device_get(i)->p != NULL;
         return (int)n + w;
     }
     if (part == DEVS * DEV_PARTS + 1) { OUT("]}\n"); return (int)n; }
