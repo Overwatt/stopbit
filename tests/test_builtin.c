@@ -1,5 +1,6 @@
-/* test_builtin.c — every built-in profile parses; the EG4 one decodes as the ESPHome
- * component does (eg4_bms.cpp), with the identification strings of its REGISTER_MAP.md.
+/* test_builtin.c — every built-in profile parses; the EG4 battery's decodes as the ESPHome
+ * component does (eg4_bms.cpp), with the identification strings of its REGISTER_MAP.md;
+ * the EG4 18kPV's decodes registers laid out as EG4's protocol document has them.
  *   python3 tools/embed_profiles.py /tmp/profiles_gen.h profiles/*.txt &&
  *   cc -I/tmp -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm -o /tmp/bi && /tmp/bi */
 #include "profiles.h"
@@ -91,6 +92,60 @@ int main(void)
     assert(pf_decode(&P, profile_block(&P, "serial"), d, str(d, "2309876543210987", 8), &S));
     assert(!strcmp(text("model"), "ZTR-16S200A-10KW-STD2") && !strcmp(text("firmware_version"), "S02T11") &&
            !strcmp(text("serial_number"), "2309876543210987"));
+
+    /* ---- EG4 18kPV: as EG4's protocol document lays the registers out ---- */
+    t = profiles_text("eg4-18kpv", &n);
+    assert(t && profile_parse(&B, t, n, err, sizeof err));
+    profile_view(&B, &P);
+    assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 1000 && P.nblock == 3);
+    for (int b = 0; b < P.nblock; b++)                    /* whole groups of 40, as the inverter insists */
+        assert(P.block[b].count == 40 && P.block[b].addr % 40 == 0 && P.block[b].fn == (b == 2 ? 3 : 4));
+    pf_state_init(&S);
+    uint16_t in[40] = { 0 };
+    in[0] = 0x000C;                                         /* PV charge + on-grid */
+    in[1] = 3805; in[2] = 3712; in[4] = 532;                /* 380.5 V, 371.2 V; battery 53.2 V */
+    in[5] = (uint16_t)(100 << 8 | 87);                      /* health in the high byte, charge in the low */
+    in[7] = 4200; in[8] = 3900; in[10] = 2500;              /* PV 8100 W, 2500 W of it into the battery */
+    in[12] = 2412; in[15] = 5998; in[16] = 5200; in[20] = 2405; in[23] = 6000; in[24] = 1200;
+    in[26] = 3000;                                          /* exporting */
+    in[28] = 215; in[29] = 198; in[31] = 180; in[33] = 95; in[36] = 122; in[37] = 3;
+    assert(pf_decode(&P, profile_block(&P, "live"), d, regs(d, in, 40), &S));
+    assert(!strcmp(text("status"), "PV charge + on-grid"));
+    assert(near(V("pv_voltage_1"), 380.5f) && near(V("pv_voltage_2"), 371.2f) && V("pv_voltage_3") == 0 && near(V("battery_voltage"), 53.2f));
+    assert(V("state_of_charge") == 87 && V("state_of_health") == 100);
+    assert(V("pv_power") == 8100 && V("battery_power") == 2500 && V("grid_power") == -3000 && V("inverter_power") == 5200);
+    assert(near(V("grid_voltage"), 241.2f) && near(V("grid_frequency"), 59.98f) && near(V("eps_voltage"), 240.5f) && V("eps_frequency") == 60 && V("eps_power") == 1200);
+    assert(near(V("pv_energy_today"), 41.3f) && near(V("inverter_energy_today"), 18.0f) && near(V("charge_energy_today"), 9.5f));
+    assert(near(V("grid_export_today"), 12.2f) && near(V("grid_import_today"), 0.3f));
+    in[0] = 0x0104;                                         /* only the low byte is the mode */
+    in[10] = 0; in[11] = 1800; in[26] = 0; in[27] = 650;    /* discharging, importing */
+    assert(pf_decode(&P, profile_block(&P, "live"), d, regs(d, in, 40), &S));
+    assert(!strcmp(text("status"), "PV on-grid") && V("battery_power") == -1800 && V("grid_power") == 650);
+    in[0] = 0x0060;                                         /* a mode the document does not list */
+    assert(pf_decode(&P, profile_block(&P, "live"), d, regs(d, in, 40), &S) && !strcmp(text("status"), "Unknown (96)"));
+
+    uint16_t tot[40] = { 0 };                               /* registers 40 to 79 */
+    tot[0] = 0x86A0; tot[1] = 0x0001;                       /* 100,000 tenths, low word first: 10,000.0 kWh */
+    tot[2] = 50000;                                         /* 5,000.0 kWh */
+    tot[16] = 4321; tot[18] = 77;                           /* export 432.1 kWh, import 7.7 kWh */
+    tot[20] = 0x1000; tot[21] = 0x0008;                     /* fault bits 12 and 19 */
+    tot[22] = 0x0001; tot[23] = 0x0001;                     /* warning bits 0 and 16 */
+    tot[24] = 41; tot[25] = 38; tot[26] = 39; tot[27] = (uint16_t)-5;
+    assert(pf_decode(&P, profile_block(&P, "totals"), d, regs(d, tot, 40), &S));
+    assert(near(V("pv_energy_1"), 10000.0f) && near(V("pv_energy_2"), 5000.0f) && near(V("pv_energy"), 15000.0f));
+    assert(near(V("grid_export"), 432.1f) && near(V("grid_import"), 7.7f));
+    assert(!strcmp(text("fault"), "E012 UPS short; E019 Bus voltage high"));
+    assert(!strcmp(text("warning"), "W000 Battery communication; W016 Grid power outage"));
+    assert(V("inner_temperature") == 41 && V("radiator_temperature_1") == 38 && V("radiator_temperature_2") == 39 && V("battery_temperature") == -5);
+    tot[20] = tot[21] = tot[22] = tot[23] = 0;
+    assert(pf_decode(&P, profile_block(&P, "totals"), d, regs(d, tot, 40), &S) && !strcmp(text("fault"), "None") && !strcmp(text("warning"), "None"));
+
+    uint16_t id[40] = { 0 };                                /* holding 0 to 39: text, each register's low byte first */
+    const char *sn = "AB12345678", *fw = "FAAB";
+    for (int k = 0; k < 5; k++) id[2 + k] = (uint16_t)((uint8_t)sn[2 * k + 1] << 8 | (uint8_t)sn[2 * k]);
+    for (int k = 0; k < 2; k++) id[7 + k] = (uint16_t)((uint8_t)fw[2 * k + 1] << 8 | (uint8_t)fw[2 * k]);
+    assert(pf_decode(&P, profile_block(&P, "ident"), d, regs(d, id, 40), &S));
+    assert(!strcmp(text("serial_number"), "AB12345678") && !strcmp(text("firmware"), "FAAB"));
     puts("builtin: ok");
     return 0;
 }

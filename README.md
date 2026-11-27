@@ -20,8 +20,8 @@ Not made or endorsed by the vendor.
 - **RS485 to network.** Each port is a TCP server, TCP client, UDP endpoint or Modbus TCP
   gateway, with its own line settings, 300 to 2,000,000 baud.
 - **Devices.** The gateway polls Modbus RTU devices itself and publishes their readings to
-  MQTT, with Home Assistant discovery. One profile so far: the EG4 LifePower4 / LL battery,
-  reading only. A Modbus port can serve its devices without listening on the network.
+  MQTT, with Home Assistant discovery. Two profiles so far, reading only: the EG4
+  LifePower4 / LL battery, and the EG4 18kPV inverter (not yet tried on one). A Modbus port can serve its devices without listening on the network.
 - **Status page.** A verdict that names the fault, every part's state, and each port's last
   ten minutes of traffic. Works on a phone and with no internet. Light or dark follows the
   system, or is chosen in the header for that browser.

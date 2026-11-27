@@ -1,0 +1,71 @@
+# EG4 18kPV hybrid inverter, over RS485 (Modbus RTU, functions 4 and 3), unit 1.
+# From EG4's "18KPV-12LV Modbus Protocol": input registers for what it is doing, holding
+# registers for what it is set to. It answers at most 40 registers at a time, in fixed
+# groups (0-39, 40-79, ...), so each block here is one whole group. 32-bit values have
+# their low word first; text has two characters a register, the low byte's first.
+# That document frames messages with the serial number in them, as the Wi-Fi dongle
+# does; this profile asks in plain Modbus RTU, which the inverter's RS485 port is
+# reported to answer as well (github.com/galets/eg4-modbus-monitor). Not yet tried here.
+# Left out, for the room a device has (about 55 values): the battery's own figures as
+# its BMS reports them (80-119), the generator and each EPS leg (120-138), arc fault
+# detection (140-152), the power factor (19: two ranges in one number), and settings.
+profile eg4-18kpv 1
+name "18kPV"
+maker "EG4"
+line 19200 8N1
+stale 5
+timeout 1000ms
+turnaround 1000ms                   # "minimum polling period: 1 s"
+
+block live   input 0  40 5s
+block totals input 40 40 10s
+block ident  hold  0  40 15m info
+
+text   status                 "Status"                    live 0  enum mask=0x00FF 0x00=Standby 0x01=Fault 0x02="Firmware update" 0x04="PV on-grid" 0x08="PV charge" 0x0C="PV charge + on-grid" 0x10="Battery on-grid" 0x14="PV + battery on-grid" 0x20="AC charge" 0x28="PV + AC charge" 0x40="Battery off-grid" 0x80="PV off-grid" 0xC0="PV + battery off-grid" 0x88="PV charge + off-grid"
+sensor pv_voltage_1..3        "PV # voltage"              live 1  u16 *0.1 V dc=voltage sc=measurement prec=1
+sensor battery_voltage        "Battery voltage"           live 4  u16 *0.1 V dc=voltage sc=measurement prec=1
+sensor state_of_charge        "State of charge"           live 5  u8l % dc=battery sc=measurement prec=0
+sensor state_of_health        "State of health"           live 5  u8h % sc=measurement prec=0
+sensor pv_power_1..3          "PV # power"                live 7  u16 W dc=power sc=measurement prec=0
+sensor charge_power           "Battery charge power"      live 10 u16 W dc=power sc=measurement prec=0
+sensor discharge_power        "Battery discharge power"   live 11 u16 W dc=power sc=measurement prec=0
+sensor grid_voltage           "Grid voltage"              live 12 u16 *0.1 V dc=voltage sc=measurement prec=1
+sensor grid_frequency         "Grid frequency"            live 15 u16 *0.01 Hz dc=frequency sc=measurement prec=2
+sensor inverter_power         "Inverter power"            live 16 u16 W dc=power sc=measurement prec=0
+sensor ac_charge_power        "AC charge power"           live 17 u16 W dc=power sc=measurement prec=0
+sensor eps_voltage            "EPS voltage"               live 20 u16 *0.1 V dc=voltage sc=measurement prec=1
+sensor eps_frequency          "EPS frequency"             live 23 u16 *0.01 Hz dc=frequency sc=measurement prec=2
+sensor eps_power              "EPS power"                 live 24 u16 W dc=power sc=measurement prec=0
+sensor grid_export_power      "Grid export power"         live 26 u16 W dc=power sc=measurement prec=0
+sensor grid_import_power      "Grid import power"         live 27 u16 W dc=power sc=measurement prec=0
+sensor pv_energy_today_1..3   "PV # energy today"         live 28 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor inverter_energy_today  "Inverter energy today"     live 31 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor ac_charge_energy_today "AC charge energy today"    live 32 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor charge_energy_today    "Battery charge today"      live 33 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor discharge_energy_today "Battery discharge today"   live 34 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor eps_energy_today       "EPS energy today"          live 35 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor grid_export_today      "Grid export today"         live 36 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor grid_import_today      "Grid import today"         live 37 u16 *0.1 kWh dc=energy sc=total_increasing prec=1
+
+sensor pv_energy_1..3         "PV # energy"               totals 40 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor inverter_energy        "Inverter energy"           totals 46 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor ac_charge_energy       "AC charge energy"          totals 48 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor charge_energy          "Battery charge energy"     totals 50 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor discharge_energy       "Battery discharge energy"  totals 52 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor eps_energy             "EPS energy"                totals 54 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor grid_export            "Grid export"               totals 56 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+sensor grid_import            "Grid import"               totals 58 u32le *0.1 kWh dc=energy sc=total_increasing prec=1
+text   fault                  "Fault"                     totals 60 u32le bits 0="E000 Internal communication 1" 1="E001 Model" 8="E008 Parallel CAN lost" 9="E009 Parallel master lost" 10="E010 Several parallel masters" 11="E011 Parallel AC input differs" 12="E012 UPS short" 13="E013 Reverse current on UPS" 14="E014 Bus short" 15="E015 Parallel phases differ" 16="E016 Relay check" 17="E017 Internal communication 2" 18="E018 Internal communication 3" 19="E019 Bus voltage high" 20="E020 EPS connection" 21="E021 PV voltage high" 22="E022 Overcurrent" 23="E023 Neutral" 24="E024 PV short" 25="E025 Radiator temperature" 26="E026 Internal" 27="E027 CPU samples differ" 31="E031 Internal communication 4"
+text   warning                "Warning"                   totals 62 u32le bits 0="W000 Battery communication" 1="W001 AFCI communication" 2="W002 AFCI high" 3="W003 Meter communication" 4="W004 Battery forbids charge/discharge" 5="W005 Auto test failed" 7="W007 LCD communication" 8="W008 Firmware mismatch" 9="W009 Fan stuck" 11="W011 Parallel number out of range" 15="W015 Battery reversed" 16="W016 Grid power outage" 17="W017 Grid voltage out of range" 18="W018 Grid frequency out of range" 20="W020 PV insulation low" 21="W021 Leakage current high" 22="W022 DCI high" 23="W023 PV short" 25="W025 Battery voltage high" 26="W026 Battery voltage low" 27="W027 Battery open circuit" 28="W028 EPS overload" 29="W029 EPS voltage high" 30="W030 Meter reversed" 31="W031 DCV high"
+sensor inner_temperature      "Internal temperature"      totals 64 s16 °C dc=temperature sc=measurement prec=0
+sensor radiator_temperature_1..2 "Radiator # temperature" totals 65 s16 °C dc=temperature sc=measurement prec=0
+sensor battery_temperature    "Battery temperature"       totals 67 s16 °C dc=temperature sc=measurement prec=0
+
+text   serial_number          "Serial number"             ident 2 asciile 5 diag
+text   firmware               "Firmware"                  ident 7 asciile 2 diag    # not in EG4's document; as the monitor above reads it
+
+calc pv_power                 "PV power"                  sum pv_power_1..3 W dc=power sc=measurement prec=0
+calc battery_power            "Battery power"             sub charge_power discharge_power W dc=power sc=measurement prec=0
+calc grid_power               "Grid power"                sub grid_import_power grid_export_power W dc=power sc=measurement prec=0
+calc pv_energy_today          "PV energy today"           sum pv_energy_today_1..3 kWh dc=energy sc=total_increasing prec=1
+calc pv_energy                "PV energy"                 sum pv_energy_1..3 kWh dc=energy sc=total_increasing prec=1

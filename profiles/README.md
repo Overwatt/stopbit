@@ -90,6 +90,34 @@ reject live1 if pack_voltage == 0
 A `profiles/<id>.txt` whose first statement is `profile <id> 1`; it is embedded at the next
 build, and `tests/test_builtin.c` checks it parses.
 
+## Built in
+
+| Profile | Device | From | Tried on the device |
+|---|---|---|---|
+| `eg4-bms` | EG4 LifePower4 / LL battery | github.com/RAR/esphome-eg4-bms | yes |
+| `eg4-18kpv` | EG4 18kPV hybrid inverter | EG4's "18KPV-12LV Modbus Protocol" | no |
+
+## eg4-18kpv
+
+19200 8N1, unit 1. 54 values from three reads of 40 registers: what the inverter is doing
+(input 0-39, every 5 s), its totals, faults, warnings and temperatures (input 40-79, every
+10 s), and its serial number and firmware (holding 0-39). Requests are a second apart, the
+document's minimum.
+
+- EG4's document frames each message with the inverter's serial number in it, as the Wi-Fi
+  dongle does. The profile asks in plain Modbus RTU, which the inverter's RS485 port is
+  reported to answer too (github.com/galets/eg4-modbus-monitor). If an inverter answers
+  only the other way, the profile will show it offline: the gateway does not speak that.
+- Faults and warnings are text: the names of the set bits, each with EG4's code (`E012 UPS
+  short`), or `None`.
+- Battery power is charge less discharge (positive: charging). Grid power is import less
+  export (positive: importing).
+- Left out, for the room a device has: the battery's own figures as its BMS reports them
+  (input 80-119), the generator and each EPS leg (120-138), arc fault detection (140-152),
+  the power factor (19: two ranges in one number, which the format cannot turn into one),
+  and every setting. The firmware text (holding 7-8) is not in EG4's document; it is where
+  the monitor named above reads it.
+
 ## Differences from the ESPHome component (eg4-bms)
 
 `eg4-bms` follows github.com/RAR/esphome-eg4-bms: the same registers, entity ids, names,
