@@ -193,11 +193,24 @@ int main(void)
     run(); assert(sent(PDU(6, 0, 22, 0x1E, 0x07)));
     answer(PDU(0x86, 3));
     assert(event(3, "t1=07:30; error 3"));
+    run(); assert(sent(SET_READ));                             /* a failed write: its block read at once */
+    set_reply(120, 0xF3D5, 0x0001, 70000, 0);
     t_now += 600;
     assert(device_command("inv", "t1", "07:30", false));
     run(); assert(sent(SET_READ));
     t_now += 1000; run();
     assert(event(3, "t1=07:30; no reply"));
+    /* The write unanswered: failed, and the block read at once, as it may have been made. */
+    t_now += 600;
+    assert(device_command("inv", "t1", "07:30", false));
+    run(); assert(sent(SET_READ));
+    set_reply(120, 0xF3D5, 0x0001, 70000, 0);
+    run(); assert(sent(PDU(6, 0, 22, 0x1E, 0x07)));
+    t_now += 1000; run();
+    assert(event(3, "t1=07:30; no reply"));
+    run(); assert(sent(SET_READ));
+    set_reply(120, 0xF3D5, 0x1E07, 70000, 0);
+    assert(!strcmp(val("t1"), "\"07:30\""));                  /* it was: HA shows it */
 
     /* Refused, each with its event: nothing queued, nothing sent. */
     assert(!device_command("inv", "lim", "30", false) && event(2, "lim=30; out of range"));
@@ -236,6 +249,34 @@ int main(void)
     run(); assert(sent(SET_READ));
     set_reply(60, 0xF3D5, 0x0008, 70000, 0);
     assert(event(0, "t1=08:00"));
+
+    /* Written, its read-back on the line when the port's queue starts again: the write was
+     * accepted, so it is said so, and the block read at once. */
+    t_now += 600;
+    assert(device_command("inv", "lim", "7", false));
+    run(); assert(sent(SET_READ));
+    set_reply(60, 0xF3D5, 0x0008, 70000, 0);
+    run(); assert(sent(PDU(6, 0, 20, 0, 70)));
+    answer(PDU(6, 0, 20, 0, 70));
+    run(); assert(sent(SET_READ));
+    modbus_init(&M, &IO, 1000, 2000);
+    run();
+    assert(event(0, "lim=7; not read back"));
+    run(); assert(sent(SET_READ));
+    set_reply(70, 0xF3D5, 0x0008, 70000, 0);
+    assert(!strcmp(val("lim"), "7.0"));
+    /* The same with the write itself on the line: failed, and the block read at once too. */
+    t_now += 600;
+    assert(device_command("inv", "lim", "8", false));
+    run(); assert(sent(SET_READ));
+    set_reply(70, 0xF3D5, 0x0008, 70000, 0);
+    run(); assert(sent(PDU(6, 0, 20, 0, 80)));
+    modbus_init(&M, &IO, 1000, 2000);
+    run();
+    assert(event(3, "lim=8; lost"));
+    run(); assert(sent(SET_READ));
+    set_reply(80, 0xF3D5, 0x0008, 70000, 0);
+    assert(!strcmp(val("lim"), "8.0"));
 
     /* 16 waiting at most, across devices. */
     for (int i = 1; i < 5; i++) { c.dev[i] = c.dev[0]; snprintf(c.dev[i].name, sizeof c.dev[i].name, "inv%d", i); c.dev[i].address = (uint8_t)(i + 1); }

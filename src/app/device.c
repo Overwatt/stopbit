@@ -255,13 +255,18 @@ static bool ask(int port, modbus_t *m, int i, int op, int n, const uint8_t *pdu,
     return true;
 }
 
-/* The port's queue was started again, or a request's end never came: writes on the line are given up. */
+/* The port's queue was started again, or a request's end never came: writes on the line are
+ * given up. One the device accepted is only not read back; one that may have been made has
+ * its block read at once, so HA shows what the device holds. */
 static void wr_lost(int port)
 {
     for (int k = 0; k < WRITES; k++) {
         wq_t *q = &s_wq[k];
         if (q->stage <= W_QUEUED || q->port != port) continue;       /* its device may be gone: the port it went on */
-        wr_event(q->dev, WR_FAILED, q->what, "lost");
+        device_t *d = &s_dev[q->dev];
+        if (q->stage == W_CHECKING) wr_event(q->dev, WR_OK, q->what, "not read back");
+        else wr_event(q->dev, WR_FAILED, q->what, "lost");
+        if (q->stage >= W_WRITING && d->p && d->gen == q->gen) d->due[d->p->field[q->field].block] = HAL_GetTick();
         q->stage = W_FREE;
     }
 }
@@ -351,7 +356,12 @@ static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, con
     else if (n >= 2 && (pdu[0] & 0x80)) snprintf(e, sizeof e, "error %u", pdu[1]);
     else if (op == TAG_READ && (n != 2u + 2u * b->count || pdu[0] != b->fn || pdu[1] != 2u * b->count ||
                                 !regs_at(pdu, n, b->addr, q->w.addr, q->w.regs, have))) snprintf(e, sizeof e, "bad reply");
-    if (e[0]) { wr_event(i, WR_FAILED, q->what, e); q->stage = W_FREE; return; }
+    if (e[0]) {
+        wr_event(i, WR_FAILED, q->what, e);
+        q->stage = W_FREE;
+        if (op == TAG_WRITE) d->due[f->block] = now;            /* it may have been made: HA shows what it holds */
+        return;
+    }
     if (op == TAG_READ) {
         if (!pf_merge(&q->w, have, q->want)) {
             wr_event(i, WR_UNCHANGED, q->what, "");
