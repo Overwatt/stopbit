@@ -9,8 +9,8 @@
 #define LWIP_RAW                    0
 
 #define MEM_ALIGNMENT               4
-#ifdef APP_IMAGE
-#define MEM_SIZE                    (32 * 1024)
+#ifdef APP_IMAGE                    /* a client that falls behind may have a send buffer waiting: see TCP_SND_BUF */
+#define MEM_SIZE                    (48 * 1024)
 #else
 #define MEM_SIZE                    (24 * 1024)
 #endif
@@ -18,11 +18,15 @@
 #define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
     __attribute__((section(".d2_bss"), aligned(4))) u8_t variable_name[LWIP_MEM_ALIGN_BUFFER(size)]
 #endif
+#ifdef APP_IMAGE                    /* the page goes out as references to it: 12 a connection with the send buffer below */
+#define MEMP_NUM_PBUF               32
+#else
 #define MEMP_NUM_PBUF               16
+#endif
 #ifdef APP_IMAGE                    /* 4 ports x 4 clients + web */
 #define MEMP_NUM_TCP_PCB            32
 #define MEMP_NUM_TCP_PCB_LISTEN     8
-#define MEMP_NUM_TCP_SEG            96
+#define MEMP_NUM_TCP_SEG            128
 #define MEMP_NUM_UDP_PCB            10
 #else
 #define MEMP_NUM_TCP_PCB            12
@@ -88,8 +92,13 @@ void clock_set(uint32_t unix_s);
 #else
 #define TCP_WND                     (8 * TCP_MSS)
 #endif
+#ifdef APP_IMAGE                    /* what waits for a client that has fallen behind (bridge.c): 17.5 KB, */
+#define TCP_SND_BUF                 (12 * TCP_MSS)      /* 8.8 s of a 38400 baud line half in use; and the */
+#define TCP_SND_QUEUELEN            32                  /* 16 packets before merging starts, then 12 full segments */
+#else
 #define TCP_SND_BUF                 (6 * TCP_MSS)
 #define TCP_SND_QUEUELEN            24
+#endif
 #define TCP_LISTEN_BACKLOG          1
 #define LWIP_TCP_KEEPALIVE          1
 

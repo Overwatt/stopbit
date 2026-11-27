@@ -158,7 +158,7 @@ connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below)
 
 A slow serial line pushes back on TCP senders. Each packet heard goes to every client as a
 TCP segment of its own, at once. A client with 16 of them unacknowledged is behind: later
-packets are merged into one segment that goes when it catches up, up to 8.7 KB waiting.
+packets are merged into one segment that goes when it catches up, up to 17.5 KB waiting.
 Beyond that it loses packets, counted as "not delivered" for the port and against that
 client (`peer_lost` in `/api/state`, beside `peers`), without affecting the others. Bytes on their
 way to a line wait in one of 6 buffers of 5.7 KB, shared by all ports, held only until

@@ -8,10 +8,10 @@
  * it again (each 250 ms): that sender waits, nothing is lost.
  * Serial -> network: bytes are collected until the line goes quiet (gap) or the
  * packet is full, then sent to every connection. Each packet is a TCP segment of its
- * own, sent at once, and lwIP holds 24 of those for a connection. So once a connection
+ * own, sent at once, and lwIP holds 32 of those for a connection. So once a connection
  * has BEHIND packets unacknowledged, later ones are added to one segment that goes when
- * it catches up: the backlog is then the send buffer (8760 bytes), not two dozen
- * packets. A peer further behind than that loses the packet; the others are unaffected.
+ * it catches up: the backlog is then the send buffer (TCP_SND_BUF, 17.5 KB), not a few
+ * dozen packets. A peer further behind than that loses the packet; the others are unaffected.
  * The access list covers whoever is at the other end, in every mode. Data from one
  * that may only read is taken, so it is not held up, and dropped.
  */
@@ -36,7 +36,7 @@
 #define D2 __attribute__((section(".d2_bss")))
 #endif
 #define RING TCP_WND
-#define BEHIND 16               /* of lwIP's 24: a fast line and a peer slow to acknowledge stay below this */
+#define BEHIND 16               /* of lwIP's 32: a fast line and a peer slow to acknowledge stay below this */
 #ifndef RINGS
 #define RINGS 6                 /* of 16 places; a ring is 5.7 KB */
 #endif
