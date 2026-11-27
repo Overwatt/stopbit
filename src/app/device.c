@@ -4,7 +4,8 @@
  * (modbus.c's local client); its reply is decoded (pfdecode.c). Profiles are parsed once
  * and shared by the devices that use them: parsed in one place with every table at its
  * largest, then packed into s_room at the size each needs. Commands for controls are
- * written before polls: the register read, written if that changes it, the block read back.
+ * written before polls: the control's block read (as a poll reads it), written if that
+ * changes it, the block read back.
  */
 #include "device.h"
 #include "events.h"
@@ -237,6 +238,13 @@ static void wr_event(int i, int outcome, const char *what, const char *more)
 
 static uint32_t tag_of(int op, const device_t *d, int i, int n) { return (uint32_t)op << 24 | (uint32_t)d->gen << 16 | (uint32_t)i << 8 | (uint32_t)n; }
 
+/* A block's read: function, address, count. Devices may answer only the very ranges they
+ * are polled for (the EG4 inverters: whole groups of 40), so every read of ours is one. */
+static void block_pdu(const pf_block_t *b, uint8_t pdu[5])
+{
+    pdu[0] = b->fn; pdu[1] = (uint8_t)(b->addr >> 8); pdu[2] = (uint8_t)b->addr; pdu[3] = (uint8_t)(b->count >> 8); pdu[4] = (uint8_t)b->count;
+}
+
 /* One request of ours into the port's queue; the port is busy until it ends. */
 static bool ask(int port, modbus_t *m, int i, int op, int n, const uint8_t *pdu, uint16_t len)
 {
@@ -311,7 +319,7 @@ static void poll_reply(int port, device_t *d, int b, int st, const uint8_t *pdu,
     online(d);
 }
 
-/* A write's request ended: read -> written (or unchanged) -> read back. */
+/* A write's request ended: its block read -> written (or unchanged) -> the block read back. */
 static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, const uint8_t *pdu, size_t n)
 {
     static const uint8_t AT[] = { W_FREE, W_READING, W_WRITING, W_CHECKING };
@@ -335,15 +343,16 @@ static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, con
         q->stage = W_FREE;
         return;
     }
-    used_line(port, d, st == 0 ? n : 0, st != 0);
+    uint16_t have[2] = { 0, 0 };
+    if (op == TAG_READ) poll_reply(port, d, f->block, st, pdu, n);     /* the block, as a poll reads it: its values taken */
+    else used_line(port, d, st == 0 ? n : 0, st != 0);
     char e[16] = "";
     if (st) snprintf(e, sizeof e, "no reply");
     else if (n >= 2 && (pdu[0] & 0x80)) snprintf(e, sizeof e, "error %u", pdu[1]);
-    else if (op == TAG_READ && (n != 2u + 2u * q->w.regs || pdu[0] != 3)) snprintf(e, sizeof e, "bad reply");
+    else if (op == TAG_READ && (n != 2u + 2u * b->count || pdu[0] != b->fn || pdu[1] != 2u * b->count ||
+                                !regs_at(pdu, n, b->addr, q->w.addr, q->w.regs, have))) snprintf(e, sizeof e, "bad reply");
     if (e[0]) { wr_event(i, WR_FAILED, q->what, e); q->stage = W_FREE; return; }
     if (op == TAG_READ) {
-        uint16_t have[2] = { 0, 0 };
-        regs_at(pdu, n, q->w.addr, q->w.addr, q->w.regs, have);
         if (!pf_merge(&q->w, have, q->want)) {
             wr_event(i, WR_UNCHANGED, q->what, "");
             q->stage = W_FREE;
@@ -362,7 +371,8 @@ static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, con
         q->stage = W_WRITING;
         return;
     }
-    const uint8_t r[5] = { b->fn, (uint8_t)(b->addr >> 8), (uint8_t)b->addr, (uint8_t)(b->count >> 8), (uint8_t)b->count };
+    uint8_t r[5];
+    block_pdu(b, r);
     if (!ask(port, m, i, TAG_CHECK, k, r, 5)) {
         wr_event(i, WR_OK, q->what, "not read back");
         q->stage = W_FREE;
@@ -402,15 +412,17 @@ static void submit(int port, modbus_t *m, uint32_t now)
     if (best < 0) return;
     device_t *d = &s_dev[best];
     const pf_block_t *b = &d->p->block[bb];
-    const uint8_t pdu[5] = { b->fn, (uint8_t)(b->addr >> 8), (uint8_t)b->addr, (uint8_t)(b->count >> 8), (uint8_t)b->count };
+    uint8_t pdu[5];
+    block_pdu(b, pdu);
     if (!ask(port, m, best, TAG_POLL, bb, pdu, 5)) return;   /* 8 waiting already: next pass */
     s_port[port].rr = (uint8_t)((best + 1) % DEVS);
     d->due[bb] = now + b->period_ms;
     d->polls++;
 }
 
-/* The oldest command waiting for this port whose device may write now: its register read
- * first. False if there is none. */
+/* The oldest command waiting for this port whose device may write now: its control's block
+ * read first, the same request as its poll (a device that answers only whole groups answers
+ * it). False if there is none. */
 static bool write_next(int port, modbus_t *m, uint32_t now)
 {
     int best = -1;
@@ -418,16 +430,19 @@ static bool write_next(int port, modbus_t *m, uint32_t now)
         wq_t *q = &s_wq[k];
         if (q->stage != W_QUEUED) continue;
         const device_t *d = &s_dev[q->dev];
-        if (d->cfg.port != port + 1 || now - s_wlast[q->dev] < WRITE_GAP_MS) continue;
+        if (!d->p || d->gen != q->gen || d->cfg.port != port + 1 || now - s_wlast[q->dev] < WRITE_GAP_MS) continue;
         if (best < 0 || (int32_t)(q->seq - s_wq[best].seq) < 0) best = k;
     }
     if (best < 0) return false;
     wq_t *q = &s_wq[best];
-    const uint8_t pdu[5] = { 3, (uint8_t)(q->w.addr >> 8), (uint8_t)q->w.addr, 0, q->w.regs };
+    device_t *d = &s_dev[q->dev];
+    uint8_t pdu[5];
+    block_pdu(&d->p->block[d->p->field[q->field].block], pdu);
     if (!ask(port, m, q->dev, TAG_READ, best, pdu, 5)) return true;      /* the queue is full: next pass */
     q->stage = W_READING;
     q->port = (uint8_t)port;
     s_wlast[q->dev] = now;
+    d->polls++;                                                          /* a block read, as a poll is */
     return true;
 }
 

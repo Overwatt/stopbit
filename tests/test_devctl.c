@@ -1,5 +1,5 @@
 /* test_devctl.c — writes to devices' controls (src/app/device.c, pfwrite.c): a command
- * queued, the register read, written only if that changes it, the block read back; refusals,
+ * queued, its block read, written only if that changes it, the block read back; refusals,
  * failures and their events. Own profile source; a real Modbus queue, a fake line and clock.
  *   see tests/host.sh for the build line */
 #include "device.h"
@@ -140,12 +140,14 @@ int main(void)
     run(); assert(sent(SET_READ)); set_reply(100, 0xF355, 0x0001, 0, 0);
     assert(!strcmp(val("lim"), "10.0") && !strcmp(val("ac"), "false") && !strcmp(val("t1"), "\"01:00\"") && !strcmp(val("by"), "\"Off\""));
 
-    /* A switch: its register read, written with its bit alone changed, the block read back. */
+    /* A switch: its block read (as a poll reads it, its values taken), written with its bit
+     * alone changed, the block read back. */
     int e0 = ev_n;
     t_now += 600;
     assert(device_command("inv", "ac", "ON", false));
-    run(); assert(sent(PDU(3, 0, 21, 0, 1)));
-    answer(PDU(3, 2, 0xF3, 0x55));
+    run(); assert(sent(SET_READ));
+    set_reply(100, 0xF355, 0x0001, 0, 0);
+    assert(device_get(0)->last_ok == t_now);
     run(); assert(sent(PDU(6, 0, 21, 0xF3, 0xD5)));
     answer(PDU(6, 0, 21, 0xF3, 0xD5));
     run(); assert(sent(SET_READ));
@@ -155,8 +157,8 @@ int main(void)
     /* Already so: read, not written, and the block read again so HA sees what it holds. */
     t_now += 600;
     assert(device_command("inv", "ac", "ON", false));
-    run(); assert(sent(PDU(3, 0, 21, 0, 1)));
-    answer(PDU(3, 2, 0xF3, 0xD5));
+    run(); assert(sent(SET_READ));
+    set_reply(100, 0xF3D5, 0x0001, 0, 0);
     assert(event(1, "ac=ON"));
     run(); assert(sent(SET_READ));
     set_reply(100, 0xF3D5, 0x0001, 0, 0);
@@ -164,8 +166,8 @@ int main(void)
     /* A number, scaled; the device keeps something else: said so. */
     t_now += 600;
     assert(device_command("inv", "lim", "12.5", false));
-    run(); assert(sent(PDU(3, 0, 20, 0, 1)));
-    answer(PDU(3, 2, 0, 100));
+    run(); assert(sent(SET_READ));
+    set_reply(100, 0xF3D5, 0x0001, 0, 0);
     run(); assert(sent(PDU(6, 0, 20, 0, 125)));
     answer(PDU(6, 0, 20, 0, 125));
     run(); assert(sent(SET_READ));
@@ -175,8 +177,8 @@ int main(void)
     /* Two registers, by function 16. */
     t_now += 600;
     assert(device_command("inv", "big", "70000", false));
-    run(); assert(sent(PDU(3, 0, 23, 0, 2)));
-    answer(PDU(3, 4, 0, 0, 0, 0));
+    run(); assert(sent(SET_READ));
+    set_reply(120, 0xF3D5, 0x0001, 0, 0);
     run(); assert(sent(PDU(16, 0, 23, 0, 2, 4, 0, 1, 0x11, 0x70)));
     answer(PDU(16, 0, 23, 0, 2));
     run(); assert(sent(SET_READ));
@@ -186,14 +188,14 @@ int main(void)
     /* The device refuses, or does not answer: said so. */
     t_now += 600;
     assert(device_command("inv", "t1", "07:30", false));
-    run(); assert(sent(PDU(3, 0, 22, 0, 1)));
-    answer(PDU(3, 2, 0, 1));
+    run(); assert(sent(SET_READ));
+    set_reply(120, 0xF3D5, 0x0001, 70000, 0);
     run(); assert(sent(PDU(6, 0, 22, 0x1E, 0x07)));
     answer(PDU(0x86, 3));
     assert(event(3, "t1=07:30; error 3"));
     t_now += 600;
     assert(device_command("inv", "t1", "07:30", false));
-    run(); assert(sent(PDU(3, 0, 22, 0, 1)));
+    run(); assert(sent(SET_READ));
     t_now += 1000; run();
     assert(event(3, "t1=07:30; no reply"));
 
@@ -218,8 +220,8 @@ int main(void)
      * before polls, 2 a second at most per device. */
     t_now += 600;
     assert(device_command("inv", "lim", "5", false) && device_command("inv", "t1", "08:00", false) && device_command("inv", "lim", "6", false));
-    run(); assert(sent(PDU(3, 0, 20, 0, 1)));
-    answer(PDU(3, 2, 0, 120));
+    run(); assert(sent(SET_READ));
+    set_reply(120, 0xF3D5, 0x0001, 70000, 0);
     run(); assert(sent(PDU(6, 0, 20, 0, 60)));
     answer(PDU(6, 0, 20, 0, 60));
     run(); assert(sent(SET_READ));
@@ -227,8 +229,8 @@ int main(void)
     assert(event(0, "lim=6"));
     run(); assert(Ln == 0);                                    /* t1 waits: 500 ms since lim's */
     t_now += 500;
-    run(); assert(sent(PDU(3, 0, 22, 0, 1)));
-    answer(PDU(3, 2, 0, 1));
+    run(); assert(sent(SET_READ));
+    set_reply(60, 0xF3D5, 0x0001, 70000, 0);
     run(); assert(sent(PDU(6, 0, 22, 0, 8)));
     answer(PDU(6, 0, 22, 0, 8));
     run(); assert(sent(SET_READ));
@@ -251,7 +253,7 @@ int main(void)
     /* A write on the line when the port's queue starts again (as on a settings change):
      * given up, and said so. */
     t_now += 600;
-    run(); assert(sent(PDU(3, 0, 20, 0, 1)));
+    run(); assert(sent(SET_READ));
     modbus_init(&M, &IO, 1000, 2000);
     run();
     assert(event(3, "lim=1; lost"));
@@ -290,11 +292,11 @@ int main(void)
     assert(device_command("inv", "t1", "09:00", false));
     t_now += 600;
     for (int k = 0; k < 5 && Ln == 0; k++) run();
-    assert(sent(PDU(3, 0, 22, 0, 1)));
+    assert(sent(SET_READ));
     c.dev[0].address = 1;                                      /* same address; change the label instead */
     snprintf(c.dev[0].label, sizeof c.dev[0].label, "changed");
     device_configure(&c);
-    answer(PDU(3, 2, 0, 1));
+    set_reply(60, 0xF3D5, 0x0008, 70000, 0);
     assert(event(3, "t1=09:00; device changed"));
 
     /* The last device on the port removed while its write is on the line, the queue started again. */
@@ -303,7 +305,7 @@ int main(void)
     assert(device_command("inv", "t1", "10:00", false));
     t_now += 600;
     for (int k = 0; k < 5 && Ln == 0; k++) run();
-    assert(sent(PDU(3, 0, 22, 0, 1)));
+    assert(sent(SET_READ));
     c.dev[0] = (dev_cfg_t){ 0 };
     device_configure(&c);
     modbus_init(&M, &IO, 1000, 2000);

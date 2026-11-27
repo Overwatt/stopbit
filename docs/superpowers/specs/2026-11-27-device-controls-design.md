@@ -42,7 +42,7 @@ and `reg|regs` are not used. A control on an `input` or `discrete` block is refu
 - **Value:** a number's register value is value ÷ scale − offset, rounded. The step is the
   scale unless given.
 - **Writes:** one register by function 6, two (the 32-bit types) by function 16. Each write
-  reads its register (or two) just before; `bit N` and `mask=` change only their own bits:
+  reads the control's block just before; `bit N` and `mask=` change only their own bits:
   (read & ~mask) | value.
 - `hidden`: announced disabled in HA, to be enabled there on purpose.
 - The limit stays at 160 fields and controls a profile.
@@ -52,8 +52,9 @@ and `reg|regs` are not used. A control on an `input` or `discrete` block is refu
 1. A command is checked against its control (see Commands) and queued. The queue has 16
    places for all devices; a newer command for a control already queued replaces its value.
 2. A port's queued writes go before its next poll, at most 2 a second per device.
-3. The register is read. If it already holds what would be written, nothing is written and
-   the event says "unchanged"; otherwise it is written.
+3. The control's block is read (as a poll reads it). If its register already holds what
+   would be written, nothing is written and the event says "unchanged"; otherwise it is
+   written.
 4. The control's block is read at once, and HA shows what was read.
 
 Every write is in the event log with its outcome ("inverter ac_charge_soc_limit 80: ok",

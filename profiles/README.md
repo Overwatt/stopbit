@@ -81,8 +81,9 @@ reject live1 if pack_voltage == 0
 
 Settings a device keeps, which Home Assistant can change when the device has
 `controls=1`. Each is read from a `hold` block, as a sensor is, and written to the same
-address: one register by function 6, two by function 16. A write reads the register first,
-changes only the control's own bits, and is not made if nothing would change.
+address: one register by function 6, two by function 16. A write reads the control's block
+first (as its poll does), changes only the control's own bits, and is not made if nothing
+would change.
 
 | Statement | Form |
 |---|---|

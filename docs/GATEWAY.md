@@ -318,9 +318,9 @@ A profile's controls (number, select, switch, time) are settings the device keep
 `devN.controls=1` they are announced to Home Assistant and commands for them are obeyed;
 with 0 they are still read, and shown as values, but not announced. A command is checked
 against the control (its range, its choices), then waits its turn on the port ahead of the
-polls, at most 2 a second per device. The gateway reads the register first and writes it
-only if that changes it, then reads the control's block back, so Home Assistant shows what
-the device holds. Each command is in the event log: written, already so, refused and why,
+polls, at most 2 a second per device. The gateway reads the control's block first (the
+same request as its poll) and writes the register only if that changes it, then reads the
+block back, so Home Assistant shows what the device holds. Each command is in the event log: written, already so, refused and why,
 failed (no reply, the device's error), or written but reading back otherwise.
 
 Do not send settings on a timer. A device may keep them in memory that wears with writing;
