@@ -11,6 +11,8 @@ enum { ERR_OK = 0, ERR_MEM = -1, ERR_INPROGRESS = -5, ERR_VAL = -6, ERR_ABRT = -
 #define TCP_MSS 1460
 #define TCP_WND (4 * TCP_MSS)
 #define TCP_WRITE_FLAG_COPY 1
+#define TCP_WRITE_FLAG_MORE 2
+#define tcp_sndqueuelen(p) ((p)->snd_queuelen)
 #define SOF_REUSEADDR 4
 #define SOF_KEEPALIVE 8
 #define IP_ADDR_ANY NULL
@@ -29,7 +31,8 @@ typedef void (*err_fn)(void *, err_t);
 struct tcp_pcb {
     ip_addr_t remote_ip; u16_t remote_port, port; uint32_t keep_idle, keep_intvl, keep_cnt;
     bool used, listening, aborted, closed, connecting; void *arg; acc_fn acc; rcv_fn rx; err_fn err; err_t (*conn)(void *, struct tcp_pcb *, err_t);
-    int unacked; uint8_t out[65536]; int out_n;
+    int owed; uint8_t out[65536]; int out_n;       /* owed: received and not yet acknowledged by the bridge */
+    void *unacked; u16_t snd_queuelen; bool full; u8_t flags; int outputs;   /* lwIP's own; what the last write and outputs were */
 };
 struct udp_pcb;
 typedef void (*udp_fn)(void *, struct udp_pcb *, struct pbuf *, const ip_addr_t *, u16_t);

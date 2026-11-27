@@ -7,8 +7,11 @@
  * and dropped as it comes. If every ring is in use, lwIP keeps the data and offers
  * it again (each 250 ms): that sender waits, nothing is lost.
  * Serial -> network: bytes are collected until the line goes quiet (gap) or the
- * packet is full, then sent to every connection. A peer that cannot keep up
- * loses that packet; the others are unaffected.
+ * packet is full, then sent to every connection. Each packet is a TCP segment of its
+ * own, sent at once, and lwIP holds 24 of those for a connection. So once a connection
+ * has BEHIND packets unacknowledged, later ones are added to one segment that goes when
+ * it catches up: the backlog is then the send buffer (8760 bytes), not two dozen
+ * packets. A peer further behind than that loses the packet; the others are unaffected.
  * The access list covers whoever is at the other end, in every mode. Data from one
  * that may only read is taken, so it is not held up, and dropped.
  */
@@ -33,6 +36,7 @@
 #define D2 __attribute__((section(".d2_bss")))
 #endif
 #define RING TCP_WND
+#define BEHIND 16               /* of lwIP's 24: a fast line and a peer slow to acknowledge stay below this */
 #ifndef RINGS
 #define RINGS 6                 /* of 16 places; a ring is 5.7 KB */
 #endif
@@ -47,6 +51,7 @@ typedef struct {
     uint8_t  port;
     bool     may_write;
     bool     kill;              /* not Modbus TCP: closed on the next poll */
+    uint32_t lost;              /* bytes heard that it was too far behind to be sent */
 } client_t;
 
 enum { LS_OFF, LS_LISTENING, LS_CONNECTING, LS_CONNECTED, LS_WAITING, LS_BOUND, LS_ERROR };
@@ -240,6 +245,7 @@ static void client_attach(port_t *p, client_t *c, struct tcp_pcb *pcb)
     c->pcb = pcb;
     c->head = c->count = 0;
     c->fin = c->kill = false;
+    c->lost = 0;
     c->port = (uint8_t)(p - s_p);
     tcp_arg(pcb, c);
     tcp_recv(pcb, cb_recv);
@@ -620,11 +626,17 @@ static void serial_to_net(int i)
     for (int k = 0; k < MAX_CLIENTS; k++) {
         struct tcp_pcb *pcb = p->cl[k].pcb;
         if (!pcb || !p->cl[k].up) continue;
-        if (tcp_sndbuf(pcb) >= n && tcp_write(pcb, buf, n, TCP_WRITE_FLAG_COPY) == ERR_OK) {
-            tcp_output(pcb);
+        /* Behind: into the segment that is waiting, and it stays waiting while anything
+         * sent is still unacknowledged (the acknowledgement, or lwIP sending again, sends
+         * it). With nothing in flight nothing would, so then it goes now. */
+        bool behind = tcp_sndqueuelen(pcb) >= BEHIND;
+        if (tcp_sndbuf(pcb) >= n &&
+            tcp_write(pcb, buf, n, behind ? TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE : TCP_WRITE_FLAG_COPY) == ERR_OK) {
+            if (!behind || !pcb->unacked) tcp_output(pcb);
             sent = true;
         } else {
             p->net_lost += n;
+            p->cl[k].lost += n;
         }
     }
     if (sent) { p->net_tx += n; forwarded(p, idle); }
@@ -832,6 +844,17 @@ size_t bridge_json(char *out, size_t max)
             ro = role(p, &p->udp_peer) != ACL_WRITE;
         }
         ADD("],\"read_only\":%u", ro);
+        uint32_t lost = 0;                      /* what each of those did not get, if any did not */
+        for (int k = 0; k < MAX_CLIENTS; k++) if (p->cl[k].pcb && p->cl[k].up) lost |= p->cl[k].lost;
+        if (lost) {
+            first = true;
+            for (int k = 0; k < MAX_CLIENTS; k++) {
+                if (!p->cl[k].pcb || !p->cl[k].up) continue;
+                ADD("%s%lu", first ? ",\"peer_lost\":[" : ",", (unsigned long)p->cl[k].lost);
+                first = false;
+            }
+            ADD("]");
+        }
         uint32_t fn = 0;
         for (int b = 0; b <= FWD_BUCKETS; b++) fn += p->fwd.n[b];
         if (fn) ADD(",\"fwd_us\":[%lu,%lu,%lu]", (unsigned long)p->fwd.last_us,     /* last, average, longest */
