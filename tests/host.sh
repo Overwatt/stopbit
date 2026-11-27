@@ -27,6 +27,7 @@ t pfdecode -Isrc/app tests/test_pfdecode.c src/app/pfdecode.c src/app/profile.c 
 t builtin -I"$O" -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm
 t device -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_device.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devmqtt -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt.c src/app/devmqtt.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
+t devroom -DD2_BSS= -DPF_ROOM=4096 -Itests/stub -Isrc/app tests/test_devroom.c src/app/device.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devmqtt_long -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt_long.c src/app/devmqtt.c src/app/device.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t metrics -Isrc/app tests/test_metrics.c src/app/metrics.c
 t quiet   -Isrc/app tests/test_quiet.c

@@ -218,12 +218,14 @@ int main(void)
 
     /* A long bits text comes out whole. */
     {
+        static pf_build_t B;
         static profile_t P;
         static device_t X;
         char names[400] = "profile t 1\nblock b hold 0 2 10s\ntext w \"W\" b 0 bits", e[64];
         for (int k = 0; k < 14; k++) { snprintf(e, sizeof e, " %d=\"Bit name number %d\"", k, k); strcat(names, e); }
         strcat(names, "\n");
-        assert(profile_parse(&P, names, strlen(names), e, sizeof e));
+        assert(profile_parse(&B, names, strlen(names), e, sizeof e));
+        profile_view(&B, &P);
         pf_state_init(&X.st);
         X.p = &P;
         const uint8_t r[4] = { 0x3F, 0xFF, 0, 0 };

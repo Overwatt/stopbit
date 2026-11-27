@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+static pf_build_t B;
 static profile_t P;
 static pf_state_t S;
 
@@ -26,13 +27,16 @@ int main(void)
     size_t n;
     for (int i = 0; profiles_id(i); i++) {
         const char *t = profiles_text(profiles_id(i), &n);
-        if (!profile_parse(&P, t, n, err, sizeof err)) { printf("%s: %s\n", profiles_id(i), err); assert(0); }
-        printf("  %s: %d blocks, %d fields\n", profiles_id(i), P.nblock, P.nfield);
+        if (!profile_parse(&B, t, n, err, sizeof err)) { printf("%s: %s\n", profiles_id(i), err); assert(0); }
+        profile_view(&B, &P);
+        printf("  %s: %d blocks, %d fields, %zu bytes packed\n", profiles_id(i), P.nblock, P.nfield, profile_size(&B));
+        assert(profile_size(&B) <= 24576);                  /* device.c's PF_ROOM */
     }
     assert(!profiles_text("nope", &n) && !profiles_id(-1));
 
     const char *t = profiles_text("eg4-bms", &n);
-    assert(t && profile_parse(&P, t, n, err, sizeof err));
+    assert(t && profile_parse(&B, t, n, err, sizeof err));
+    profile_view(&B, &P);
     assert(P.turn_ms == 50 && P.timeout_ms == 1000 && P.baud == 9600 && !strcmp(pf_str(&P, P.maker), "EG4"));
     pf_state_init(&S);
     /* live1: 53.12 V, -12.34 A, cells 3.301 .. 3.316 with cell 16 missing (0) */

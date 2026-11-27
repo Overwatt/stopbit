@@ -13,8 +13,9 @@ first group is to settle before or during phase 2.
 - A restore can fail at a batch boundary when two devices swap names or addresses.
 - Fuzzing covers profile text, not random replies, `device_json` or the state
   message.
-- LOADED=3 holds about 42 KB of D2 for two profile slots phase 1 never uses (D2
-  has about 29 KB free).
+- Done 2026-11-27: profiles are packed to the size they use (the EG4's 6.5 KB of the
+  21 KB a parsed one takes) into 24 KB shared by up to four, where three slots held
+  64 KB. The one place they are parsed in is in D3.
 - Line use is per port (`n540_port_line_use_ratio`); the spec asked for per device.
 - json_str passes well-formed overlong and surrogate UTF-8 sequences, so they could
   reach discovery JSON. Only profile text carries them, which matters once profiles

@@ -1,8 +1,9 @@
 /*
  * profile.h — A device profile: what to read from a device on an RS485 port, and how to
  * show it. profile_parse() turns the text (docs/superpowers/specs/
- * 2026-11-26-device-profiles-design.md, "Profile format") into these tables;
- * pfdecode.c uses them. Strings live in `pool`, referred to by offset (0 is "").
+ * 2026-11-26-device-profiles-design.md, "Profile format") into these tables, and
+ * profile_pack() keeps as much of them as the profile uses; pfdecode.c reads them.
+ * Strings live in `pool`, referred to by offset (0 is "").
  */
 #ifndef PROFILE_H
 #define PROFILE_H
@@ -55,26 +56,53 @@ typedef struct {
 typedef struct { uint8_t block, kind, op, nfield; uint16_t field[4]; float k; } pf_reject_t;
 typedef struct { uint32_t value; uint16_t name; } pf_vname_t;
 
-typedef struct {
-    uint16_t id, name, maker;          /* pool */
-    uint32_t baud;
-    char     frame[4];                 /* "8N1" */
-    uint8_t  stale;
-    uint16_t timeout_ms, turn_ms;
-    uint8_t  nblock, nreject, nstr;
+/* What a profile says beside its tables: id, name and maker are in the pool; frame is
+ * "8N1"; the counts say how much of each table is in use. */
+#define PF_HEAD \
+    uint16_t id, name, maker; \
+    uint32_t baud; \
+    char     frame[4]; \
+    uint8_t  stale; \
+    uint16_t timeout_ms, turn_ms; \
+    uint8_t  nblock, nreject, nstr; \
     uint16_t nfield, nvname, narg, npool;
+typedef struct { PF_HEAD } pf_head_t;
+
+/* A profile as it is used: its tables wherever they are, each as long as it needs to be. */
+typedef struct {
+    union { pf_head_t head; struct { PF_HEAD }; };
+    const pf_block_t  *block;
+    const pf_field_t  *field;
+    const pf_reject_t *reject;
+    const pf_vname_t  *vname;
+    const uint16_t    *arg;
+    const char        *pool;
+} profile_t;
+
+/* A profile as it is parsed: every table at its largest, 21 KB. One is enough: what it
+ * holds is packed (profile_pack) into as much as the profile needs, a quarter of that
+ * for the built-in one. */
+typedef struct {
+    union { pf_head_t head; struct { PF_HEAD }; };
     pf_block_t  block[PF_BLOCKS];
     pf_field_t  field[PF_FIELDS];
     pf_reject_t reject[PF_REJECTS];
     pf_vname_t  vname[PF_VNAMES];
     uint16_t    arg[PF_ARGS];
     char        pool[PF_POOL];
-} profile_t;
+} pf_build_t;
 
 static inline const char *pf_str(const profile_t *p, uint16_t off) { return p->pool + off; }
 
-/* The text into *p. False, with "line N: why" in err (or just "why"), if it will not do. */
-bool profile_parse(profile_t *p, const char *text, size_t n, char *err, size_t errlen);
+/* The text into *b. False, with "line N: why" in err (or just "why"), if it will not do. */
+bool profile_parse(pf_build_t *b, const char *text, size_t n, char *err, size_t errlen);
+/* *b as a profile whose tables are b's own: good for as long as b is left alone. */
+void profile_view(const pf_build_t *b, profile_t *out);
+/* The bytes profile_pack needs for *b: a multiple of 8. */
+size_t profile_size(const pf_build_t *b);
+/* *b's profile into mem (aligned to 8 bytes), tables and all, with nothing unused kept.
+ * NULL if max is too little. It does not refer to b afterwards. */
+const profile_t *profile_pack(const pf_build_t *b, void *mem, size_t max);
 int  profile_field(const profile_t *p, const char *id);    /* index, or -1 */
 int  profile_block(const profile_t *p, const char *id);    /* index, or -1 */
 

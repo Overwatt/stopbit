@@ -14,7 +14,7 @@
 #define TOK_MAX  96
 
 typedef struct {
-    profile_t *p;
+    pf_build_t *p;
     char *err;
     size_t errlen;
     int line;
@@ -94,7 +94,7 @@ static bool num_f(const char *t, float *out)
 /* A string into the pool, shared with an equal one already there. */
 static bool pool_add(ps_t *s, const char *str, uint16_t *off)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     size_t n = strlen(str) + 1;
     if (n == 1) { *off = 0; return true; }
     for (size_t i = 1; i + n <= p->npool; i += strlen(p->pool + i) + 1)
@@ -131,6 +131,19 @@ int profile_block(const profile_t *p, const char *id)
 int profile_field(const profile_t *p, const char *id)
 {
     for (int i = 0; i < p->nfield; i++) if (!strcmp(pf_str(p, p->field[i].id), id)) return i;
+    return -1;
+}
+
+/* The same, of the profile being parsed. */
+static int block_at(const pf_build_t *p, const char *id)
+{
+    for (int i = 0; i < p->nblock; i++) if (!strcmp(p->pool + p->block[i].id, id)) return i;
+    return -1;
+}
+
+static int field_at(const pf_build_t *p, const char *id)
+{
+    for (int i = 0; i < p->nfield; i++) if (!strcmp(p->pool + p->field[i].id, id)) return i;
     return -1;
 }
 
@@ -178,9 +191,9 @@ static bool range(const char *t, char *base, size_t bmax, int *from, int *to)
 
 static pf_field_t *field_new(ps_t *s, const char *id, const char *name)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     if (!id_ok(id)) { fail(s, "bad id '%s': 1 to %d of a-z 0-9 _", id, PF_ID_MAX); return NULL; }
-    if (profile_field(p, id) >= 0) { fail(s, "'%s' is declared twice", id); return NULL; }
+    if (field_at(p, id) >= 0) { fail(s, "'%s' is declared twice", id); return NULL; }
     if (p->nfield == PF_FIELDS) { fail(s, "too many fields (%d)", PF_FIELDS); return NULL; }
     pf_field_t *f = &p->field[p->nfield];
     memset(f, 0, sizeof *f);
@@ -198,10 +211,10 @@ static bool place(ps_t *s, const pf_field_t *f, int regs)
 {
     const pf_block_t *b = &s->p->block[f->block];
     bool bits = b->fn <= 2;
-    if (bits && regs) return fail(s, "block %s holds coils only", pf_str(s->p, b->id));
+    if (bits && regs) return fail(s, "block %s holds coils only", s->p->pool + b->id);
     if (!bits && !regs) return fail(s, "coils are read from a coil or discrete block");
     if (f->addr < b->addr || (uint32_t)f->addr + (uint32_t)(regs ? regs : 1) > (uint32_t)b->addr + b->count)
-        return fail(s, "0x%04x is outside block %s", f->addr, pf_str(s->p, b->id));
+        return fail(s, "0x%04x is outside block %s", f->addr, s->p->pool + b->id);
     return true;
 }
 
@@ -315,7 +328,7 @@ static bool where(ps_t *s, pf_field_t *t, const char **name)
 {
     int64_t a;
     if (!(*name = name_of(s, 2))) return false;
-    int b = profile_block(s->p, s->tok[3]);
+    int b = block_at(s->p, s->tok[3]);
     if (b < 0) return fail(s, "no block '%s'", s->tok[3]);
     if (!num_i(s->tok[4], 0, 0xFFFF, &a)) return fail(s, "bad address '%s'", s->tok[4]);
     t->block = (uint8_t)b;
@@ -372,7 +385,7 @@ static bool st_binary(ps_t *s)
 /* text id "name" block address [type] enum [mask=M] v=name... | bits n=name... | ascii N | asciilo N */
 static bool st_text(ps_t *s)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     pf_field_t t;
     const char *name;
     int64_t l;
@@ -432,13 +445,13 @@ static const struct { const char *name; uint8_t fn, args; } FNS[] = {    /* args
 /* A field, or each of a list, into arg[]. 0 added if the word is not a field. */
 static int args_of(ps_t *s, const char *w)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     char base[PF_ID_MAX + 1], id[PF_ID_MAX + 8];
     int from, to, n = 0;
     if (!range(w, base, sizeof base, &from, &to)) { from = to = 0; base[0] = 0; }
     for (int k = from; k <= to; k++) {
         if (base[0]) snprintf(id, sizeof id, "%s%d", base, k); else snprintf(id, sizeof id, "%s", w);
-        int f = profile_field(p, id);
+        int f = field_at(p, id);
         if (f < 0) return n ? -1 : 0;
         if (p->field[f].kind == PF_ASCII) return -2;
         if (p->narg == PF_ARGS) return -3;
@@ -451,7 +464,7 @@ static int args_of(ps_t *s, const char *w)
 /* calc id "name" function arguments [...] */
 static bool st_calc(ps_t *s)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     pf_field_t t;
     const char *name;
     int fi = -1, i = 4;
@@ -494,10 +507,10 @@ static bool st_calc(ps_t *s)
 /* reject block if zero [fields] | reject block if field op value */
 static bool st_reject(ps_t *s)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     if (s->ntok < 4 || strcmp(s->tok[2], "if"))
         return fail(s, "reject needs: block if zero [fields], or block if field op value");
-    int b = profile_block(p, s->tok[1]);
+    int b = block_at(p, s->tok[1]);
     if (b < 0) return fail(s, "no block '%s'", s->tok[1]);
     if (p->nreject == PF_REJECTS) return fail(s, "too many reject rules (%d)", PF_REJECTS);
     pf_reject_t *j = &p->reject[p->nreject];
@@ -518,7 +531,7 @@ static bool st_reject(ps_t *s)
         last = 4;
     }
     for (int i = first; i < last; i++) {
-        int f = profile_field(p, s->tok[i]);
+        int f = field_at(p, s->tok[i]);
         if (f < 0) return fail(s, "no field '%s'", s->tok[i]);
         if (p->field[f].block != b) return fail(s, "'%s' is not in block %s", s->tok[i], s->tok[1]);
         if (p->field[f].kind == PF_ASCII || p->field[f].kind >= PF_CALC) return fail(s, "'%s' is not a number read from the block", s->tok[i]);
@@ -531,12 +544,12 @@ static bool st_reject(ps_t *s)
 /* block id kind address count period [info] */
 static bool st_block(ps_t *s)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     static const struct { const char *name; uint8_t fn; } KINDS[] = { { "coil", 1 }, { "discrete", 2 }, { "hold", 3 }, { "input", 4 } };
     int64_t a, n, v;
     if (s->ntok < 6 || s->ntok > 7) return fail(s, "block needs: id kind address count period [info]");
     if (!id_ok(s->tok[1])) return fail(s, "bad id '%s': 1 to %d of a-z 0-9 _", s->tok[1], PF_ID_MAX);
-    if (profile_block(p, s->tok[1]) >= 0) return fail(s, "'%s' is declared twice", s->tok[1]);
+    if (block_at(p, s->tok[1]) >= 0) return fail(s, "'%s' is declared twice", s->tok[1]);
     if (p->nblock == PF_BLOCKS) return fail(s, "too many blocks (%d)", PF_BLOCKS);
     pf_block_t *b = &p->block[p->nblock];
     memset(b, 0, sizeof *b);
@@ -576,7 +589,7 @@ static bool ms_of(const char *t, int64_t lo, int64_t hi, uint16_t *out)
 /* profile, name, maker, line, stale, timeout, turnaround */
 static bool st_head(ps_t *s, const char *w)
 {
-    profile_t *p = s->p;
+    pf_build_t *p = s->p;
     int64_t v;
     if (!strcmp(w, "profile")) {
         const char *id = s->tok[1];
@@ -611,7 +624,7 @@ static bool st_head(ps_t *s, const char *w)
     return ms_of(s->tok[1], 0, 1000, &p->turn_ms) || fail(s, "turnaround must be 0ms to 1000ms");
 }
 
-bool profile_parse(profile_t *p, const char *text, size_t n, char *err, size_t errlen)
+bool profile_parse(pf_build_t *p, const char *text, size_t n, char *err, size_t errlen)
 {
     static ps_t s;
     memset(p, 0, sizeof *p);
@@ -659,4 +672,47 @@ bool profile_parse(profile_t *p, const char *text, size_t n, char *err, size_t e
     if (first) return fail(&s, "the profile is empty");
     if (!p->nblock) return fail(&s, "no blocks");
     return true;
+}
+
+void profile_view(const pf_build_t *b, profile_t *out)
+{
+    out->head = b->head;
+    out->block = b->block;
+    out->field = b->field;
+    out->reject = b->reject;
+    out->vname = b->vname;
+    out->arg = b->arg;
+    out->pool = b->pool;
+}
+
+/* Each table starts on a multiple of 8 bytes, so any of them may hold anything. */
+#define UP8(n) (((size_t)(n) + 7u) & ~(size_t)7u)
+
+size_t profile_size(const pf_build_t *b)
+{
+    return UP8(sizeof(profile_t)) + UP8(b->nblock * sizeof b->block[0]) + UP8(b->nfield * sizeof b->field[0]) +
+           UP8(b->nreject * sizeof b->reject[0]) + UP8(b->nvname * sizeof b->vname[0]) +
+           UP8(b->narg * sizeof b->arg[0]) + UP8(b->npool);
+}
+
+const profile_t *profile_pack(const pf_build_t *b, void *mem, size_t max)
+{
+    profile_t *p = mem;
+    unsigned char *at = (unsigned char *)mem + UP8(sizeof *p);
+    if (profile_size(b) > max || ((uintptr_t)mem & 7u)) return NULL;
+    p->head = b->head;
+#define PUT(table, count) do { \
+        size_t k_ = (size_t)(count) * sizeof b->table[0]; \
+        memcpy(at, b->table, k_); \
+        p->table = (void *)at; \
+        at += UP8(k_); \
+    } while (0)
+    PUT(block, b->nblock);
+    PUT(field, b->nfield);
+    PUT(reject, b->nreject);
+    PUT(vname, b->nvname);
+    PUT(arg, b->narg);
+    PUT(pool, b->npool);
+#undef PUT
+    return p;
 }

@@ -4,17 +4,42 @@
 #include "profile.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static profile_t P;
+static pf_build_t B;
+static profile_t P;                  /* B, as the rest of the firmware sees a profile */
 static char err[160];
 
-static bool parse(const char *t) { return profile_parse(&P, t, strlen(t), err, sizeof err); }
+static bool parse(const char *t) { bool ok = profile_parse(&B, t, strlen(t), err, sizeof err); profile_view(&B, &P); return ok; }
 static void bad(const char *t, const char *want)
 {
     if (parse(t) || !strstr(err, want)) { printf("text:\n%s\nerror: \"%s\"\nwanted: \"%s\"\n", t, err, want); assert(0); }
 }
 static const pf_field_t *F(const char *id) { int i = profile_field(&P, id); assert(i >= 0); return &P.field[i]; }
+
+/* B packed into exactly the bytes it asks for (the address checker watches both ends),
+ * and every table as it was. One byte less, or memory not on a multiple of 8, is refused. */
+static size_t packed(void)
+{
+    size_t need = profile_size(&B);
+    unsigned char *mem = malloc(need + 8);
+    assert(mem && need % 8 == 0 && need < sizeof B);
+    const profile_t *q = profile_pack(&B, mem, need);
+    assert(q == (const profile_t *)mem && !profile_pack(&B, mem, need - 1) && !profile_pack(&B, mem + 4, need));
+    assert(!memcmp(&q->head, &B.head, sizeof B.head));
+    assert(!memcmp(q->block, B.block, B.nblock * sizeof B.block[0]) && !memcmp(q->field, B.field, B.nfield * sizeof B.field[0]));
+    assert(!memcmp(q->reject, B.reject, B.nreject * sizeof B.reject[0]) && !memcmp(q->vname, B.vname, B.nvname * sizeof B.vname[0]));
+    assert(!memcmp(q->arg, B.arg, B.narg * sizeof B.arg[0]) && !memcmp(q->pool, B.pool, B.npool));
+    const unsigned char *lo = mem, *hi = mem + need;
+    const void *tab[] = { q->block, q->field, q->reject, q->vname, q->arg, q->pool };
+    for (unsigned i = 0; i < 6; i++) assert((const unsigned char *)tab[i] >= lo + sizeof *q && (const unsigned char *)tab[i] <= hi && !((uintptr_t)tab[i] & 7u));
+    assert(profile_field(q, pf_str(&P, P.field[P.nfield - 1].id)) == P.nfield - 1);
+    memset(&B, 0xEE, sizeof B);                         /* it does not lean on B */
+    assert(!strcmp(pf_str(q, q->id), pf_str(q, q->id)) && q->pool[0] == 0);
+    free(mem);
+    return need;
+}
 
 #define HEAD "profile t 1\nblock b hold 0x10 20 10s\n"
 
@@ -49,6 +74,8 @@ int main(void)
         "reject live if zero\n"
         "reject live if zero volts amps\n"
         "reject more if big > 100\n";
+    if (!parse(ok)) { puts(err); assert(0); }
+    printf("packed: %zu bytes, of %zu parsed\n", packed(), sizeof B);
     if (!parse(ok)) { puts(err); assert(0); }
     assert(!strcmp(pf_str(&P, P.id), "test-dev") && !strcmp(pf_str(&P, P.name), "Test device") && !strcmp(pf_str(&P, P.maker), "ACME"));
     assert(P.baud == 19200 && !strcmp(P.frame, "8E1") && P.stale == 3 && P.timeout_ms == 500 && P.turn_ms == 50);

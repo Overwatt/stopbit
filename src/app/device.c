@@ -2,7 +2,8 @@
  * device.c — Devices polled for their profiles' values (device.h). Per port: which block
  * of which device is most overdue goes next, as one request in the port's Modbus queue
  * (modbus.c's local client); its reply is decoded (pfdecode.c). Profiles are parsed once
- * and shared by the devices that use them.
+ * and shared by the devices that use them: parsed in one place with every table at its
+ * largest, then packed into s_room at the size each needs.
  */
 #include "device.h"
 #include "profiles.h"
@@ -13,13 +14,23 @@
 #ifndef D2_BSS
 #define D2_BSS __attribute__((section(".d2_bss")))
 #endif
-#define LOADED  3                /* different profiles at once */
+#if !defined(D3_BSS) && defined(__arm__)
+#define D3_BSS __attribute__((section(".d3_bss")))
+#elif !defined(D3_BSS)
+#define D3_BSS
+#endif
+#define LOADED  4                /* different profiles at once, room allowing */
+#ifndef PF_ROOM
+#define PF_ROOM 24576u           /* for all of them packed: the largest there can be is 21 KB, the EG4's is 5 */
+#endif
 #define LOST_MS 90000u           /* a request whose end never came: the port is free again (MB_QUEUE x the longest timeout, 10 s, + 10 s) */
 
-static D2_BSS profile_t s_prof[LOADED];
+static D3_BSS pf_build_t s_build;                 /* where one is parsed; nothing is kept here */
+static D2_BSS uint64_t s_room[PF_ROOM / 8];
 static D2_BSS device_t s_dev[DEVS];
-static bool    s_loaded[LOADED];
-static uint8_t s_users[LOADED], s_holds[LOADED];
+/* The profiles in s_room. p NULL: none here. One that nobody uses or holds stays until
+ * its place is wanted, in case it is asked for again. */
+static struct { const profile_t *p; uint32_t size; uint8_t users, holds; } s_slot[LOADED];
 static struct { bool busy; uint8_t rr; uint16_t use; uint32_t since, busy_ms, win_at; } s_port[PORTS];
 static uint32_t s_baud[PORTS];
 static char     s_frame[PORTS][4];      /* "8N1" */
@@ -28,9 +39,7 @@ static void (*s_gone)(int i, const device_t *d);
 void device_init(void)
 {
     memset(s_dev, 0, sizeof s_dev);            /* D2 is not zeroed at start */
-    memset(s_loaded, 0, sizeof s_loaded);
-    memset(s_users, 0, sizeof s_users);
-    memset(s_holds, 0, sizeof s_holds);
+    memset(s_slot, 0, sizeof s_slot);
     memset(s_port, 0, sizeof s_port);
 }
 
@@ -38,7 +47,7 @@ void device_on_gone(void (*fn)(int i, const device_t *d)) { s_gone = fn; }
 
 void device_hold(const profile_t *p, int delta)
 {
-    for (int s = 0; s < LOADED; s++) if (p == &s_prof[s]) s_holds[s] = (uint8_t)(s_holds[s] + delta);
+    for (int s = 0; s < LOADED; s++) if (p && p == s_slot[s].p) s_slot[s].holds = (uint8_t)(s_slot[s].holds + delta);
 }
 
 const device_t *device_get(int i) { return i >= 0 && i < DEVS && s_dev[i].used ? &s_dev[i] : NULL; }
@@ -55,28 +64,52 @@ void device_count(int up[PORTS], int all[PORTS])
     }
 }
 
-/* The device's profile: already loaded, or parsed into a free place. */
+/* The lowest place in s_room for `need` bytes that no loaded profile is in, or NULL.
+ * Profiles come and go in any order, so the room may be there only in pieces. */
+static void *room_for(size_t need)
+{
+    unsigned char *base = (unsigned char *)s_room, *at = base;
+    for (;;) {
+        const unsigned char *hit = NULL;
+        size_t n = 0;
+        for (int s = 0; s < LOADED && !hit; s++) {
+            const unsigned char *q = (const unsigned char *)s_slot[s].p;
+            if (q && q < at + need && at < q + s_slot[s].size) { hit = q; n = s_slot[s].size; }
+        }
+        if (!hit) return need <= PF_ROOM && (size_t)(at - base) <= PF_ROOM - need ? at : NULL;
+        at = base + (hit - base) + n;           /* past it: sizes are multiples of 8 */
+    }
+}
+
+/* The device's profile: already loaded, or parsed and packed into a free place. */
 static const profile_t *load(device_t *d, const char *id)
 {
     static char err[64];
     size_t n;
-    int free_ = -1;
-    for (int s = 0; s < LOADED; s++) {
-        if (s_loaded[s] && !strcmp(pf_str(&s_prof[s], s_prof[s].id), id)) { s_users[s]++; d->slot = (uint8_t)s; return &s_prof[s]; }
-        if (!s_users[s] && !s_holds[s] && free_ < 0) free_ = s;
-    }
+    for (int s = 0; s < LOADED; s++)
+        if (s_slot[s].p && !strcmp(pf_str(s_slot[s].p, s_slot[s].p->id), id)) { s_slot[s].users++; d->slot = (uint8_t)s; return s_slot[s].p; }
     const char *t = profiles_text(id, &n);
     if (!t) { snprintf(d->error, sizeof d->error, "No profile '%s'", id); return NULL; }
-    if (free_ < 0) { snprintf(d->error, sizeof d->error, "More than %d different profiles are in use", LOADED); return NULL; }
-    s_loaded[free_] = false;
-    if (!profile_parse(&s_prof[free_], t, n, err, sizeof err)) {
+    if (!profile_parse(&s_build, t, n, err, sizeof err)) {
         snprintf(d->error, sizeof d->error, "Profile %.20s: %.40s", id, err);
         return NULL;
     }
-    s_loaded[free_] = true;
-    s_users[free_] = 1;
+    int free_ = -1;
+    for (int s = 0; s < LOADED; s++) {           /* those nobody needs make way */
+        if (!s_slot[s].users && !s_slot[s].holds) s_slot[s].p = NULL;
+        if (!s_slot[s].p && free_ < 0) free_ = s;
+    }
+    if (free_ < 0) { snprintf(d->error, sizeof d->error, "More than %d different profiles are in use", LOADED); return NULL; }
+    size_t need = profile_size(&s_build);
+    void *at = room_for(need);
+    const profile_t *p = at ? profile_pack(&s_build, at, need) : NULL;
+    if (!p) { snprintf(d->error, sizeof d->error, "No room for another profile (%u bytes)", (unsigned)need); return NULL; }
+    s_slot[free_].p = p;
+    s_slot[free_].size = (uint32_t)need;
+    s_slot[free_].users = 1;
+    s_slot[free_].holds = 0;
     d->slot = (uint8_t)free_;
-    return &s_prof[free_];
+    return p;
 }
 
 static const char OFF[] = "Its port is off, or not a Modbus gateway", WANTS[] = "The profile wants";
@@ -112,7 +145,7 @@ void device_configure(const cfg_t *c)
         if (d->used == want && (!want || !memcmp(&d->cfg, k, sizeof *k))) continue;
         if (d->used) {
             if (s_gone) s_gone(i, d);
-            if (d->p) s_users[d->slot]--;
+            if (d->p) s_slot[d->slot].users--;
         }
         uint8_t gen = (uint8_t)(d->gen + 1);
         memset(d, 0, sizeof *d);

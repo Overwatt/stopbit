@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+static pf_build_t B;
 static profile_t P;
 static pf_state_t S;
 static const char *T =
@@ -61,7 +62,8 @@ int main(void)
 {
     static char err[160];
     uint8_t d[64];
-    if (!profile_parse(&P, T, strlen(T), err, sizeof err)) { puts(err); assert(0); }
+    if (!profile_parse(&B, T, strlen(T), err, sizeof err)) { puts(err); assert(0); }
+    profile_view(&B, &P);
     pf_state_init(&S);
     assert(!pf_ok(&S, F("v")) && !pf_ok(&S, F("p")));
 

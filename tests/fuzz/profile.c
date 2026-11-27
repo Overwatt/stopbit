@@ -4,8 +4,10 @@
 #include "profile.h"
 #include "pfdecode.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
+static pf_build_t B;
 static profile_t P;
 static pf_state_t S;
 
@@ -13,7 +15,15 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
 {
     static char err[160];
     static uint8_t data[250], txt[200];
-    if (!profile_parse(&P, (const char *)d, n, err, sizeof err)) { assert(err[0]); return 0; }
+    if (!profile_parse(&B, (const char *)d, n, err, sizeof err)) { assert(err[0]); return 0; }
+    /* Packed, as device.c keeps it, into just the bytes it asks for: a table read past
+     * its end is then read past the allocation. */
+    size_t need = profile_size(&B);
+    void *mem = malloc(need);
+    const profile_t *q = profile_pack(&B, mem, need);
+    assert(q && !profile_pack(&B, mem, need - 8));
+    P = *q;
+    memset(&B, 0xA5, sizeof B);
     assert(P.nblock >= 1 && P.nblock <= PF_BLOCKS && P.nfield <= PF_FIELDS && P.npool <= PF_POOL && !P.pool[0]);
     for (int i = 0; i < P.nfield; i++) {
         const pf_field_t *f = &P.field[i];
@@ -32,5 +42,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n)
         (void)pf_decode(&P, b, data, len, &S);
     }
     for (int i = 0; i < P.nfield; i++) { (void)pf_text(&P, i, &S, (char *)txt, sizeof txt); (void)pf_num((char *)txt, sizeof txt, S.val[i].v, pf_prec(&P.field[i])); }
+    free(mem);
     return 0;
 }
