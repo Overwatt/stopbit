@@ -98,7 +98,7 @@ int main(void)
     t = profiles_text("eg4-hybrid", &n);
     assert(t && profile_parse(&B, t, n, err, sizeof err));
     profile_view(&B, &P);
-    assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 1000 && P.nblock == 7);
+    assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 700 && P.nblock == 7);
     float per_min = 0;
     for (int b = 0; b < P.nblock; b++) {                  /* whole groups of 40, as the inverter insists */
         assert(P.block[b].count == 40 && P.block[b].addr % 40 == 0 && P.block[b].fn == (b >= 2 ? 3 : 4));

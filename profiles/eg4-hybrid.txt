@@ -11,17 +11,16 @@
 # own figures as its BMS reports them (80-119), the generator and each EPS leg (120-138),
 # arc fault detection (140-152), the power factor (19), and the settings listed at the end.
 # Line use: SolarAssistant, sharing the port, reads about 40 times a minute and these blocks
-# about 9.5 times, each request after the turnaround: at 1 s the line is near full. The
-# turnaround is to be set on the gateway from measurements, the inverter's reply time
-# (/api/state modbus last_ms, avg_ms) and SolarAssistant's spacing, before devices share
-# the port (the device-controls plan: Checkpoint A, Task 8).
+# about 9.5 times, each request after the turnaround. Measured on two FlexBOSS, 2026-11-27:
+# a 40-register reply takes 110 to 300 ms, so a 700 ms turnaround keeps requests about a
+# second apart (the document's minimum polling period) and the line about 80% in use.
 profile eg4-hybrid 1
 name "18kPV / FlexBOSS"
 maker "EG4"
 line 19200 8N1
 stale 5
 timeout 1000ms
-turnaround 1000ms                   # "minimum polling period: 1 s"
+turnaround 700ms                    # with the reply, a request about every second
 
 block live   input 0  40 10s
 block totals input 40 40 1m
