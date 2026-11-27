@@ -24,6 +24,7 @@ t knock   -Isrc/app tests/test_knock.c src/app/knock.c
 t modbus  -Isrc/app tests/test_modbus.c src/app/modbus.c
 t profile -Isrc/app tests/test_profile.c src/app/profile.c
 t pfdecode -Isrc/app tests/test_pfdecode.c src/app/pfdecode.c src/app/profile.c -lm
+t pfwrite -Isrc/app tests/test_pfwrite.c src/app/pfwrite.c src/app/profile.c -lm
 t builtin -I"$O" -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm
 t device -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_device.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devmqtt -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt.c src/app/devmqtt.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
