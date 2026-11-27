@@ -224,6 +224,7 @@ bool rng_fill(void *d, uint32_t n) { arc4random_buf(d, n); return true; }
 #include "web_page.h"
 #include "metrics.h"
 const uint8_t *api_page(uint32_t *n) { *n = sizeof WEB_PAGE; return WEB_PAGE; }
+const char *api_page_tag(void) { return WEB_PAGE_TAG; }
 const uint8_t *api_web_key(void) { static uint8_t k[32]; memset(k, 0x77, 32); return k; }
 const char *api_fw_need(void) { return s_need ? "listen_only" : NULL; }
 bool api_is_post(const char *p) { return !strcmp(p, "/api/need") || !strcmp(p, "/api/check") || !strcmp(p, "/api/gap") || !strcmp(p, "/api/tls") || !strcmp(p, "/api/acme"); }

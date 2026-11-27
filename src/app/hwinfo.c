@@ -77,29 +77,54 @@ void hwinfo_init(void)
     s_adc = true;
 }
 
-static bool sample(uint32_t ch, uint32_t *raw)
+static void convert(uint32_t ch)
 {
     ADC3->SQR1 = ch << ADC_SQR1_SQ1_Pos;
     ADC3->ISR = ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR;
     ADC3->CR |= ADC_CR_ADSTART;
-    if (!wait_set(&ADC3->ISR, ADC_ISR_EOC, true)) return false;
-    *raw = ADC3->DR;
-    return true;
 }
 
-static bool measure(void)
+/* Once a second: the reference, then the sensor, each 0.15 ms of conversion that the
+ * main loop does not wait for. A conversion that never ends is given up after 5 ms. */
+static void adc_poll(void)
 {
-    uint32_t ref, t;
-    if (!s_adc) return false;
-    if (s_valid && HAL_GetTick() - s_at < 1000) return true;
-    s_valid = false;
-    if (!sample(19, &ref) || !sample(18, &t) || !ref || CAL_TEMP2 <= CAL_TEMP1) return false;
+    static uint8_t step;                        /* 0 idle, 1 the reference under way, 2 the sensor */
+    static uint32_t ref, t0;
+    uint32_t now = HAL_GetTick();
+    if (!s_adc) return;
+    if (step == 0) {
+        if (s_at && now - s_at < 1000) return;
+        convert(19);
+        step = 1;
+        t0 = now;
+        return;
+    }
+    if (!(ADC3->ISR & ADC_ISR_EOC)) {
+        if (now - t0 > 5) { step = 0; s_valid = false; s_at = now | 1u; }
+        return;
+    }
+    uint32_t raw = ADC3->DR;
+    if (step == 1) {
+        ref = raw;
+        convert(18);
+        step = 2;
+        t0 = now;
+        return;
+    }
+    step = 0;
+    s_at = now | 1u;                            /* 0 means "not tried yet" */
+    s_valid = ref && CAL_TEMP2 > CAL_TEMP1;
+    if (!s_valid) return;
     int32_t span = ((DBGMCU->IDCODE >> 16) <= 0x1003u ? 110 : 130) - 30;
     s_mv = (int32_t)((3300u * CAL_VREF + ref / 2) / ref);
-    int32_t at33 = (int32_t)((int64_t)t * s_mv / 3300);     /* as if at 3.3 V */
+    int32_t at33 = (int32_t)((int64_t)raw * s_mv / 3300);   /* as if at 3.3 V */
     s_decic = 300 + (at33 - (int32_t)CAL_TEMP1) * span * 10 / ((int32_t)CAL_TEMP2 - (int32_t)CAL_TEMP1);
-    s_at = HAL_GetTick();
-    return s_valid = true;
+}
+
+/* The last reading, if there is one no older than a few seconds. */
+static bool measure(void)
+{
+    return s_adc && s_valid && HAL_GetTick() - s_at < 5000;
 }
 
 /* ---- main loop ----------------------------------------------------------- */
@@ -152,6 +177,7 @@ void hwinfo_loop(void)
     uint32_t now = DWT->CYCCNT, us = (now - s_loop_at) / (SystemCoreClock / 1000000u);
     s_loop_at = now;
     step_end(now);
+    adc_poll();
     if (!s_loop_on) { s_loop_on = true; return; }
     s_loop_n++;
     if (HAL_GetTick() - s_loop_turn >= 10000u) {

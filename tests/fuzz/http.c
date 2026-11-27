@@ -87,6 +87,7 @@ bool clock_known(void) { return true; }
 uint32_t clock_unix(void) { return 1795600000u + t_now / 1000u; }
 static const uint8_t PAGE[] = "<!doctype html><title>x</title>";
 const uint8_t *api_page(uint32_t *n) { *n = sizeof PAGE; return PAGE; }
+const char *api_page_tag(void) { return "\"fuzz\""; }
 static uint8_t s_web[32] = { 9, 9, 9 };
 const uint8_t *api_web_key(void) { return s_web; }
 const char *api_fw_need(void) { return "listen_only"; }

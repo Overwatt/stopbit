@@ -559,17 +559,26 @@ static err_t do_parts(conn_t *c, bool http11, const char *type, int (*gen)(uint3
     return pump(c);
 }
 
+/* The page is asked for again on every visit (no-cache), so that a new firmware's page is
+ * seen at once. A browser that already has this one says so, and is told to use it. */
 static err_t do_page(conn_t *c)
 {
-    c->mem = api_page(&c->mem_left);
+    const char *tag = api_page_tag(), *has = header(c, "If-None-Match");
+    size_t tl = strlen(tag);
     c->state = ST_SEND;
     c->resp_off = 0;
+    if (has && !strncmp(has, tag, tl) && has[tl] == '\r') {
+        c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
+            "HTTP/1.1 304 Not Modified\r\nETag: %s\r\nCache-Control: no-cache\r\nConnection: %s\r\n\r\n", tag, conn_hdr(c));
+        return pump(c);
+    }
+    c->mem = api_page(&c->mem_left);
     c->resp_len = (uint32_t)snprintf(c->resp, c->resp_cap,
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\n"
-        "Content-Length: %lu\r\nCache-Control: no-cache\r\nX-Frame-Options: DENY\r\n"
+        "Content-Length: %lu\r\nETag: %s\r\nCache-Control: no-cache\r\nX-Frame-Options: DENY\r\n"
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; "
         "script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'\r\n"
-        "X-Content-Type-Options: nosniff\r\nConnection: %s\r\n\r\n", (unsigned long)c->mem_left, conn_hdr(c));
+        "X-Content-Type-Options: nosniff\r\nConnection: %s\r\n\r\n", (unsigned long)c->mem_left, tag, conn_hdr(c));
     return pump(c);
 }
 #endif

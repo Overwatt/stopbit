@@ -161,6 +161,7 @@ const char *api_fw_need(void)
 }
 
 const uint8_t *api_page(uint32_t *len) { *len = sizeof WEB_PAGE; return WEB_PAGE; }
+const char *api_page_tag(void) { return WEB_PAGE_TAG; }
 
 static void hex(const uint8_t *in, int n, char *out)
 {
