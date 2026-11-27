@@ -76,7 +76,7 @@ Every write is in the event log with its outcome ("inverter ac_charge_soc_limit 
   `unique_id` are as a sensor's. `hidden` gives `enabled_by_default` false. With
   `devN.controls=0` controls are not announced and their configs are emptied; their values
   are still in the state message and on the Devices page.
-- **`/api/devices`:** a device goes in two parts, its first 60 values and then the rest, so
+- **`/api/devices`:** a device goes in three parts of 40 values (the last takes the rest), so
   no reply buffer grows (they are in ITCM, which has 9.6 KB free). The page is unchanged:
   settings are among the values.
 

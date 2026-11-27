@@ -536,32 +536,51 @@ size_t device_value(const device_t *d, int f, char *out, size_t max)
     return w < 0 || (size_t)w >= max ? 0 : (size_t)w;
 }
 
-size_t device_json(int i, char *out, size_t max)
+#define PART_VALUES 40
+
+int device_json_part(int i, int k, char *out, size_t max)
 {
     const device_t *d = device_get(i);
     size_t n = 0;
     char s[3][80];
 #define OUT(...) do { int w_ = snprintf(out + n, max - n, __VA_ARGS__); \
-        if (w_ < 0 || (size_t)w_ >= max - n) { return 0; } n += (size_t)w_; } while (0)
-    if (!d || !max) return 0;
-    if (!json_str(d->cfg.label, s[0], sizeof s[0]) || !json_str(d->error, s[1], sizeof s[1]) || !json_str(d->why, s[2], sizeof s[2])) return 0;
-    OUT("{\"n\":%d,\"profile\":\"%s\",\"name\":\"%s\",\"label\":%s,\"port\":%u,\"address\":%u,\"controls\":%s,"
-        "\"ids\":\"%s\",\"prefix\":\"%s\",\"error\":%s,\"online\":%s,\"polls\":%lu,\"misses\":%lu,\"why\":%s,\"ago_ms\":%ld",
-        i + 1, d->cfg.profile, d->cfg.name, s[0], d->cfg.port, d->cfg.address, d->cfg.controls ? "true" : "false",
-        d->cfg.ids ? "esphome" : "own", d->cfg.prefix, s[1], d->online ? "true" : "false",
-        (unsigned long)d->polls, (unsigned long)d->misses, s[2],
-        d->last_ok ? (long)((HAL_GetTick() - d->last_ok) & 0x7FFFFFFF) : -1L);
-    if (!d->p) { OUT("}"); return n; }
-    if (!json_str(pf_str(d->p, d->p->name), s[0], sizeof s[0]) || !json_str(pf_str(d->p, d->p->maker), s[1], sizeof s[1])) return 0;
-    OUT(",\"model\":%s,\"maker\":%s,\"values\":[", s[0], s[1]);
-    for (int f = 0; f < d->p->nfield; f++) {
+        if (w_ < 0 || (size_t)w_ >= max - n) { return -1; } n += (size_t)w_; } while (0)
+    if (!max) return -1;
+    out[0] = 0;
+    if (k == 0) {
+        if (!d) return -1;
+        if (!json_str(d->cfg.label, s[0], sizeof s[0]) || !json_str(d->error, s[1], sizeof s[1]) || !json_str(d->why, s[2], sizeof s[2])) return -1;
+        OUT("{\"n\":%d,\"profile\":\"%s\",\"name\":\"%s\",\"label\":%s,\"port\":%u,\"address\":%u,\"controls\":%s,"
+            "\"ids\":\"%s\",\"prefix\":\"%s\",\"error\":%s,\"online\":%s,\"polls\":%lu,\"misses\":%lu,\"why\":%s,\"ago_ms\":%ld",
+            i + 1, d->cfg.profile, d->cfg.name, s[0], d->cfg.port, d->cfg.address, d->cfg.controls ? "true" : "false",
+            d->cfg.ids ? "esphome" : "own", d->cfg.prefix, s[1], d->online ? "true" : "false",
+            (unsigned long)d->polls, (unsigned long)d->misses, s[2],
+            d->last_ok ? (long)((HAL_GetTick() - d->last_ok) & 0x7FFFFFFF) : -1L);
+        if (!d->p) { OUT("}"); return (int)n; }
+        if (!json_str(pf_str(d->p, d->p->name), s[0], sizeof s[0]) || !json_str(pf_str(d->p, d->p->maker), s[1], sizeof s[1])) return -1;
+        OUT(",\"model\":%s,\"maker\":%s,\"values\":[", s[0], s[1]);
+    }
+    int from = k * PART_VALUES, to = !d || !d->p ? 0 : k == DEV_PARTS - 1 ? d->p->nfield : from + PART_VALUES;
+    for (int f = from; d && d->p && f < to && f < d->p->nfield; f++) {
         const pf_field_t *x = &d->p->field[f];
         char v[520], nm[96], u[40];
-        if (!device_value(d, f, v, sizeof v)) return 0;
-        if (!json_str(pf_str(d->p, x->name), nm, sizeof nm) || !json_str(pf_str(d->p, x->unit), u, sizeof u)) return 0;
+        if (!device_value(d, f, v, sizeof v)) return -1;
+        if (!json_str(pf_str(d->p, x->name), nm, sizeof nm) || !json_str(pf_str(d->p, x->unit), u, sizeof u)) return -1;
         OUT("%s[\"%s\",%s,%s,%s]", f ? "," : "", pf_str(d->p, x->id), nm, v, u);
     }
-    OUT("]}");
-    return n;
+    if (k == DEV_PARTS - 1) OUT("]}");
+    return (int)n;
 #undef OUT
+}
+
+size_t device_json(int i, char *out, size_t max)
+{
+    size_t n = 0;
+    for (int k = 0; k < DEV_PARTS; k++) {
+        int w = device_json_part(i, k, out + n, max - n);
+        if (w < 0) return 0;
+        n += (size_t)w;
+        if (k == 0 && !device_get(i)->p) break;              /* closed already */
+    }
+    return n;
 }

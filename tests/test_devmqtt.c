@@ -14,7 +14,7 @@ uint32_t t_now = 1000;
 uint32_t SystemCoreClock = 400000000;
 modbus_t *bridge_modbus_port(int p) { (void)p; return NULL; }
 
-static struct { char topic[160], payload[4096]; bool retain; } Pb[400];
+static struct { char topic[160], payload[8192]; bool retain; } Pb[400];
 static int Pn;
 static bool full;
 static size_t max_cfg, max_state;
@@ -79,7 +79,7 @@ int main(void)
     assert(strstr(find("homeassistant/sensor/n540-test_eg4m/min_voltage_cell/config"), "\"entity_category\":\"diagnostic\""));
     assert(!strcmp(find("solar/dev/eg4m/status"), "online"));
     const char *s = find("solar/dev/eg4m/state");
-    assert(s && json_ok(s) && strlen(s) < 3584 && strstr(s, "\"total_voltage\":53.12") && strstr(s, "\"pcb_temperature\":null") &&
+    assert(s && json_ok(s) && strlen(s) < 7680 && strstr(s, "\"total_voltage\":53.12") && strstr(s, "\"pcb_temperature\":null") &&
            strstr(s, "\"heating\":null") && strstr(s, "\"cell_voltage_16\":3.301"));
     for (int k = 0; k < Pn; k++) assert(Pb[k].retain);
 
@@ -177,7 +177,7 @@ int main(void)
         for (int f = 0; f < p->nfield; f++) {
             const pf_field_t *x = &p->field[f];
             w->st.ok[f >> 3] |= (uint8_t)(1u << (f & 7));
-            if (x->kind == PF_SENSOR || x->kind == PF_CALC) {
+            if (x->kind == PF_SENSOR || x->kind == PF_CALC || x->kind == PF_NUMBER) {
                 double a = 1.7e19;                          /* pf_num: |v| x 10^prec below 1.8e19 */
                 for (int k = 0; k < pf_prec(x) && k < 6; k++) a /= 10;
                 w->st.val[f].v = (float)-a;
@@ -185,7 +185,7 @@ int main(void)
                 w->st.val[f].raw = 0xFFFFFFFFu;
             } else if (x->kind == PF_ASCII) {
                 memset(w->st.str[x->str], '"', PF_STR_LEN - 1);
-            } else if (x->kind == PF_ENUM) {
+            } else if (x->kind == PF_ENUM || x->kind == PF_SELECT) {
                 uint32_t best = 0xFFFFFFFFu;
                 w->st.val[f].raw = best;
                 size_t bl = device_value(w, f, v, sizeof v);
@@ -195,6 +195,8 @@ int main(void)
                     if (l > bl) { bl = l; best = w->st.val[f].raw; }
                 }
                 w->st.val[f].raw = best;
+            } else if (x->kind == PF_TIME) {
+                w->st.val[f].raw = 0x3B17;
             } else {
                 w->st.val[f].v = 0;                         /* "false" */
             }
@@ -209,16 +211,19 @@ int main(void)
         assert(drain(true) == p->nfield + 2);               /* nothing left out: every config, the status, the state */
         snprintf(st, sizeof st, "solar/dev/%s/state", c.dev[0].name);
         s = find(st);
-        assert(s && s[0] && json_ok(s) && strlen(s) < 3584);
-        size_t jn = device_json(0, j, sizeof j);
-        assert(jn && json_ok(j));
-        printf("worst case %s: state %zu bytes (BUF 3584), device_json %zu (part 5621)\n", profiles_id(pi), strlen(s), jn);
+        assert(s && s[0] && json_ok(s) && strlen(s) < 7680);
+        int jmax = 0;
+        for (int k = 0; k < DEV_PARTS; k++) { int w2 = device_json_part(0, k, j, sizeof j); assert(w2 >= 0); if (w2 > jmax) jmax = w2; }
+        static char jall[3 * 5622];
+        size_t jn = device_json(0, jall, sizeof jall);
+        assert(jn && json_ok(jall));
+        printf("worst case %s: state %zu bytes (BUF 7680), largest /api/devices part %d (5621)\n", profiles_id(pi), strlen(s), jmax);
     }
     memset(&c.dev[0], 0, sizeof c.dev[0]);
     device_configure(&c);
     drain(true);
-    printf("largest config %zu, largest state %zu (BUF 3584)\n", max_cfg, max_state);
-    assert(max_cfg < 3584 && max_state < 3584);
+    printf("largest config %zu, largest state %zu (BUF 7680)\n", max_cfg, max_state);
+    assert(max_cfg < 7680 && max_state < 7680);
     puts("devmqtt: ok");
     return 0;
 }

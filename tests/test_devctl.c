@@ -3,6 +3,8 @@
  * failures and their events. Own profile source; a real Modbus queue, a fake line and clock.
  *   see tests/host.sh for the build line */
 #include "device.h"
+#include "devmqtt.h"
+#include "../tests/fuzz/json_ok.h"
 #include "events.h"
 #include "stm32h7xx_hal.h"
 #include <assert.h>
@@ -73,6 +75,21 @@ static bool event(int outcome, const char *s)
     return ok;
 }
 static const char *val(const char *id) { static char v[32]; const device_t *d = device_get(0); assert(device_value(d, profile_field(d->p, id), v, sizeof v)); return v; }
+
+static struct { char topic[160], payload[8192]; } Pb[64];
+static int Pn;
+static bool pub(const char *t, const char *p, bool r)
+{
+    (void)r;
+    int k = 0;
+    while (k < Pn && strcmp(Pb[k].topic, t)) k++;              /* the latest for each topic */
+    if (k == Pn) { assert(Pn < 64); Pn++; }
+    snprintf(Pb[k].topic, sizeof Pb[k].topic, "%s", t);
+    snprintf(Pb[k].payload, sizeof Pb[k].payload, "%s", p);
+    return true;
+}
+static void drain(void) { for (int k = 0; k < 400; k++) assert(devmqtt_poll(pub, "solar", "n540-test", true, t_now)); }
+static const char *got(const char *t) { for (int k = 0; k < Pn; k++) if (!strcmp(Pb[k].topic, t)) return Pb[k].payload; return NULL; }
 
 static void off_drain(void)                                    /* every waiting command failed, port 2 back on */
 {
@@ -283,6 +300,43 @@ int main(void)
     assert(ev_kind == EV_WRITE && ev_port == 0 && ev_a == (1u | 3u << 8) && !strcmp(ev_s, "t1=10:00; lost"));   /* its device is gone: no port to name */
     c.dev[0] = (dev_cfg_t){ "c", "inv", "", "", 2, 1, 1, 0 };
     assert(fill(&c) == 16);                                    /* the slot was freed */
+    /* Discovery: each control as its HA kind, with its command topic; a hidden one disabled.
+     * From a clean slate: every device gone (their waiting commands with them), one back. */
+    memset(c.dev, 0, sizeof c.dev);
+    device_configure(&c);
+    c.dev[0] = (dev_cfg_t){ "c", "inv", "", "", 2, 1, 1, 0 };
+    device_configure(&c);
+    modbus_init(&M, &IO, 1000, 2000);                           /* the write on the line goes with it */
+    devmqtt_init();
+    drain();
+    const char *n = got("homeassistant/number/n540-test_inv/lim/config"), *s;
+    assert(n && json_ok(n) && strstr(n, "\"command_topic\":\"~/set/lim\"") && strstr(n, "\"entity_category\":\"config\"") &&
+           strstr(n, "\"min\":0.0,\"max\":25.0,\"step\":0.1,\"mode\":\"box\"") && strstr(n, "\"unit_of_measurement\":\"kW\""));
+    s = got("homeassistant/switch/n540-test_inv/ac/config");
+    assert(s && json_ok(s) && strstr(s, "{{ 'ON' if value_json['ac'] else 'OFF' }}") && strstr(s, "\"command_topic\":\"~/set/ac\""));
+    s = got("homeassistant/text/n540-test_inv/t1/config");
+    assert(s && json_ok(s) && strstr(s, "\"pattern\":\"^([01][0-9]|2[0-3]):[0-5][0-9]$\",\"min\":5,\"max\":5"));
+    s = got("homeassistant/select/n540-test_inv/by/config");
+    assert(s && json_ok(s) && strstr(s, "\"options\":[\"Off\",\"Time\",\"Voltage\",\"SOC\"]") && strstr(s, "\"enabled_by_default\":false"));
+    s = got("homeassistant/sensor/n540-test_inv/v/config");
+    assert(s && !strstr(s, "command_topic") && !strstr(s, "enabled_by_default"));
+    run(); assert(sent(PDU(4, 0, 0, 0, 2))); answer(PDU(4, 4, 0, 1, 0, 2));
+    run(); assert(sent(SET_READ)); set_reply(60, 0xF3D5, 0x0008, 70000, 4);
+    t_now += 2000; drain();
+    s = got("solar/dev/inv/state");
+    assert(s && json_ok(s) && strstr(s, "\"lim\":6.0") && strstr(s, "\"ac\":true") && strstr(s, "\"t1\":\"08:00\"") && strstr(s, "\"by\":\"Voltage\""));
+    /* /api/devices: a device in parts, whole JSON together (before the reconfigure below,
+     * which restarts the device and clears its values). */
+    static char j[16384];
+    int w0 = device_json_part(0, 0, j, sizeof j);
+    assert(w0 > 0 && device_json_part(0, 2, j + w0, sizeof j - (size_t)w0) == 2 && !strcmp(j + w0, "]}"));
+    assert(device_json(0, j, sizeof j) && json_ok(j) && strstr(j, "[\"lim\",\"Limit\",6.0,\"kW\"]"));
+    /* Controls off: their configs emptied, the sensor's kept. */
+    c.dev[0].controls = 0;
+    device_configure(&c);
+    drain();
+    assert(!strcmp(got("homeassistant/number/n540-test_inv/lim/config"), "") && !strcmp(got("homeassistant/select/n540-test_inv/by/config"), ""));
+    assert(got("homeassistant/sensor/n540-test_inv/v/config")[0] == '{');
     puts("devctl: ok");
     return 0;
 }

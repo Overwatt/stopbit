@@ -2,6 +2,7 @@
 #include "mqtt_ha.h"
 #include "api.h"
 #include "bridge.h"
+#include "device.h"
 #include "net.h"
 #include "fw_id.h"
 #include "events.h"
@@ -70,7 +71,7 @@ static uint8_t  s_state;
 static uint32_t s_retry_at, s_backoff, s_gen;
 static const char *s_err = "";
 static int      s_disc;                 /* next entity to announce; NENT = done */
-static bool     s_online, s_sub, s_lost, s_leaving;
+static bool     s_online, s_sub, s_dsub, s_lost, s_leaving;
 static bool     s_withdrawn;            /* not announcing, and HA has been told once */
 static mqtt_connection_status_t s_lost_why;
 static uint32_t s_port_hash[PORTS], s_port_cnt[PORTS], s_port_at[PORTS], s_dev_hash;
@@ -98,6 +99,8 @@ static uint32_t hash(const char *s)
 static char s_in_key[48], s_in_val[96];
 static uint32_t s_in_len;
 static bool s_in_ok;
+static bool s_in_dev, s_in_retained;
+static char s_dev_name[25], s_dev_ctl[25];
 
 static void cb_topic(void *arg, const char *topic, u32_t tot)
 {
@@ -105,9 +108,20 @@ static void cb_topic(void *arg, const char *topic, u32_t tot)
     (void)arg;
     s_in_ok = false;
     s_in_len = 0;
+    s_in_dev = false;
+    if (tot >= sizeof s_in_val || strncmp(topic, s_base, n) || topic[n] != '/') return;
+    if (!strncmp(topic + n, "/dev/", 5)) {                     /* BASE/dev/<name>/set/<control>: a device's control */
+        const char *nm = topic + n + 5, *set = strstr(nm, "/set/");
+        size_t nl = set ? (size_t)(set - nm) : 0, cl = set ? strlen(set + 5) : 0;
+        if (!nl || nl >= sizeof s_dev_name || !cl || cl >= sizeof s_dev_ctl || strchr(set + 5, '/')) return;
+        memcpy(s_dev_name, nm, nl);
+        s_dev_name[nl] = 0;
+        memcpy(s_dev_ctl, set + 5, cl + 1);
+        s_in_retained = s_c.rx_buffer[0] & 1u;
+        s_in_ok = s_in_dev = true;
+        return;
+    }
     if (!s_run.control || (s_c.rx_buffer[0] & 1u)) return;      /* retained: stale */
-    if (tot >= sizeof s_in_val) return;
-    if (strncmp(topic, s_base, n) || topic[n] != '/') return;
     const char *obj = topic + n + 1, *set = strstr(obj, "/set/");
     if (!set) return;
     const char *field = set + 5;
@@ -132,6 +146,7 @@ static void cb_data(void *arg, const u8_t *data, u16_t len, u8_t flags)
     s_in_ok = false;
     s_in_val[s_in_len] = 0;
     if (strlen(s_in_val) != s_in_len || strpbrk(s_in_val, "\r\n")) return;
+    if (s_in_dev) { device_command(s_dev_name, s_dev_ctl, s_in_val, s_in_retained); return; }
     if (!strcmp(s_in_key, "device.restart")) {
         if (!strcmp(s_in_val, "PRESS")) s_restart = true;
         return;
@@ -171,7 +186,7 @@ static void cb_conn(mqtt_client_t *c, void *arg, mqtt_connection_status_t st)
         s_err = "";
         s_backoff = 0;
         s_disc = s_run.no_announce && s_withdrawn ? NENT : 0;
-        s_online = s_sub = false;
+        s_online = s_sub = s_dsub = false;
         s_dev_hash = 0;
         devmqtt_restart();
         memset(s_port_hash, 0, sizeof s_port_hash);
@@ -260,7 +275,7 @@ void mqtt_ha_configure(const cfg_t *c)
             s_state = M_MOVING;
         }
         memcpy(s_base, base, sizeof s_base);
-        s_sub = false;
+        s_sub = s_dsub = false;
         devmqtt_restart();
     }
     bool tls = c->more.mqtt_tls;
@@ -270,7 +285,7 @@ void mqtt_ha_configure(const cfg_t *c)
     if (strcmp(s_name, c->device_name) || m->control != s_run.control || m->no_announce != s_run.no_announce) {
         if (m->no_announce != s_run.no_announce) s_withdrawn = false;
         s_disc = m->no_announce && s_withdrawn ? NENT : 0;      /* announce again */
-        s_sub = false;
+        s_sub = s_dsub = false;
         devmqtt_restart();
         memcpy(s_name, c->device_name, sizeof s_name);
     }
@@ -478,6 +493,11 @@ void mqtt_ha_poll(const cfg_t *c)
         snprintf(topic, sizeof topic, "%s/+/set/+", s_base);
         if (mqtt_subscribe(&s_c, topic, 0, NULL, NULL) != ERR_OK) return;
         s_sub = true;
+    }
+    if (!s_dsub) {                              /* devices' controls; device.c refuses those not on */
+        snprintf(topic, sizeof topic, "%s/dev/+/set/+", s_base);
+        if (mqtt_subscribe(&s_c, topic, 0, NULL, NULL) != ERR_OK) return;
+        s_dsub = true;
     }
     if (!devmqtt_poll(pub, s_base, g_hostname, !s_run.no_announce, HAL_GetTick())) return;
 }

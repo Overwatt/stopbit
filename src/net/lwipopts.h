@@ -74,7 +74,7 @@ void clock_set(uint32_t unix_s);
 #define LWIP_ALTCP_TLS              1
 #define MEMP_NUM_ALTCP_PCB          4       /* MQTT's, and the TCP one under TLS */
 #endif
-#define MQTT_OUTPUT_RINGBUF_SIZE    4096
+#define MQTT_OUTPUT_RINGBUF_SIZE    8192   /* a device's state, up to 7.5 KB (devmqtt.c), and the rest */
 #define MQTT_VAR_HEADER_BUFFER_LEN  256
 #define MQTT_REQ_MAX_IN_FLIGHT      8
 #define MQTT_CONNECT_TIMOUT         15

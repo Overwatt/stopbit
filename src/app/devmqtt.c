@@ -8,12 +8,22 @@
 #include <stdio.h>
 #include <string.h>
 
-#define BUF 3584                    /* within lwIP MQTT's 4096-byte output buffer */
+#define BUF 7680   /* a device's state or one config: within lwIP MQTT's 8192-byte output ring, with topic and header */
 static char s_buf[BUF];
 static struct { uint8_t gen; int16_t disc; bool status, online; uint32_t seq, at; } s_d[DEVS];
 static struct { bool used; char name[25]; const profile_t *p; int16_t at; } s_gone[DEVS];
 
-static const char *comp(const pf_field_t *f) { return f->kind == PF_BINARY || f->kind == PF_CALCBIN ? "binary_sensor" : "sensor"; }
+static const char *comp(const pf_field_t *f)
+{
+    switch (f->kind) {
+    case PF_BINARY: case PF_CALCBIN: return "binary_sensor";
+    case PF_NUMBER: return "number";
+    case PF_SELECT: return "select";
+    case PF_SWITCH: return "switch";
+    case PF_TIME:   return "text";
+    default:        return "sensor";
+    }
+}
 
 /* "a_b" as an HA object id: lower case, anything but a-z 0-9 as _. */
 static void object(char *out, size_t max, const char *a, const char *b)
@@ -56,7 +66,7 @@ static size_t config(char *b, size_t max, const device_t *d, int fi, const char 
     const char *id = pf_str(p, f->id);
     char nm[96], dn[80], mk[64], md[96], un[40], ent[80], own[40], pre[sizeof d->cfg.prefix + 1] = "";
     size_t n = 0;
-    bool bin = f->kind == PF_BINARY || f->kind == PF_CALCBIN;
+    bool bin = f->kind == PF_BINARY || f->kind == PF_CALCBIN || f->kind == PF_SWITCH;
     if (!json_str(pf_str(p, f->name), nm, sizeof nm) || !json_str(d->cfg.label[0] ? d->cfg.label : d->cfg.name, dn, sizeof dn) ||
         !json_str(pf_str(p, p->maker), mk, sizeof mk) || !json_str(pf_str(p, p->name), md, sizeof md) ||
         !json_str(pf_str(p, f->unit), un, sizeof un)) return 0;
@@ -72,9 +82,29 @@ static size_t config(char *b, size_t max, const device_t *d, int fi, const char 
     else ADD(",\"value_template\":\"{{ value_json['%s'] }}\"", id);
     if (f->unit) ADD(",\"unit_of_measurement\":%s", un);
     if (f->dc) ADD(",\"device_class\":\"%s\"", pf_str(p, f->dc));
-    if (f->sc) ADD(",\"state_class\":\"%s\"", pf_str(p, f->sc));
+    if (f->sc && !pf_control(f)) ADD(",\"state_class\":\"%s\"", pf_str(p, f->sc));
     if (f->kind == PF_SENSOR || f->kind == PF_CALC) ADD(",\"suggested_display_precision\":%d", pf_prec(f));
-    if (f->flags & PFF_DIAG) ADD(",\"entity_category\":\"diagnostic\"");
+    if ((f->flags & PFF_DIAG) && !pf_control(f)) ADD(",\"entity_category\":\"diagnostic\"");
+    if (pf_control(f)) {
+        ADD(",\"command_topic\":\"~/set/%s\",\"entity_category\":\"config\"", id);
+        if (f->flags & PFF_HIDDEN) ADD(",\"enabled_by_default\":false");
+        if (f->kind == PF_NUMBER) {
+            char lo[24], hi[24], st[24];
+            int pr = pf_prec(f);
+            if (!pf_num(lo, sizeof lo, f->lo, pr) || !pf_num(hi, sizeof hi, f->hi, pr) || !pf_num(st, sizeof st, f->k, pr)) return 0;
+            ADD(",\"min\":%s,\"max\":%s,\"step\":%s,\"mode\":\"box\"", lo, hi, st);
+        } else if (f->kind == PF_SELECT) {
+            ADD(",\"options\":[");
+            for (int k = 0; k < f->nvname; k++) {
+                char o[96];
+                if (!json_str(pf_str(p, p->vname[f->vname + k].name), o, sizeof o)) return 0;
+                ADD("%s%s", k ? "," : "", o);
+            }
+            ADD("]");
+        } else if (f->kind == PF_TIME) {
+            ADD(",\"pattern\":\"^([01][0-9]|2[0-3]):[0-5][0-9]$\",\"min\":5,\"max\":5");
+        }
+    }
     ADD(",\"device\":{\"identifiers\":[\"%s_%s\"],\"name\":%s,\"manufacturer\":%s,\"model\":%s,\"via_device\":\"%s\"}}",
         host, d->cfg.name, dn, mk, md, host);
     return n;
@@ -118,9 +148,10 @@ bool devmqtt_poll(devmqtt_pub_t pub, const char *base, const char *host, bool an
         if (s_d[i].disc >= 0 && s_d[i].disc < d->p->nfield) {
             const pf_field_t *f = &d->p->field[s_d[i].disc];
             snprintf(topic, sizeof topic, "homeassistant/%s/%s_%s/%s/config", comp(f), host, d->cfg.name, pf_str(d->p, f->id));
-            size_t n = announce ? config(s_buf, sizeof s_buf, d, s_d[i].disc, base, host) : 0;
-            if (announce && !n) { s_d[i].disc++; return true; }        /* will not fit: left out */
-            if (!pub(topic, announce ? s_buf : "", true)) return false;
+            bool show = announce && (!pf_control(f) || d->cfg.controls);      /* controls off: emptied */
+            size_t n = show ? config(s_buf, sizeof s_buf, d, s_d[i].disc, base, host) : 0;
+            if (show && !n) { s_d[i].disc++; return true; }                  /* will not fit: left out */
+            if (!pub(topic, show ? s_buf : "", true)) return false;
             if (++s_d[i].disc == d->p->nfield) s_d[i].disc = -1;
             return true;
         }

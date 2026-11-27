@@ -38,7 +38,12 @@ uint16_t device_line_use(int port);       /* the line's use by our requests, per
 void  device_count(int up[PORTS], int all[PORTS]);   /* each port's devices, and how many are online */
 /* Field f's value as JSON: a number, true/false, a string, or null if not known. 0 if it does not fit. */
 size_t device_value(const device_t *d, int f, char *out, size_t max);
-size_t device_json(int i, char *out, size_t max);   /* settings, state and values; 0 if it does not fit */
+#define DEV_PARTS 3                 /* /api/devices gives a device in this many parts */
+/* Part k of device i's JSON: 0 its settings and state and values 0 to 39; 1 values 40 to 79;
+ * 2 the rest, and the end. -1 if it does not fit. A device gone, or without a profile, has
+ * nothing in parts 1 and 2 but the end. */
+int   device_json_part(int i, int k, char *out, size_t max);
+size_t device_json(int i, char *out, size_t max);   /* all of it; 0 if it does not fit */
 /* Told before device i is removed or changed (devmqtt.c, to clear it from HA). It may
  * hold the device's profile meanwhile, so that it stays loaded. */
 void  device_on_gone(void (*fn)(int i, const device_t *d));

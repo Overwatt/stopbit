@@ -30,7 +30,7 @@ t device -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_device.c tests/stub/
 t devmqtt -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt.c src/app/devmqtt.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devroom -DD2_BSS= -DPF_ROOM=4096 -Itests/stub -Isrc/app tests/test_devroom.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devmqtt_long -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt_long.c src/app/devmqtt.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
-t devctl -DD2_BSS= -Itests/stub -Isrc/app tests/test_devctl.c tests/stub/events_stub.c src/app/device.c src/app/pfwrite.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
+t devctl -DD2_BSS= -Itests/stub -Isrc/app tests/test_devctl.c src/app/devmqtt.c tests/stub/events_stub.c src/app/device.c src/app/pfwrite.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t metrics -Isrc/app tests/test_metrics.c src/app/metrics.c
 t quiet   -Isrc/app tests/test_quiet.c
 t events  -Itests/stub -Isrc/app -Isrc/common -DWDT_H '-Dwdt_feed()=(void)0' tests/test_events.c src/app/events.c src/app/cfg.c src/app/acl.c src/common/slots.c src/common/image.c src/common/sha256.c

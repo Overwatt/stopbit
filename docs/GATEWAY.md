@@ -247,7 +247,7 @@ tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=502 \
 | devN.address | 1 to 247; unique on its port |
 | devN.ids | `own` (the default) or `esphome` (below) |
 | devN.prefix | the ESP32's name, a to z, 0 to 9 and `_`; needed for `ids=esphome` |
-| devN.controls | 0 or 1. Does nothing in phase 1 |
+| devN.controls | 0 or 1: announce the profile's controls to Home Assistant and accept commands for them (below) |
 
 A device without a profile, name, port or address is refused, e.g. "Device 1: choose its
 profile". `ids=esphome` without a prefix is refused too.
@@ -258,7 +258,8 @@ profile". `ids=esphome` without a prefix is refused too.
 |---|---|
 | `BASE/dev/<name>/state` | one JSON object of the device's values, retained. After a change at most once a second, and at least once a minute |
 | `BASE/dev/<name>/status` | `online` or `offline`, retained |
-| `homeassistant/<sensor or binary_sensor>/HOST_<name>/<field>/config` | discovery, retained. Emptied when the device is removed or changed |
+| `BASE/dev/<name>/set/<control>` | a command: a number, a choice's name, ON or OFF, or HH:MM. Not retained |
+| `homeassistant/<sensor, binary_sensor, number, select, switch or text>/HOST_<name>/<field>/config` | discovery, retained. Emptied when the device is removed or changed |
 
 An entity is available only while the gateway, the device and its value are all present.
 Each device is a Home Assistant device (the profile's maker and model), shown via the
@@ -311,10 +312,25 @@ on the page, permille (0 to 1000) in `/api/devices` (`line_use`), and a ratio (0
 | `n540_device_misses_total{device}` | requests without a valid reply |
 | `n540_port_line_use_ratio{port}` | line use |
 
-### Limits in phase 1
+### Controls
 
-- Reading only: no controls, and nothing is accepted over MQTT.
+A profile's controls (number, select, switch, time) are settings the device keeps. With
+`devN.controls=1` they are announced to Home Assistant and commands for them are obeyed;
+with 0 they are still read, and shown as values, but not announced. A command is checked
+against the control (its range, its choices), then waits its turn on the port ahead of the
+polls, at most 2 a second per device. The gateway reads the register first and writes it
+only if that changes it, then reads the control's block back, so Home Assistant shows what
+the device holds. Each command is in the event log: written, already so, refused and why,
+failed (no reply, the device's error), or written but reading back otherwise.
+
+Do not send settings on a timer. A device may keep them in memory that wears with writing;
+the gateway skips a write that changes nothing, but a value that alternates on a schedule
+is written each time.
+
+### Limits
+
 - Built-in profiles only; no uploads yet.
+- A device has up to about 110 values: its state is one MQTT message of up to 7.5 KB.
 - Changing the base topic leaves a device's retained topics under the old base.
 - Turning MQTT off leaves the devices' entities in Home Assistant.
 
