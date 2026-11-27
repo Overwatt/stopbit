@@ -684,8 +684,10 @@ function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
  case 17:return "Web password changed";
  case 18:return "Restart "+(WHO[s]||s);
  case 19:return plural(a,"event")+" not kept: too many at once";
+ case 20:{const d=a&255,o=a>>8,i=s.indexOf("; "),w=i<0?s:s.slice(0,i),m=i<0?"":s.slice(i+2),who=d?"Device "+d:"A device";
+  return o===0?who+" set "+w+(m?" ("+m+")":""):o===1?who+": "+w+", already so":o===2?who+": "+w+" refused"+(m?", "+m:""):o===3?who+": "+w+" failed"+(m?", "+m:""):who+": "+w+" written, reads back "+m}
  default:return "Event "+k}}
-const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2);
+const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2)||(e[4]===20&&e[6]>>8>=2);
 /* The viewer's own time; before the clock was known, time since that start. */
 function evWhen(e,short){if(!e[1])return "Start "+e[3]+" + "+dur(e[2]);const d=new Date(e[1]*1000),ago=Date.now()/1000-e[1];
  if(short)return ago<90?"Now":dur(Math.round(ago))+" ago";

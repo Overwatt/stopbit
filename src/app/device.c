@@ -3,9 +3,12 @@
  * of which device is most overdue goes next, as one request in the port's Modbus queue
  * (modbus.c's local client); its reply is decoded (pfdecode.c). Profiles are parsed once
  * and shared by the devices that use them: parsed in one place with every table at its
- * largest, then packed into s_room at the size each needs.
+ * largest, then packed into s_room at the size each needs. Commands for controls are
+ * written before polls: the register read, written if that changes it, the block read back.
  */
 #include "device.h"
+#include "events.h"
+#include "pfwrite.h"
 #include "profiles.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
@@ -24,6 +27,23 @@
 #define PF_ROOM 24576u           /* for all of them packed: the largest there can be is 21 KB, the EG4's is 5 */
 #endif
 #define LOST_MS 90000u           /* a request whose end never came: the port is free again (MB_QUEUE x the longest timeout, 10 s, + 10 s) */
+#define WRITES       16          /* commands waiting, for all devices */
+#define WRITE_GAP_MS 500u        /* 2 writes a second per device at most */
+
+/* What a request of ours is for (tag bits 24-25); n (bits 0-7) is a poll's block or a write's place. */
+enum { TAG_POLL, TAG_READ, TAG_WRITE, TAG_CHECK };
+enum { W_FREE, W_QUEUED, W_READING, W_WRITING, W_CHECKING };
+enum { WR_OK, WR_UNCHANGED, WR_REFUSED, WR_FAILED, WR_DIFFERS };   /* an EV_WRITE's outcome */
+typedef struct {
+    uint8_t    stage, dev, gen, field;
+    uint8_t    port;                 /* the port it went out on, once read (0-based) */
+    uint32_t   seq;                  /* arrival: the oldest goes first */
+    pf_write_t w;
+    uint16_t   want[2];              /* the registers as written */
+    char       what[40];             /* "control=value", for its event */
+} wq_t;
+static wq_t s_wq[WRITES];
+static uint32_t s_wseq, s_wlast[DEVS];
 
 static D3_BSS pf_build_t s_build;                 /* where one is parsed; nothing is kept here */
 static D2_BSS uint64_t s_room[PF_ROOM / 8];
@@ -41,6 +61,7 @@ void device_init(void)
     memset(s_dev, 0, sizeof s_dev);            /* D2 is not zeroed at start */
     memset(s_slot, 0, sizeof s_slot);
     memset(s_port, 0, sizeof s_port);
+    memset(s_wq, 0, sizeof s_wq); memset(s_wlast, 0, sizeof s_wlast); s_wseq = 0;
 }
 
 void device_on_gone(void (*fn)(int i, const device_t *d)) { s_gone = fn; }
@@ -205,13 +226,49 @@ static void window(int port, uint32_t now)
     s_port[port].win_at = now;
 }
 
-void device_reply(int port, uint32_t tag, int st, const uint8_t *pdu, size_t n)
+/* Every write, and every refused command, in the event log. A note keeps 39 characters, so
+ * the device is a number in `a`, with the outcome above it. */
+static void wr_event(int i, int outcome, const char *what, const char *more)
 {
-    int i = (int)(tag >> 8 & 0xFFu), b = (int)(tag & 0xFFu);
-    if (port >= 0 && port < PORTS) s_port[port].busy = false;
-    if (i >= DEVS || port < 0 || port >= PORTS) return;
-    device_t *d = &s_dev[i];
-    if (!d->p || d->gen != (uint8_t)(tag >> 16) || b >= d->p->nblock) return;
+    char s[80];
+    snprintf(s, sizeof s, "%s%s%s", what, more[0] ? "; " : "", more);
+    events_add(EV_WRITE, i >= 0 ? s_dev[i].cfg.port : 0, (uint32_t)(i + 1) | (uint32_t)outcome << 8, s);
+}
+
+static uint32_t tag_of(int op, const device_t *d, int i, int n) { return (uint32_t)op << 24 | (uint32_t)d->gen << 16 | (uint32_t)i << 8 | (uint32_t)n; }
+
+/* One request of ours into the port's queue; the port is busy until it ends. */
+static bool ask(int port, modbus_t *m, int i, int op, int n, const uint8_t *pdu, uint16_t len)
+{
+    const device_t *d = &s_dev[i];
+    if (!m || !modbus_local(m, d->cfg.address, pdu, len, d->p->timeout_ms, tag_of(op, d, i, n))) return false;
+    s_port[port].busy = true;
+    s_port[port].since = HAL_GetTick();
+    return true;
+}
+
+/* The port's queue was started again, or a request's end never came: writes on the line are given up. */
+static void wr_lost(int port)
+{
+    for (int k = 0; k < WRITES; k++) {
+        wq_t *q = &s_wq[k];
+        if (q->stage <= W_QUEUED || q->port != port) continue;       /* its device may be gone: the port it went on */
+        wr_event(q->dev, WR_FAILED, q->what, "lost");
+        q->stage = W_FREE;
+    }
+}
+
+/* The registers at addr, from a reply to a read that began at `from`. */
+static bool regs_at(const uint8_t *pdu, size_t n, uint16_t from, uint16_t addr, uint8_t regs, uint16_t out[2])
+{
+    size_t at = 2u + 2u * (size_t)(addr - from);
+    if (n < 2 || (pdu[0] & 0x80) || addr < from || at + 2u * regs > n) return false;
+    for (int r = 0; r < regs; r++) out[r] = (uint16_t)(pdu[at + 2 * r] << 8 | pdu[at + 2 * r + 1]);
+    return true;
+}
+
+static void poll_reply(int port, device_t *d, int b, int st, const uint8_t *pdu, size_t n)
+{
     const pf_block_t *k = &d->p->block[b];
     used_line(port, d, st == 0 ? n : 0, st != 0);
     if (st) { miss(d, b, "No reply"); return; }
@@ -232,6 +289,77 @@ void device_reply(int port, uint32_t tag, int st, const uint8_t *pdu, size_t n)
     online(d);
 }
 
+/* A write's request ended: read -> written (or unchanged) -> read back. */
+static void write_reply(int port, int i, uint8_t gen, int op, int k, int st, const uint8_t *pdu, size_t n)
+{
+    static const uint8_t AT[] = { W_FREE, W_READING, W_WRITING, W_CHECKING };
+    device_t *d = &s_dev[i];
+    if (k >= WRITES) return;
+    wq_t *q = &s_wq[k];
+    if (q->stage != AT[op] || q->dev != i || q->gen != gen) return;        /* not the one asked for */
+    if (!d->p || d->gen != gen) { q->stage = W_FREE; return; }               /* its device changed meanwhile */
+    const pf_field_t *f = &d->p->field[q->field];
+    const pf_block_t *b = &d->p->block[f->block];
+    modbus_t *m = bridge_modbus_port(port);
+    uint32_t now = HAL_GetTick();
+    if (op == TAG_CHECK) {
+        uint16_t got[2];
+        bool read = st == 0 && regs_at(pdu, n, b->addr, q->w.addr, q->w.regs, got), same = read;
+        poll_reply(port, d, f->block, st, pdu, n);
+        for (int r = 0; read && r < q->w.regs; r++) same = same && !((got[r] ^ q->want[r]) & q->w.mask[r]);
+        char v[24] = "";
+        if (read && !same && !device_value(d, q->field, v, sizeof v)) v[0] = 0;
+        wr_event(i, read && !same ? WR_DIFFERS : WR_OK, q->what, read ? v : "not read back");
+        q->stage = W_FREE;
+        return;
+    }
+    used_line(port, d, st == 0 ? n : 0, st != 0);
+    char e[16] = "";
+    if (st) snprintf(e, sizeof e, "no reply");
+    else if (n >= 2 && (pdu[0] & 0x80)) snprintf(e, sizeof e, "error %u", pdu[1]);
+    else if (op == TAG_READ && (n != 2u + 2u * q->w.regs || pdu[0] != 3)) snprintf(e, sizeof e, "bad reply");
+    if (e[0]) { wr_event(i, WR_FAILED, q->what, e); q->stage = W_FREE; return; }
+    if (op == TAG_READ) {
+        uint16_t have[2] = { 0, 0 };
+        regs_at(pdu, n, q->w.addr, q->w.addr, q->w.regs, have);
+        if (!pf_merge(&q->w, have, q->want)) {
+            wr_event(i, WR_UNCHANGED, q->what, "");
+            q->stage = W_FREE;
+            d->due[f->block] = now;                           /* HA may show an older value: read it */
+            return;
+        }
+        uint8_t w[10] = { 6, (uint8_t)(q->w.addr >> 8), (uint8_t)q->w.addr };
+        uint16_t len = 5;
+        if (q->w.regs == 1) { w[3] = (uint8_t)(q->want[0] >> 8); w[4] = (uint8_t)q->want[0]; }
+        else {
+            w[0] = 16; w[3] = 0; w[4] = 2; w[5] = 4;
+            w[6] = (uint8_t)(q->want[0] >> 8); w[7] = (uint8_t)q->want[0]; w[8] = (uint8_t)(q->want[1] >> 8); w[9] = (uint8_t)q->want[1];
+            len = 10;
+        }
+        if (!ask(port, m, i, TAG_WRITE, k, w, len)) { wr_event(i, WR_FAILED, q->what, "not sent"); q->stage = W_FREE; return; }
+        q->stage = W_WRITING;
+        return;
+    }
+    const uint8_t r[5] = { b->fn, (uint8_t)(b->addr >> 8), (uint8_t)b->addr, (uint8_t)(b->count >> 8), (uint8_t)b->count };
+    if (!ask(port, m, i, TAG_CHECK, k, r, 5)) {
+        wr_event(i, WR_OK, q->what, "not read back");
+        q->stage = W_FREE;
+        d->due[f->block] = now;
+        return;
+    }
+    q->stage = W_CHECKING;
+}
+
+void device_reply(int port, uint32_t tag, int st, const uint8_t *pdu, size_t n)
+{
+    int op = (int)(tag >> 24 & 3u), i = (int)(tag >> 8 & 0xFFu), k = (int)(tag & 0xFFu);
+    if (port >= 0 && port < PORTS) s_port[port].busy = false;
+    if (i >= DEVS || port < 0 || port >= PORTS) return;
+    if (op != TAG_POLL) { write_reply(port, i, (uint8_t)(tag >> 16), op, k, st, pdu, n); return; }
+    device_t *d = &s_dev[i];
+    if (!d->p || d->gen != (uint8_t)(tag >> 16) || k >= d->p->nblock) return;
+    poll_reply(port, d, k, st, pdu, n);
+}
 /* The most overdue block among the port's devices, starting after the last one asked. */
 static void submit(int port, modbus_t *m, uint32_t now)
 {
@@ -253,13 +381,67 @@ static void submit(int port, modbus_t *m, uint32_t now)
     device_t *d = &s_dev[best];
     const pf_block_t *b = &d->p->block[bb];
     const uint8_t pdu[5] = { b->fn, (uint8_t)(b->addr >> 8), (uint8_t)b->addr, (uint8_t)(b->count >> 8), (uint8_t)b->count };
-    if (!modbus_local(m, d->cfg.address, pdu, 5, d->p->timeout_ms, (uint32_t)d->gen << 16 | (uint32_t)best << 8 | (uint32_t)bb))
-        return;                                  /* 8 waiting already: next pass */
-    s_port[port].busy = true;
-    s_port[port].since = now;
+    if (!ask(port, m, best, TAG_POLL, bb, pdu, 5)) return;   /* 8 waiting already: next pass */
     s_port[port].rr = (uint8_t)((best + 1) % DEVS);
     d->due[bb] = now + b->period_ms;
     d->polls++;
+}
+
+/* The oldest command waiting for this port whose device may write now: its register read
+ * first. False if there is none. */
+static bool write_next(int port, modbus_t *m, uint32_t now)
+{
+    int best = -1;
+    for (int k = 0; k < WRITES; k++) {
+        wq_t *q = &s_wq[k];
+        if (q->stage != W_QUEUED) continue;
+        const device_t *d = &s_dev[q->dev];
+        if (!d->p || d->gen != q->gen) { q->stage = W_FREE; continue; }       /* its device changed */
+        if (d->cfg.port != port + 1 || now - s_wlast[q->dev] < WRITE_GAP_MS) continue;
+        if (best < 0 || (int32_t)(q->seq - s_wq[best].seq) < 0) best = k;
+    }
+    if (best < 0) return false;
+    wq_t *q = &s_wq[best];
+    const uint8_t pdu[5] = { 3, (uint8_t)(q->w.addr >> 8), (uint8_t)q->w.addr, 0, q->w.regs };
+    if (!ask(port, m, q->dev, TAG_READ, best, pdu, 5)) return true;      /* the queue is full: next pass */
+    q->stage = W_READING;
+    q->port = (uint8_t)port;
+    s_wlast[q->dev] = now;
+    return true;
+}
+
+bool device_command(const char *name, const char *control, const char *payload, bool retained)
+{
+    char what[40], e[32];
+    int i = -1, f = -1;
+    for (int k = 0; k < DEVS; k++) if (s_dev[k].used && !strcmp(s_dev[k].cfg.name, name)) i = k;
+    if (i < 0) {
+        snprintf(what, sizeof what, "%s/%s=%s", name, control, payload);
+        wr_event(-1, WR_REFUSED, what, "no such device");
+        return false;
+    }
+    device_t *d = &s_dev[i];
+    snprintf(what, sizeof what, "%s=%s", control, payload);
+    if (d->p) f = profile_field(d->p, control);
+    const char *why = retained ? "retained" : !d->cfg.controls ? "controls off" :
+                      f < 0 || !pf_control(&d->p->field[f]) ? "no such control" : NULL;
+    pf_write_t w;
+    if (!why && !pf_command(d->p, f, payload, &w, e, sizeof e)) why = e;
+    if (why) { wr_event(i, WR_REFUSED, what, why); return false; }
+    int slot = -1;
+    for (int k = 0; k < WRITES && slot < 0; k++)              /* the same control waiting: the newer value */
+        if (s_wq[k].stage == W_QUEUED && s_wq[k].dev == i && s_wq[k].field == f && s_wq[k].gen == d->gen) slot = k;
+    for (int k = 0; k < WRITES && slot < 0; k++)
+        if (s_wq[k].stage == W_FREE) { slot = k; s_wq[k].seq = ++s_wseq; }
+    if (slot < 0) { wr_event(i, WR_REFUSED, what, "too many waiting"); return false; }
+    wq_t *q = &s_wq[slot];
+    q->stage = W_QUEUED;
+    q->dev = (uint8_t)i;
+    q->gen = d->gen;
+    q->field = (uint8_t)f;
+    q->w = w;
+    snprintf(q->what, sizeof q->what, "%s", what);
+    return true;
 }
 
 void device_poll(void)
@@ -301,14 +483,16 @@ void device_poll(void)
                 if (s_dev[i].p && s_dev[i].cfg.port == port + 1)
                     for (int b = 0; b < s_dev[i].p->nblock; b++)
                         if ((int32_t)(now - s_dev[i].due[b]) > 0) s_dev[i].due[b] = now;
+            wr_lost(port);
             s_port[port].busy = false;
             continue;
         }
-        if (s_port[port].busy && !modbus_local_pending(m)) s_port[port].busy = false;   /* dropped by a re-init */
+        if (s_port[port].busy && !modbus_local_pending(m)) { s_port[port].busy = false; wr_lost(port); }   /* dropped by a re-init */
         m->turn_us = (uint32_t)turn * 1000u;
         if (s_port[port].busy && now - s_port[port].since < LOST_MS) continue;
+        if (s_port[port].busy) wr_lost(port);               /* its end never came */
         s_port[port].busy = false;
-        submit(port, m, now);
+        if (!write_next(port, m, now)) submit(port, m, now);
     }
 }
 

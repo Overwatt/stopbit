@@ -34,6 +34,9 @@ typedef enum {
     EV_PASSWORD,       /* the web password was set or changed */
     EV_RESTART,        /* s: who asked: "web", "mqtt" */
     EV_DROPPED,        /* a: events not kept, too many at once */
+    EV_WRITE,          /* a device's control: port its port; a: device number (0 unknown) | outcome << 8,
+                          0 ok, 1 unchanged, 2 refused, 3 failed, 4 reads back otherwise;
+                          s: "control=value", then "; " and why */
 } ev_kind_t;
 
 void events_init(void);            /* finds where the log ends; after extflash_init() */

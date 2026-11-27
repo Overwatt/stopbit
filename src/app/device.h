@@ -30,6 +30,9 @@ void  device_configure(const cfg_t *c);   /* devices whose settings changed star
 void  device_poll(void);                  /* main loop */
 /* A request of ours ended (modbus.c's io.local, through bridge.c). */
 void  device_reply(int port, uint32_t tag, int status, const uint8_t *pdu, size_t n);
+/* A command for one of a device's controls (over MQTT): queued to be written (true), or
+ * refused, with an event saying why. retained: the broker kept it, so it is stale. */
+bool  device_command(const char *name, const char *control, const char *payload, bool retained);
 const device_t *device_get(int i);        /* NULL: no device i */
 uint16_t device_line_use(int port);       /* the line's use by our requests, permille, last minute */
 void  device_count(int up[PORTS], int all[PORTS]);   /* each port's devices, and how many are online */
