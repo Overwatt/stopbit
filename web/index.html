@@ -11,11 +11,17 @@
 --well:#eaf3f7;--band:#f1f7fa;--foot:#5b7f91;--key:#dfebf1;--key-h:#cfe0e8;--key-p:#bed3de;
 --accent:#0d4a68;--accent-ink:#fff;--accent-h:#0a3b53;--accent-p:#072c3f;--sea:#1683b8;
 --ok:#17703d;--warn:#7d4b00;--warn-bg:#fdf0d6;--bad:#a3211a;--bad-bg:#ffe1dc;--idle:#4e6f7f}
-@media(prefers-color-scheme:dark){:root{
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
 --shell:#132d3a;--shell-soft:#a9cfdf;--shell-dim:#86a9b9;--ground:#05121a;--sheet:#173443;--ink:#e6f2f7;--soft:#a9c7d4;--rule:#2c5061;
 --well:#102733;--band:#132d3a;--foot:#86a9b9;--key:#254a5c;--key-h:#305a6e;--key-p:#1d3d4c;
 --accent:#5bb8e2;--accent-ink:#06212d;--accent-h:#7cc8eb;--accent-p:#46a3cd;--sea:#3f9fd0;
 --ok:#62c98b;--warn:#e7b45e;--warn-bg:#352a10;--bad:#ff9a8f;--bad-bg:#451c18;--idle:#8fb0be}}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark;
+--shell:#132d3a;--shell-soft:#a9cfdf;--shell-dim:#86a9b9;--ground:#05121a;--sheet:#173443;--ink:#e6f2f7;--soft:#a9c7d4;--rule:#2c5061;
+--well:#102733;--band:#132d3a;--foot:#86a9b9;--key:#254a5c;--key-h:#305a6e;--key-p:#1d3d4c;
+--accent:#5bb8e2;--accent-ink:#06212d;--accent-h:#7cc8eb;--accent-p:#46a3cd;--sea:#3f9fd0;
+--ok:#62c98b;--warn:#e7b45e;--warn-bg:#352a10;--bad:#ff9a8f;--bad-bg:#451c18;--idle:#8fb0be}
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;min-height:100vh;display:flex;flex-direction:column}
 ::selection{background:var(--accent);color:var(--accent-ink)}
@@ -26,6 +32,7 @@ header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
 .meta{color:var(--shell-soft);margin:0;line-height:1.3}.meta span{display:block}.meta .up{font-size:.8125rem;color:var(--shell-dim)}.brand{margin:0;line-height:1.3;min-width:0}.brand b{display:block}.brand span{display:block;font-size:.8125rem;color:var(--shell-dim);overflow-wrap:anywhere}.grow{flex:1}
 header button,header button.primary{background:rgb(255 255 255/.1);color:#fff;font-weight:500}header button:hover,header button.primary:hover{background:rgb(255 255 255/.18)}header button:active,header button.primary:active{background:rgb(255 255 255/.24)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
+header .tools{display:flex;gap:2px}header .ib{display:inline-flex;align-items:center;justify-content:center;width:44px;min-height:44px;padding:0;border-radius:6px;background:transparent;color:var(--shell-soft);transition:background .15s,color .15s}header .ib:hover{background:rgb(255 255 255/.1);color:#fff}header .ib:active{background:rgb(255 255 255/.18)}header .ib svg{width:20px;height:20px;display:block}
 header input{background:#fff;color:#0b2230;border-color:#5b7f91}header input::placeholder{color:#2d5468}
 h1,h2,h3{font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}
 h1{font-size:2.125rem}h2{font-size:2.5rem}h3{font-size:1.25rem;letter-spacing:-.01em;margin:40px 0 14px}
@@ -88,7 +95,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 [hidden]{display:none!important}
 @media(max-width:1240px){.app{grid-template-columns:320px minmax(0,1fr)}aside{padding-left:24px}main{padding:28px 30px 48px}.top::before{top:-28px;left:-30px}.two{grid-template-columns:1fr}.facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:860px){
- header .in{padding:10px 16px;gap:4px 16px}.logo{width:34px;height:34px;margin-right:-6px}
+ header .in{padding:10px 16px;gap:4px 12px}.logo{width:34px;height:34px;margin-right:-2px}header .grow{display:none}.brand{flex:1 1 0;min-width:6.5rem}
  .notes{padding:0 16px}.app{grid-template-columns:minmax(0,1fr)}
  aside{padding:22px 16px}main{padding:18px 16px 48px;border-radius:16px 16px 0 0;margin-top:16px}.top::before{top:-18px;left:-16px}
  body[data-view=list] main{display:none}body[data-view=sheet] aside{display:none}
@@ -106,12 +113,14 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 .stale .chart .ln{opacity:.45}.stale .chart .ar{opacity:.06}.stale .it em{font-style:italic}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<script>try{const t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body data-view="list">
 <header><div class="in">
  <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="3" y="19" width="58" height="40" rx="6" fill="#1f8f4e"/><path d="M3 51h58v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z" fill="#17763f"/><g fill="#0c3a20"><rect x="8" y="24" width="10" height="10" rx="2"/><rect x="21" y="24" width="10" height="10" rx="2"/><rect x="34" y="24" width="10" height="10" rx="2"/><rect x="47" y="24" width="10" height="10" rx="2"/></g><g fill="#d4dade"><circle cx="13" cy="43" r="5"/><circle cx="26" cy="43" r="5"/><circle cx="39" cy="43" r="5"/><circle cx="52" cy="43" r="5"/></g><g stroke="#7a8790" stroke-width="1.8" stroke-linecap="round"><path d="M10.2 43h5.6M23.2 43h5.6M36.2 43h5.6M49.2 43h5.6"/></g><path d="M13 3V28" stroke="#ff8a1f" stroke-width="5.5" stroke-linecap="round"/></svg><p class="brand"><b>Stopbit</b><span id="dname"></span></p>
  <span class="grow"></span>
  <p class="meta"><span id="dip">Connecting…</span><span class="up" id="dup"></span></p>
+ <div class="tools"><button id="theme" class="ib" type="button"></button><a class="ib" href="https://github.com/Overwatt/stopbit" target="_blank" rel="noopener" aria-label="Stopbit on GitHub" title="Stopbit on GitHub"><svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg></a></div>
  <form id="login" class="acts" hidden>
   <input id="pw" type="password" autocomplete="current-password" aria-label="Web password" placeholder="Password" style="width:180px;margin:0">
   <button class="primary">Sign in</button>
@@ -247,6 +256,19 @@ const ROUNDS=30000; /* must match tools/n540.py */
 
 /* ---- helpers ---- */
 const $=id=>document.getElementById(id);
+/* Theme: Auto follows the system; Light and Dark are kept in this browser only. Each click
+   first shows the other look, then the system's look kept, then Auto again. */
+{const S='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
+ T={auto:["Auto (follows the system)",S+'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/></svg>'],
+  light:["Light",S+'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>'],
+  dark:["Dark",S+'<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>']},
+ mq=matchMedia("(prefers-color-scheme: dark)"),b=$("theme"),r=document.documentElement;
+ const show=t=>{b.innerHTML=T[t][1];b.title="Theme: "+T[t][0];b.setAttribute("aria-label","Theme: "+T[t][0])};
+ show(r.dataset.theme||"auto");
+ b.onclick=()=>{const cur=r.dataset.theme||"auto",sys=mq.matches?"dark":"light",nx=cur==="auto"?(sys==="dark"?"light":"dark"):cur===sys?"auto":sys;
+  if(nx==="auto")delete r.dataset.theme;else r.dataset.theme=nx;
+  try{nx==="auto"?localStorage.removeItem("theme"):localStorage.setItem("theme",nx)}catch(e){}
+  show(nx)}}
 function el(tag,props,...kids){const e=document.createElement(tag);
  for(const k in props||{}){const v=props[k];if(v==null||v===false)continue;
   if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);

@@ -216,7 +216,9 @@ look like a marketing dashboard (big number tiles, gradients, charts for show).
 - State marked by shape, word and colour together.
 - One heavy system sans with tabular figures; live values never move the layout.
 - Flat. One sheet on one ground, told apart by tone.
-- Light and dark follow the viewer's setting, with the same roles in both.
+- Light and dark follow the viewer's setting, with the same roles in both. The theme button
+  overrides it for one browser: each press shows the other look, then keeps the system's look,
+  then returns to Auto. Its icon shows the current choice (half circle, sun, moon).
 - Controls are sturdy and deliberate: 44px, clear shapes.
 - Terse, facts only. No internet assets.
 
@@ -302,7 +304,8 @@ The product's own terms stay: heard, sent, turned away, station.
 ## Layout
 
 A shell bar across the top (72px): logo, product name over device name, address over
-uptime, sign-in. Notices
+uptime, the theme button and the GitHub link (44px icon buttons in Spray, 2px apart, no fill
+until hovered), sign-in. Notices
 come under it, on the ground. Then two columns: the list (400px) and the sheet, which runs to
 the right and bottom edges and starts 26px below whatever is above it. Sheet content stops at
 1000px, inside 34px by 44px padding. The outer gutter is 32px.
