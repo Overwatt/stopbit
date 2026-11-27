@@ -6,7 +6,7 @@
  * in a silence of gap_us, has a good CRC and the request's unit and function (or the
  * function | 0x80: an exception). Anything else heard while waiting is counted and
  * ignored; the wait goes on until the timeout. Clients may instead send RTU frames over TCP
- * (unit, PDU, CRC), and are answered in them.
+ * (unit, PDU, CRC), and are answered in them; each such client has one request at a time.
  */
 #include "modbus.h"
 #include <string.h>
@@ -40,10 +40,9 @@ void modbus_open(modbus_t *m, int c, bool may_write)
 
 void modbus_may_write(modbus_t *m, int c, bool may_write) { m->cl[c].may_write = may_write; }
 
-void modbus_close(modbus_t *m, int c)
+/* What a client has waiting is dropped; one of its requests on the line finishes, unanswered. */
+static void drop(modbus_t *m, int c)
 {
-    m->cl[c].open = false;
-    m->cl[c].n = 0;
     uint8_t keep = 0;
     for (uint8_t i = 0; i < m->qn; i++) {
         if (i == 0 && m->state != MB_IDLE) {            /* on the line: let it finish */
@@ -55,6 +54,13 @@ void modbus_close(modbus_t *m, int c)
         }
     }
     m->qn = keep;
+}
+
+void modbus_close(modbus_t *m, int c)
+{
+    m->cl[c].open = false;
+    m->cl[c].n = 0;
+    drop(m, c);
 }
 
 void modbus_set_rtu(modbus_t *m, bool rtu)
@@ -126,8 +132,13 @@ static int rtu_len(const uint8_t *b, uint16_t have)
     return -1;
 }
 
-/* RTU frames from a client. A bad CRC, an unknown function or a frame too long: what it has
- * is dropped, with the rest of this piece, as the frame's end cannot be found inside it. */
+/* RTU frames from a client. An RTU master has one request outstanding, and a reply carries
+ * nothing to say which request it answers: so each frame from a client first drops what that
+ * client has waiting (one on the line finishes, unanswered, as on a close), and a reply that
+ * comes after the client gave up on it is never taken for its next request's. Two frames in
+ * one piece: only the second is kept, by the same rule. A bad CRC, an unknown function or a
+ * frame too long: what it has is dropped, with the rest of this piece, as the frame's end
+ * cannot be found inside it. */
 static void from_rtu(modbus_t *m, int c, const uint8_t *d, size_t n)
 {
     uint8_t *b = m->cl[c].buf;
@@ -136,12 +147,14 @@ static void from_rtu(modbus_t *m, int c, const uint8_t *d, size_t n)
         int want = rtu_len(b, have);
         if (want < 0 || want > 3 + MB_PDU) {
             m->s.refused++;
+            drop(m, c);
             if (want < 0) exception(m, c, 0, b[0], b[1], EX_ILLEGAL_FUNCTION);
             m->cl[c].n = 0;
             return;
         }
         if (want && have == want) {
             m->cl[c].n = 0;
+            drop(m, c);
             if (modbus_crc(b, have - 2u) != (uint16_t)(b[have - 2] | b[have - 1] << 8)) { m->s.refused++; return; }
             take(m, c, 0, b[0], b + 1, (uint16_t)(have - 3));
             continue;

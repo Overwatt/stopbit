@@ -83,8 +83,9 @@ void modbus_may_write(modbus_t *m, int client, bool may_write);    /* its access
 void modbus_set_rtu(modbus_t *m, bool rtu);
 /* Gone: what it had waiting is dropped; one on the line finishes, unanswered. */
 void modbus_close(modbus_t *m, int client);
-/* Bytes from a client, in any pieces: Modbus TCP, or RTU frames when m->rtu. False: not Modbus
- * TCP; close the connection (never for RTU). */
+/* Bytes from a client, in any pieces: Modbus TCP, or RTU frames when m->rtu (each RTU frame
+ * replaces what that client has waiting). False: not Modbus TCP; close the connection (never
+ * for RTU). */
 bool modbus_from_client(modbus_t *m, int client, const uint8_t *d, size_t n, uint32_t now_ms);
 /* The gateway's own request: unit, PDU (function and data). Its reply or timeout goes to
  * io.local with `tag`. False: queue full, bad length, or unit not 1-247 (0 is a broadcast,

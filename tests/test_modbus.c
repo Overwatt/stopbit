@@ -53,6 +53,9 @@ static void hear(const char *frame) { uint8_t b[600]; size_t n = hex(frame, b); 
 static size_t crc_on(const char *f, uint8_t *b) { size_t n = hex(f, b); uint16_t c = modbus_crc(b, n); b[n++] = (uint8_t)c; b[n++] = (uint8_t)(c >> 8); return n; }
 static void hearc(const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); modbus_from_line(&M, b, n); poll(0); poll(GAP); }
 static bool on_linec(const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); bool ok = Ln == n && !memcmp(L, b, n); if (!ok) on_line(f); Ln = 0; return ok; }
+/* An RTU client's frame, and what it got, with their CRCs worked out. */
+static bool askc(int c, const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); return modbus_from_client(&M, c, b, n, now); }
+static bool toc(int c, const char *f) { uint8_t b[600]; size_t n = crc_on(f, b); bool ok = An[c] == n && !memcmp(A[c], b, n); if (!ok) to(c, f); An[c] = 0; return ok; }
 
 int main(void)
 {
@@ -367,6 +370,42 @@ int main(void)
     poll(GAP); assert(on_line("00 03 00 00 00 01 85 db"));
     poll(GAP); now += 30; hear("00 03 02 00 2a 04 5b");
     assert(to(0, "00 03 02 00 2a 04 5b") && M.s.broadcasts == 0);
+    /* An RTU master has one request outstanding, and an RTU reply has no transaction ID: a new
+     * frame from a client replaces what it has waiting. A goes on the line; B comes before
+     * A's reply (the client gave up on A); A's reply is heard and not passed on, as it would
+     * be taken for B's (the same function and size); B goes next and its reply is passed on. */
+    assert(askc(0, "01 03 00 00 00 01"));                       /* A */
+    poll(GAP); assert(on_linec("01 03 00 00 00 01")); poll(GAP);
+    assert(askc(0, "01 03 00 01 00 01"));                       /* B */
+    assert(M.qn == 2 && M.q[0].client == -1 && M.q[1].client == 0);
+    hearc("01 03 02 00 2a");                                    /* A's, late */
+    assert(An[0] == 0 && M.qn == 1);
+    poll(GAP); assert(on_linec("01 03 00 01 00 01"));
+    poll(GAP); hearc("01 03 02 00 07");
+    assert(toc(0, "01 03 02 00 07"));
+    /* Two frames in one piece: only the second is kept, by the same rule; another client's
+     * request is not touched. */
+    {
+        uint8_t b[16];
+        size_t n = crc_on("01 03 00 02 00 01", b);
+        n += crc_on("01 03 00 03 00 01", b + n);
+        assert(askc(1, "01 03 00 04 00 01"));
+        assert(modbus_from_client(&M, 0, b, n, now) && M.qn == 2);
+        poll(GAP); assert(on_linec("01 03 00 04 00 01"));
+        poll(GAP); hearc("01 03 02 00 04");
+        assert(toc(1, "01 03 02 00 04") && An[0] == 0);
+        poll(GAP); assert(on_linec("01 03 00 03 00 01"));
+        poll(GAP); hearc("01 03 02 00 03");
+        assert(toc(0, "01 03 02 00 03") && M.qn == 0);
+    }
+    /* A frame that will not do is new from that client too: what it had waiting goes. */
+    assert(askc(0, "01 03 00 05 00 01"));
+    poll(GAP); assert(on_linec("01 03 00 05 00 01")); poll(GAP);
+    ref = M.s.refused;
+    assert(ask(0, "01 03 00 06 00 01 00 00"));                  /* a bad CRC */
+    assert(M.s.refused == ref + 1 && M.q[0].client == -1);
+    hearc("01 03 02 00 05");
+    assert(An[0] == 0 && M.qn == 0);
     assert(ask(0, "01 03 00"));                                 /* back to Modbus TCP: the piece is forgotten */
     modbus_set_rtu(&M, false);
     assert(ask(0, "00 60 00 00 00 06 01 03 00 00 00 01"));
