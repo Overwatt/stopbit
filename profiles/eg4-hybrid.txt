@@ -79,6 +79,10 @@ calc grid_power               "Grid power"                sub grid_import_power 
 calc pv_energy_today          "PV energy today"           sum pv_energy_today_1..3 kWh dc=energy sc=total_increasing prec=1
 calc pv_energy                "PV energy"                 sum pv_energy_1..3 kWh dc=energy sc=total_increasing prec=1
 
+# Register 120's AC charge type (bits 1-3) and discharge control (bits 4-5) are shown as their
+# raw numbers and not written: EG4's 18kPV document and the EG4 app name them differently, and
+# on the FlexBOSS they are not confirmed. Register 103 is the document's feed-in limit
+# (MaxBackFlow); another source calls it an output power cap, so it is hidden until confirmed.
 # Settings: written from Home Assistant when the device has controls=1. Read every two
 # minutes, and again at once after a write. A write that would change nothing is not made. Left out:
 # register 11 (restore defaults, clear records, reboot), grid protection (25-63), the clock,
@@ -90,7 +94,7 @@ number ac_charge_soc_limit     "AC charge SOC limit"        set40  67  u16 min 0
 number ac_charge_start_soc     "AC charge start SOC"        set160 160 u16 min 0 max 90 %
 number ac_charge_stop_soc      "AC charge stop SOC"         set160 161 u16 min 0 max 100 %
 number ac_charge_current       "AC charge current"          set160 168 u16 min 0 max 250 A dc=current
-select ac_charge_by            "AC charge by"               set120 120 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC
+text   ac_charge_by            "AC charge by (raw)"         set120 120 enum mask=0x000E 0="0" 2="1" 4="2" 6="3" 8="4" 10="5" 12="6" 14="7" diag
 time   ac_charge_start_1       "AC charge 1 start"          set40  68
 time   ac_charge_end_1         "AC charge 1 end"            set40  69
 time   ac_charge_start_2       "AC charge 2 start"          set40  70
@@ -117,10 +121,10 @@ time   forced_discharge_start_3 "Forced discharge 3 start"  set80  88
 time   forced_discharge_end_3  "Forced discharge 3 end"     set80  89
 number charge_current          "Charge current limit"       set80  101 u16 min 0 max 250 A dc=current
 number discharge_current       "Discharge current limit"    set80  102 u16 min 0 max 250 A dc=current
-number export_limit            "Export limit"               set80  103 u16 min 0 max 100 %
+number export_limit            "Export limit"               set80  103 u16 min 0 max 100 % hidden
 number discharge_cutoff_soc    "On-grid cut-off SOC"        set80  105 u16 min 10 max 90 %
 number off_grid_cutoff_soc     "Off-grid cut-off SOC"       set120 125 u16 min 0 max 90 %
-select discharge_control       "Discharge control"          set120 120 mask=0x0030 0=Voltage 16=SOC 32=Both
+text   discharge_control       "Discharge control (raw)"    set120 120 enum mask=0x0030 0="0" 16="1" 32="2" 48="3" diag
 switch export                  "Export to grid"             ident  21  bit 15
 switch off_grid_output         "Off-grid output"            ident  21  bit 0 hidden
 switch power                   "Power (off: standby)"       ident  21  bit 9 hidden

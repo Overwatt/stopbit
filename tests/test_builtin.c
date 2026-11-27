@@ -188,7 +188,8 @@ int main(void)
     assert(near(V("forced_discharge_rate"), 12) && near(V("forced_discharge_soc"), 20));
     assert(near(V("charge_current"), 250) && near(V("discharge_current"), 250) && near(V("export_limit"), 100));
     assert(near(V("discharge_cutoff_soc"), 10) && near(V("off_grid_cutoff_soc"), 0) && near(V("ac_charge_start_soc"), 20));
-    assert(!strcmp(text("ac_charge_by"), "Voltage") && !strcmp(text("discharge_control"), "Voltage") && !strcmp(text("output_priority"), "Battery first"));
+    assert(!strcmp(text("ac_charge_by"), "2") && !strcmp(text("discharge_control"), "0") && !strcmp(text("output_priority"), "Battery first"));   /* register 120: raw, read only */
+    assert(!pf_control(&P.field[F("ac_charge_by")]) && !pf_control(&P.field[F("discharge_control")]) && (P.field[F("export_limit")].flags & PFF_HIDDEN));
     assert(V("ac_charge") == 0 && V("charge_first") == 0 && V("forced_discharge") == 0 && V("export") == 1 && V("off_grid_output") == 1 && V("power") == 1);
     assert((P.field[F("power")].flags & PFF_HIDDEN) && (P.field[F("off_grid_output")].flags & PFF_HIDDEN) && !(P.field[F("export")].flags & PFF_HIDDEN));
     assert(!strcmp(pf_str(&P, P.field[F("power")].name), "Power (off: standby)"));   /* what off does, where HA shows it */
@@ -199,9 +200,7 @@ int main(void)
     assert(pf_command(&P, F("ac_charge"), "ON", &w, why, sizeof why) && w.addr == 21 && pf_merge(&w, have, out) && out[0] == 0xF3D5);
     assert(pf_command(&P, F("ac_charge_rate"), "8.5", &w, why, sizeof why) && w.addr == 66 && w.value[0] == 85);
     assert(!pf_command(&P, F("ac_charge_rate"), "26", &w, why, sizeof why));
-    assert(pf_command(&P, F("ac_charge_by"), "SOC", &w, why, sizeof why) && w.addr == 120 && w.mask[0] == 0x000E && w.value[0] == 6);
-    uint16_t hv[2] = { 0x0004, 0 };
-    assert(pf_merge(&w, hv, out) && out[0] == 0x0006);
+    assert(!pf_command(&P, F("ac_charge_by"), "2", &w, why, sizeof why) && !strcmp(why, "not a control"));
     assert(pf_command(&P, F("ac_charge_start_1"), "07:30", &w, why, sizeof why) && w.addr == 68 && w.value[0] == 0x1E07);
     puts("builtin: ok");
     return 0;
