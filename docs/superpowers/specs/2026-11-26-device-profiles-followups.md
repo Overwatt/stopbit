@@ -57,7 +57,7 @@ first group is to settle before or during phase 2.
 
 ## Code and tests
 
-- DTCM: 9 static `cfg_t` copies of 2976 B each; about 26 KB is left.
+- DTCM: 4 static `cfg_t` copies of 2976 B each (9 until 2026-11-27); about 45 KB is left.
 - `t[512]` and `v[520]` add about 1 KB to the main-loop stack and could be static.
 - A device-only change logs no settings event.
 - `fuzz/modbus.c` never calls `modbus_local`.

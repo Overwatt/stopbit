@@ -57,6 +57,8 @@ The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no pa
 temperature is the processor's own sensor, so it reads above room temperature. `loop` is the
 main loop's longest pause, recently (10 to 20 s) and since the start: which step of the pass
 took longest and how much of that was AES-GCM, and which API reply took longest to make.
+`avg_us` is what a pass took on average over the last 10 s. `mem` lists each memory's use;
+ITCM holds the web server's buffers, so that AXI SRAM beyond the program is all TLS heap.
 `aes` says whether the crypto engine encrypts TLS records ([HTTPS.md](HTTPS.md)).
 
 ## Updating from the web page
@@ -154,8 +156,11 @@ connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below)
 | modbus_broadcast | Modbus gateway: 1 lets unit 0 reach every device; 0 (the default) refuses it |
 | modbus_tcp | Modbus gateway: 1 (the default) listens on the local port for Modbus TCP clients; 0 opens no listener, and only the port's [devices](#devices) use the line |
 
-A slow serial line pushes back on TCP senders. A network client that stops reading
-loses packets (counted as "not delivered") without affecting the others. Bytes on their
+A slow serial line pushes back on TCP senders. Each packet heard goes to every client as a
+TCP segment of its own, at once. A client with 16 of them unacknowledged is behind: later
+packets are merged into one segment that goes when it catches up, up to 8.7 KB waiting.
+Beyond that it loses packets, counted as "not delivered" for the port and against that
+client (`peer_lost` in `/api/state`, beside `peers`), without affecting the others. Bytes on their
 way to a line wait in one of 6 buffers of 5.7 KB, shared by all ports, held only until
 the line has taken them; readers and listen-only ports need none. If all 6 are in use,
 another sender's data is offered again every quarter of a second until one is free:
