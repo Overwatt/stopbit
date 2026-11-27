@@ -54,6 +54,8 @@ uint16_t cfg_quiet_min(const cfg_t *c, int i) { return QUIET_MIN[c->quiet >> (4 
 
 unsigned cfg_modbus_timeout(const cfg_t *c, int i) { return c->more.modbus_timeout[i] ? c->more.modbus_timeout[i] : MB_TIMEOUT_MS; }
 bool cfg_modbus_tcp(const cfg_t *c, int i) { return !(c->more.modbus_no_tcp >> i & 1); }
+const char *cfg_modbus_unit0(const cfg_t *c, int i) { return c->more.modbus_answer >> i & 1 ? "answer" : c->more.modbus_broadcast >> i & 1 ? "1" : "0"; }
+bool cfg_modbus_rtu(const cfg_t *c, int i) { return c->more.modbus_rtu >> i & 1; }
 
 void cfg_defaults(cfg_t *c)
 {
@@ -219,9 +221,16 @@ static bool apply(cfg_t *c, const char *k, const char *v)
         uint32_t min;
         if (!strcmp(k + 6, "access")) return acl_parse(&c->access[k[4] - '1'], v);
         if (!strcmp(k + 6, "modbus_broadcast")) {
-            if (strcmp(v, "0") && strcmp(v, "1")) return false;
+            if (strcmp(v, "0") && strcmp(v, "1") && strcmp(v, "answer")) return false;
             uint8_t bit = (uint8_t)(1u << (k[4] - '1'));
             c->more.modbus_broadcast = (uint8_t)(*v == '1' ? c->more.modbus_broadcast | bit : c->more.modbus_broadcast & ~bit);
+            c->more.modbus_answer = (uint8_t)(*v == 'a' ? c->more.modbus_answer | bit : c->more.modbus_answer & ~bit);
+            return true;
+        }
+        if (!strcmp(k + 6, "modbus_framing")) {
+            if (strcmp(v, "tcp") && strcmp(v, "rtu")) return false;
+            uint8_t bit = (uint8_t)(1u << (k[4] - '1'));
+            c->more.modbus_rtu = (uint8_t)(*v == 'r' ? c->more.modbus_rtu | bit : c->more.modbus_rtu & ~bit);
             return true;
         }
         if (!strcmp(k + 6, "modbus_tcp")) {                  /* stored inverted: blank = listen */
@@ -486,8 +495,8 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
         n += w - 1;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":%s,\"modbus_tcp\":%s}", cfg_quiet_min(c, i), t,
-            cfg_modbus_timeout(c, i), c->more.modbus_broadcast >> i & 1 ? "true" : "false", cfg_modbus_tcp(c, i) ? "true" : "false");
+        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":\"%s\",\"modbus_framing\":\"%s\",\"modbus_tcp\":%s}", cfg_quiet_min(c, i), t,
+            cfg_modbus_timeout(c, i), cfg_modbus_unit0(c, i), cfg_modbus_rtu(c, i) ? "rtu" : "tcp", cfg_modbus_tcp(c, i) ? "true" : "false");
     }
     ADD("]}\n");
     return n;
@@ -531,8 +540,8 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         n += w;
         char t[ACL_TEXT];
         acl_text(&c->access[i], t);
-        ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%u\n%s.modbus_tcp=%u\n", pre, cfg_quiet_min(c, i), pre, t,
-            pre, cfg_modbus_timeout(c, i), pre, (unsigned)(c->more.modbus_broadcast >> i & 1), pre, (unsigned)cfg_modbus_tcp(c, i));
+        ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%s\n%s.modbus_framing=%s\n%s.modbus_tcp=%u\n", pre, cfg_quiet_min(c, i), pre, t,
+            pre, cfg_modbus_timeout(c, i), pre, cfg_modbus_unit0(c, i), pre, cfg_modbus_rtu(c, i) ? "rtu" : "tcp", pre, (unsigned)cfg_modbus_tcp(c, i));
     }
     return n;
 }

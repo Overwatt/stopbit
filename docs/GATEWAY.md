@@ -156,7 +156,8 @@ connections), a TCP client that reconnects, UDP, or a Modbus TCP gateway (below)
 | access | who may use the network side, up to 8: `10.0.0.5 read, 10.0.0.0/24 write`. Empty: anyone |
 | listen_only | never transmits: the transmitter is off and the direction pin stays low; data from the network is discarded, `send` and `wiretest` are refused. Not settable over MQTT |
 | modbus_timeout | Modbus gateway: ms to wait for a device's reply, 50 to 10000 (1000) |
-| modbus_broadcast | Modbus gateway: 1 lets unit 0 reach every device; 0 (the default) refuses it |
+| modbus_broadcast | Modbus gateway: what unit 0 is. 0 (the default) refuses it; 1 sends it to every device, and none replies; `answer` passes it on and waits for the reply, as EG4 inverters answer unit 0 |
+| modbus_framing | Modbus gateway: what clients send. `tcp` (the default): Modbus TCP; `rtu`: RTU frames over TCP, answered in RTU frames, as a program on a serial device sends them through [proxy/](../proxy/README.md). Firmware older than this reads such a port as Modbus TCP, and drops those clients |
 | modbus_tcp | Modbus gateway: 1 (the default) listens on the local port for Modbus TCP clients; 0 opens no listener, and only the port's [devices](#devices) use the line |
 
 A slow serial line pushes back on TCP senders. Each packet heard goes to every client as a

@@ -54,8 +54,12 @@ typedef struct {
     uint16_t modbus_timeout[PORTS]; /* ms a Modbus gateway waits for a reply; 0 = MB_TIMEOUT_MS */
     uint8_t modbus_broadcast;      /* bit per port: unit 0 goes to every device. Else refused */
     uint8_t modbus_no_tcp;         /* bit per port: a Modbus port opens no listener; only its devices use the line */
-    uint8_t spare[148];            /* for later settings */
+    uint8_t modbus_rtu;            /* bit per port: TCP clients send RTU frames (modbus_framing=rtu) */
+    uint8_t modbus_answer;         /* bit per port: unit 0 is a device that answers (modbus_broadcast=answer);
+                                      modbus_broadcast's bit is then clear */
+    uint8_t spare[146];            /* for later settings */
 } more_cfg_t;
+_Static_assert(sizeof(more_cfg_t) == 256, "more_cfg_t is stored: keep its size");
 
 /* A device polled on a port, by a profile (device.c). Kept in a record of its own
  * (cfg_store.c), so older firmware never reads it. */
@@ -89,6 +93,14 @@ uint16_t cfg_quiet_min(const cfg_t *c, int port);
 unsigned cfg_modbus_timeout(const cfg_t *c, int port);
 /* Whether a Modbus gateway on this port listens for Modbus TCP clients (the default). */
 bool cfg_modbus_tcp(const cfg_t *c, int port);
+/* What unit 0 is on this port's Modbus gateway: "0" refused, "1" every device, "answer" a device that answers. */
+const char *cfg_modbus_unit0(const cfg_t *c, int port);
+/* Whether this port's TCP clients send RTU frames rather than Modbus TCP. */
+bool cfg_modbus_rtu(const cfg_t *c, int port);
+/* What unit 0 is on this port's Modbus gateway: "0" refused, "1" every device, "answer" a device that answers. */
+const char *cfg_modbus_unit0(const cfg_t *c, int port);
+/* Whether this port's TCP clients send RTU frames rather than Modbus TCP. */
+bool cfg_modbus_rtu(const cfg_t *c, int port);
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);

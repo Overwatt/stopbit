@@ -528,7 +528,7 @@ static size_t escaped(const char *s, char *out, size_t max)
 
 int api_settings(uint32_t part, char *out, size_t max)
 {
-    static char text[3200];
+    static char text[3456];
     static cfg_t c;                                     /* as it was at part 0 */
     size_t w;
     if (part == 0) {

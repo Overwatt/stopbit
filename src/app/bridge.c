@@ -91,6 +91,7 @@ static bool s_dirty;
 static D2 modbus_t s_mb[PORTS];
 static uint16_t s_mb_timeout[PORTS];
 static uint8_t s_mb_broadcast;              /* bit per port */
+static uint8_t s_mb_answer, s_mb_rtu;       /* bit per port: unit 0 answers; clients send RTU frames */
 static uint8_t s_mb_no_tcp;                 /* bit per port: no listener, the devices only */
 _Static_assert(MAX_CLIENTS == MB_CLIENTS, "a Modbus client per connection");
 static bool is_mb(int i);
@@ -404,6 +405,7 @@ static void start_udp(port_t *p)
 
 /* ---- Modbus --------------------------------------------------------------- */
 static bool is_mb(int i) { return s_p[i].cfg.mode == MODE_MODBUS; }
+static uint8_t unit0(int i) { return s_mb_answer >> i & 1 ? MB_BC_ANSWER : s_mb_broadcast >> i & 1 ? MB_BC_ALL : MB_BC_OFF; }
 static bool mb_no_tcp(int i) { return is_mb(i) && (s_mb_no_tcp >> i & 1); }
 
 static void mb_local(void *ctx, uint32_t tag, int st, const uint8_t *pdu, size_t n)
@@ -446,7 +448,7 @@ static void mb_start(int i)
 {
     const mb_io_t io = { mb_line, mb_reply, mb_local, &s_p[i] };
     modbus_init(&s_mb[i], &io, s_mb_timeout[i], gap_us(&s_p[i].cfg));
-    s_mb[i].broadcast = s_mb_broadcast >> i & 1;
+    s_mb[i].broadcast = unit0(i); modbus_set_rtu(&s_mb[i], s_mb_rtu >> i & 1);
 }
 
 /* Requests out, replies in. The line is read only once the request has gone out, so
@@ -522,6 +524,7 @@ void bridge_configure(const cfg_t *c)
     for (int i = 0; i < PORTS; i++) s_quiet[i] = cfg_quiet_min(c, i);
     for (int i = 0; i < PORTS; i++) s_mb_timeout[i] = (uint16_t)cfg_modbus_timeout(c, i);
     s_mb_broadcast = c->more.modbus_broadcast;
+    s_mb_answer = c->more.modbus_answer; s_mb_rtu = c->more.modbus_rtu;
     s_mb_no_tcp = c->more.modbus_no_tcp;
     memcpy(s_acl, c->access, sizeof s_acl);     /* for new arrivals at once, the rest in bridge_poll */
     memcpy(s_want, c->port, sizeof s_want);
@@ -712,7 +715,7 @@ void bridge_poll(void)
             if (same_wiring(&s_p[i].cfg, &s_want[i])) {
                 s_p[i].cfg = s_want[i];
                 s_mb[i].timeout_ms = s_mb_timeout[i];
-                s_mb[i].broadcast = s_mb_broadcast >> i & 1;
+                s_mb[i].broadcast = unit0(i); modbus_set_rtu(&s_mb[i], s_mb_rtu >> i & 1);
                 apply_tcp(i);
                 apply_access(&s_p[i]);
                 continue;

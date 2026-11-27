@@ -430,6 +430,22 @@ int main(void)
     bridge_poll();
     assert(mr->closed);
     set("port2.listen_only=0\nport2.enabled=0\nport2.access=");
+    /* RTU frames over TCP with unit 0 answered: SolarAssistant through socat, to EG4 inverters.
+     * Back to Modbus TCP without reopening the line or closing the client. */
+    set("port2.enabled=1\nport2.mode=modbus\nport2.local_port=4002\nport2.modbus_framing=rtu\nport2.modbus_broadcast=answer");
+    struct tcp_pcb *sa = from(4002, "10.0.0.7");
+    assert(!sa->aborted);
+    sayb(sa, "00 04 00 00 00 01 30 1b");
+    assert(lineb(1, "00 04 00 00 00 01 30 1b"));
+    heardb(1, "00 04 02 00 0c 84 f5");
+    assert(outb(sa, "00 04 02 00 0c 84 f5"));
+    set("port2.modbus_framing=tcp\nport2.modbus_broadcast=0");
+    assert(!sa->closed);
+    sayb(sa, "00 01 00 00 00 06 01 03 00 00 00 01");
+    assert(lineb(1, "01 03 00 00 00 01 84 0a"));
+    heardb(1, "01 03 02 00 2a 39 9b");
+    assert(outb(sa, "00 01 00 00 00 05 01 03 02 00 2a"));
+    set("port2.enabled=0\nport2.mode=server");
 
     /* A Modbus port that devices poll listens as usual: the engine's requests and its TCP
      * clients' share the queue, in turn; the engine's replies reach device_reply(). */
