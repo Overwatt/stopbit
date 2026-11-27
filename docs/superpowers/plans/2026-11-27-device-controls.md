@@ -445,7 +445,16 @@ bool cfg_modbus_rtu(const cfg_t *c, int i) { return c->more.modbus_rtu >> i & 1;
      (local ports stay 4002/4003). SolarAssistant reconnects within seconds; over two minutes
      each port's `modbus.requests` and `replies` rise together in `/api/state`, `timeouts` stays
      near 0, and SolarAssistant still shows live values.
-  5. If anything is wrong: `set port2.mode=server port3.mode=server` restores the old path.
+  5. Unit 0: confirm the inverters reply to unit 0 with unit 0 in the reply. The gateway passes
+     on only a reply whose unit is the request's, so otherwise SolarAssistant gets exception
+     0x0B for every request (`timeouts` rises with `requests`, `replies` does not).
+  6. Record each inverter's reply time (`/api/state` port `modbus.last_ms` and `avg_ms`, while
+     only SolarAssistant uses the port) and SolarAssistant's spacing between requests
+     (`modbus.requests` over a timed minute). Choose the profile's `turnaround` from them (at
+     least what the inverter needs; SolarAssistant's ~40 a minute and the profile's ~9.5 must
+     both fit the line) and set it in `profiles/eg4-hybrid.txt`, built and installed, before
+     Task 8 Step 4.
+  7. If anything is wrong: `set port2.mode=server port3.mode=server` restores the old path.
 
 ---
 
@@ -2045,8 +2054,15 @@ No code. Stop and ask before each numbered step that touches the gateway, the Pi
   dev1.name=flexboss_a dev1.label="FlexBOSS A" dev1.port=2 dev1.address=1` and the same for
   port 3 as `flexboss_b`. Over five minutes both are online, SolarAssistant still reads, and
   `/api/devices` values agree with SolarAssistant's. Compare the settings with the EG4 app,
-  the three powers in kW among them; if one disagrees, stop and fix the profile first.
-- [ ] **Step 5: One write.** With the user's go: `dev1.controls=1`; in Home Assistant set
+  the three powers in kW among them; if one disagrees, stop and fix the profile first. On
+  both inverters, check every control's value is within its range and every select's value
+  is one of its choices (`/api/devices` against `profiles/eg4-hybrid.txt`; a select outside
+  its choices reads "Unknown (N)"), else HA logs every state message as invalid.
+- [ ] **Step 5: One write.** With the user's go: `dev1.controls=1`. First, with no risk, send
+  masked controls their current values: `export` ON while it reads on, and `ac_charge_by` at
+  its current choice (`mosquitto_pub` to `<base>/dev/flexboss_a/set/<control>`). Expect
+  "already so" in the event log for each: this proves the block read on registers 21 and 120
+  (blocks `ident` and `set120`) without writing. Then in Home Assistant set
   FlexBOSS A's "AC charge SOC limit" up by 1. The event log says it was written, the entity
   shows the new value within a few seconds, and the EG4 app agrees. Set it back the same way.
 - [ ] **Step 6: Record.** Update `docs/GATEWAY.md` Tests and `profiles/README.md` with what was
