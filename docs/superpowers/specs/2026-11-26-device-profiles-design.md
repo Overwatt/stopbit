@@ -211,5 +211,5 @@ As the gateway's own: `HOST` is the base topic, `HOST/status` the gateway's avai
 ## Phases
 
 1. Parser, engine, MQTT and HA, Devices page, EG4 profile: reading only.
-2. Controls; SRNE and SmartGen profiles.
+2. Controls ([design](2026-11-27-device-controls-design.md)); SRNE and SmartGen profiles.
 3. JBD driver; Ecoworthy profile.
