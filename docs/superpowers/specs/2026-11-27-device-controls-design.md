@@ -20,8 +20,11 @@ while SolarAssistant read them through server-mode ports; the gateway sent nothi
   the item the document lists first is the low byte: the clock at 12-14, and a time window
   at 77 that reads 0x3B17, 23:59.
 - Some settings differ from the 18kPV document. The charge and discharge current limits
-  (101, 102) read 250 A, where it gives 0-140. AC charge, charge-first and forced-discharge
-  power (66, 74, 82) read 120, where it gives 0-100 %; perhaps tenths of a kW.
+  (101, 102) read 250 A, where it gives 0-140: the FlexBOSS's limit, in amps. AC charge,
+  charge-first and forced-discharge power (66, 74, 82) read 120, where it gives 0-100 %:
+  tenths of a kW, 12.0 kW. That is from the Monitor-My-Solar dongle's register schema (66
+  and 82 in kW, 0-25, step 0.1) and its vendor's Home Assistant integration (all three
+  scaled by 10); no write has confirmed it yet.
 
 ## Profile format
 
@@ -101,20 +104,20 @@ gateway port drops it, and a polled port must be one; so that both can use the i
 - Settings are read from holding 40-79, 80-119, 120-159 and 160-199 every minute, `info`;
   `ident` (0-39, which holds register 21) goes from every 15 minutes to every minute. With
   SolarAssistant's reads, the line is about 45% in use.
-- 38 controls, which take the profile to 92 values:
+- 41 controls, which take the profile to 95 values:
 
 | Group | Controls |
 |---|---|
-| AC charging | `ac_charge` switch (21 bit 7); SOC limit (67, 0-100 %); start SOC (160, 0-90 %) and stop SOC (161, 20-100 %); current (168, 0-250 A); `ac_charge_by` select (120, mask 0x000E: 0 Off, 2 Time, 4 Voltage, 6 SOC); three windows, each a start and an end (68-73) |
-| Charge first | `charge_first` switch (21 bit 11); SOC limit (75, 0-100 %); three windows (76-81) |
-| Forced discharge | `forced_discharge` switch (21 bit 10); SOC limit (83, 0-100 %); three windows (84-89) |
+| AC charging | `ac_charge` switch (21 bit 7); power (66, 0-25 kW); SOC limit (67, 0-100 %); start SOC (160, 0-90 %) and stop SOC (161, 20-100 %); current (168, 0-250 A); `ac_charge_by` select (120, mask 0x000E: 0 Off, 2 Time, 4 Voltage, 6 SOC); three windows, each a start and an end (68-73) |
+| Charge first | `charge_first` switch (21 bit 11); power (74, 0-25 kW); SOC limit (75, 0-100 %); three windows (76-81) |
+| Forced discharge | `forced_discharge` switch (21 bit 10); power (82, 0-25 kW); SOC limit (83, 0-100 %); three windows (84-89) |
 | Battery | charge and discharge current limits (101, 102, 0-250 A); on-grid cut-off SOC (105, 10-90 %); off-grid cut-off SOC (125, 0-90 %); `discharge_control` select (120, mask 0x0030: 0 Voltage, 16 SOC, 32 Both) |
 | Grid and mode | `export` switch (21 bit 15); export limit (103, 0-100 %); `off_grid_output` switch (21 bit 0, hidden); `power` switch (21 bit 9: off is standby; hidden); `output_priority` select (145: 0 Battery first, 1 PV first, 2 AC first) |
 
-- Kept out until their unit is confirmed against the EG4 app: AC charge power (66),
-  charge-first power (74) and forced-discharge power (82).
+- The three powers (66, 74, 82) are `u16 *0.1 kW`, step 0.1. The 18kPV document has them in
+  percent; that the 18kPV reads them as the FlexBOSS does is not known.
 - Left out: register 11 (restore defaults, clear records, reboot), grid protection (25-63),
-  the clock, PV input mode, parallel and lead-acid settings, the 0.1 % duplicates (138-143),
+  the clock, PV input mode, parallel and lead-acid settings, the 0.1 % settings (138-143),
   AC-first windows (152-157) and generator charging (194-198).
 - In a parallel pair a setting that must match is written to each inverter; the gateway
   does not copy one to the other.
@@ -142,8 +145,8 @@ gateway port drops it, and a polled port must be one; so that both can use the i
 - **Gateway:** an install (the loader byte-identical, port 1 untouched); port 4 in loopback
   with MQTT parked, where a command sends a write and logs a timeout. Then, with the user,
   ports 2 and 3 switched: SolarAssistant still reads, the engine reads both inverters, their
-  settings agree with the EG4 app, and one write is made with the user watching (AC charge
-  SOC limit up 1, then back).
+  settings agree with the EG4 app (the three powers in kW among them), and one write is made
+  with the user watching (AC charge SOC limit up 1, then back).
 
 ## Order
 
