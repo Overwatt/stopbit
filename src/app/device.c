@@ -318,11 +318,11 @@ size_t device_value(const device_t *d, int f, char *out, size_t max)
     bool ok = pf_ok(&d->st, f);
     int w;
     if (!ok) w = snprintf(out, max, "null");
-    else if (x->kind == PF_ENUM || x->kind == PF_BITS || x->kind == PF_ASCII) {
+    else if (x->kind == PF_ENUM || x->kind == PF_BITS || x->kind == PF_ASCII || x->kind == PF_SELECT || x->kind == PF_TIME) {
         char t[512];
         pf_text(d->p, f, &d->st, t, sizeof t);
         return json_str(t, out, max);
-    } else if (x->kind == PF_BINARY || x->kind == PF_CALCBIN) w = snprintf(out, max, "%s", d->st.val[f].v != 0 ? "true" : "false");
+    } else if (x->kind == PF_BINARY || x->kind == PF_CALCBIN || x->kind == PF_SWITCH) w = snprintf(out, max, "%s", d->st.val[f].v != 0 ? "true" : "false");
     else return max > 1 ? pf_num(out, max, d->st.val[f].v, pf_prec(x)) : 0;
     return w < 0 || (size_t)w >= max ? 0 : (size_t)w;
 }

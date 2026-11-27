@@ -23,7 +23,7 @@ void   pf_state_init(pf_state_t *s);       /* nothing known */
 bool   pf_decode(const profile_t *p, int block, const uint8_t *d, size_t n, pf_state_t *s);
 /* A block gone stale: its fields unknown, and the calcs again. */
 void   pf_drop(const profile_t *p, int block, pf_state_t *s);
-/* A text field: an enum's name ("Unknown (5)" if none), the set bits' names joined by
+/* A text field, a select or a time: an enum's or select's choice, a time's HH:MM; an enum's name ("Unknown (5)" if none), the set bits' names joined by
  * "; " ("None" if none), or the ascii. "" if not known. */
 size_t pf_text(const profile_t *p, int i, const pf_state_t *s, char *out, size_t max);
 int    pf_prec(const pf_field_t *f);       /* decimals to show */

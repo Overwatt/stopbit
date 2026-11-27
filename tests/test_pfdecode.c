@@ -124,6 +124,31 @@ int main(void)
     assert(!strcmp(num(NAN, 2), "null") && !strcmp(num(1e30f, 0), "null") && !strcmp(num(-25, 1), "-25.0"));
     assert(pf_prec(&P.field[F("v")]) == 2 && pf_prec(&P.field[F("big")]) == 0 && pf_prec(&P.field[F("off")]) == 1);
     assert(pf_prec(&P.field[F("cell1")]) == 3 && pf_prec(&P.field[F("p")]) == 3 && pf_prec(&P.field[F("ccnt")]) == 0);
+    /* Controls: read as the rest. A switch that reads neither on nor off is unknown, and so is
+     * a time that is not one. */
+    static const char *C =
+        "profile c 1\n"
+        "block s hold 60 6 1m\n"
+        "number lim \"Limit\" s 60 u16 *0.1 min 0 max 25 kW\n"
+        "select by \"By\" s 61 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC\n"
+        "switch ac \"AC\" s 62 bit 7\n"
+        "switch run \"Run\" s 63 on 1 off 0\n"
+        "time t1 \"Start\" s 64\n"
+        "time t2 \"End\" s 65\n";
+    char e2[96], tx[16];
+    assert(profile_parse(&B, C, strlen(C), e2, sizeof e2));
+    profile_view(&B, &P);
+    pf_state_init(&S);
+    uint8_t r[12] = { 0, 120, 0xF3, 0x55, 0xF3, 0x55, 0, 5, 0x3B, 0x17, 0x00, 0x18 };
+    assert(pf_decode(&P, 0, r, 12, &S));
+    assert(fabsf(S.val[F("lim")].v - 12.0f) < 1e-4f && pf_ok(&S, F("lim")) && pf_prec(&P.field[F("lim")]) == 1);
+    assert(pf_text(&P, F("by"), &S, tx, sizeof tx) && !strcmp(tx, "Voltage") && S.val[F("by")].raw == 4);
+    assert(pf_ok(&S, F("ac")) && S.val[F("ac")].v == 0 && S.val[F("ac")].raw == 0);
+    assert(!pf_ok(&S, F("run")));
+    assert(pf_text(&P, F("t1"), &S, tx, sizeof tx) == 5 && !strcmp(tx, "23:59"));
+    assert(!pf_ok(&S, F("t2")) && pf_text(&P, F("t2"), &S, tx, sizeof tx) == 0);
+    r[5] = 0xD5;                                                /* 0xF3D5: bit 7 set */
+    assert(pf_decode(&P, 0, r, 12, &S) && S.val[F("ac")].v == 1 && S.val[F("ac")].raw == 0x80);
     puts("pfdecode: ok");
     return 0;
 }

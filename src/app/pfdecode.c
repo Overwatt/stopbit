@@ -145,9 +145,12 @@ bool pf_decode(const profile_t *p, int bi, const uint8_t *d, size_t n, pf_state_
         uint32_t raw = raw_of(b, f, d);
         bool ok = true;
         for (int k = 0; k < f->nnodata; k++) ok = ok && raw != f->nodata[k];
-        if (f->kind == PF_ENUM) raw &= f->mask;
+        if (f->kind == PF_ENUM || f->kind == PF_SELECT || f->kind == PF_SWITCH) raw &= f->mask;
+        if (f->kind == PF_SWITCH) ok = ok && ((float)raw == f->k || (float)raw == f->lo);
+        if (f->kind == PF_TIME) ok = ok && (raw & 0xFFu) < 24 && raw >> 8 < 60;
         s->val[i].raw = raw;
-        if (f->kind == PF_SENSOR) s->val[i].v = value_of(f, raw);
+        if (f->kind == PF_SENSOR || f->kind == PF_NUMBER) s->val[i].v = value_of(f, raw);
+        else if (f->kind == PF_SWITCH) s->val[i].v = (float)raw == f->k;
         else if (f->kind == PF_BINARY && f->type != T_BIT && f->type != T_COIL) s->val[i].v = cmp(f->op, value_of(f, raw), f->k);
         else s->val[i].v = (float)raw;
         set_ok(s, i, ok);
@@ -171,18 +174,19 @@ size_t pf_text(const profile_t *p, int i, const pf_state_t *s, char *out, size_t
     out[0] = 0;
     if (!pf_ok(s, i)) return 0;
     if (f->kind == PF_ASCII) w = snprintf(out, max, "%s", s->str[f->str]);
+    else if (f->kind == PF_TIME) w = snprintf(out, max, "%02u:%02u", (unsigned)(s->val[i].raw & 0xFFu), (unsigned)(s->val[i].raw >> 8));
     else {
         uint32_t raw = s->val[i].raw;
         for (int k = 0; k < f->nvname; k++) {
             const pf_vname_t *v = &p->vname[f->vname + k];
-            if (f->kind == PF_ENUM ? v->value != raw : !(raw >> v->value & 1u)) continue;
+            if ((f->kind == PF_ENUM || f->kind == PF_SELECT) ? v->value != raw : !(raw >> v->value & 1u)) continue;
             w = snprintf(out + n, max - n, "%s%s", n ? "; " : "", pf_str(p, v->name));
             if (w < 0 || (size_t)w >= max - n) break;
             n += (size_t)w;
-            if (f->kind == PF_ENUM) break;
+            if (f->kind == PF_ENUM || f->kind == PF_SELECT) break;
         }
         if (n) return n;
-        w = f->kind == PF_ENUM ? snprintf(out, max, "Unknown (%lu)", (unsigned long)raw) : snprintf(out, max, "None");
+        w = (f->kind == PF_ENUM || f->kind == PF_SELECT) ? snprintf(out, max, "Unknown (%lu)", (unsigned long)raw) : snprintf(out, max, "None");
     }
     return w < 0 ? 0 : (size_t)w < max ? (size_t)w : max - 1;
 }
@@ -191,7 +195,7 @@ int pf_prec(const pf_field_t *f)
 {
     if (f->prec >= 0) return f->prec;
     if (f->kind == PF_CALC) return f->fn == F_COUNT || f->fn == F_ARGMIN || f->fn == F_ARGMAX ? 0 : 3;
-    if (f->kind != PF_SENSOR) return 0;
+    if (f->kind != PF_SENSOR && f->kind != PF_NUMBER) return 0;
     float sc = f->scale < 0 ? -f->scale : f->scale;
     for (int k = 0; k <= 4; k++, sc *= 10) if (sc >= 0.999f) return k;
     return 4;

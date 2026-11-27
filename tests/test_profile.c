@@ -157,7 +157,7 @@ int main(void)
     bad("profile t 1\nblock b hold 0 2 10s\nblock c hold 2 2 10s\nsensor x \"X\" c 2 u16\nreject b if x == 0\n",
         "line 5: 'x' is not in block b");
     bad(HEAD "reject b when zero\n", "line 3: reject needs: block if zero [fields], or block if field op value");
-    bad(HEAD "number n \"N\" reg 0x10 u16 min 0 max 9 step 1\n", "line 3: controls come in phase 2");
+    bad(HEAD "number n \"N\" reg 0x10 u16 min 0 max 9 step 1\n", "line 3: no block 'reg'");
     bad(HEAD "sensor x \"X b 0x10 u16\n", "line 3: a quote is not closed");
     bad(HEAD "frobnicate\n", "line 3: unknown statement 'frobnicate'");
     {
@@ -180,6 +180,44 @@ int main(void)
         t[sizeof t - 1] = 0;
         bad(t, "the profile is longer than 16384 bytes");
     }
+    /* Controls: read from a hold block like the rest; what each statement makes. */
+    assert(parse(HEAD
+        "number lim \"Limit\" b 0x10 u16 *0.1 min 0 max 25 kW\n"
+        "number amps \"Amps\" b 0x11 u16 min 0 max 250 step 5 A hidden\n"
+        "number big \"Big\" b 0x12 s32le min -100000 max 100000\n"
+        "select by \"By\" b 0x14 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC\n"
+        "select pri \"Priority\" b 0x15 0=\"Battery first\" 1=\"PV first\"\n"
+        "switch ac \"AC\" b 0x16 bit 7\n"
+        "switch run \"Run\" b 0x17 on 1 off 0 hidden\n"
+        "time t1 \"Start\" b 0x18\n"));
+    assert(F("lim")->kind == PF_NUMBER && F("lim")->scale == 0.1f && F("lim")->lo == 0 && F("lim")->hi == 25 &&
+           F("lim")->k == 0.1f && pf_control(F("lim")) && !(F("lim")->flags & PFF_HIDDEN));
+    assert(F("amps")->k == 5 && (F("amps")->flags & PFF_HIDDEN) && F("big")->type == T_S32LE && F("big")->k == 1);
+    assert(F("by")->kind == PF_SELECT && F("by")->mask == 0x000E && F("by")->nvname == 4 && P.vname[F("by")->vname + 3].value == 6);
+    assert(F("pri")->mask == 0xFFFF);
+    assert(F("ac")->kind == PF_SWITCH && F("ac")->mask == 0x80 && F("ac")->k == 0x80 && F("ac")->lo == 0);
+    assert(F("run")->mask == 0xFFFF && F("run")->k == 1 && F("run")->lo == 0 && (F("run")->flags & PFF_HIDDEN));
+    assert(F("t1")->kind == PF_TIME && F("t1")->type == T_U16 && !pf_control(&(pf_field_t){ .kind = PF_CALC }));
+    packed();
+    bad("profile t 1\nblock i input 0 4 10s\nnumber n \"N\" i 0 u16 min 0 max 9\n", "line 3: a control needs a hold block");
+    bad(HEAD "number n \"N\" b 0x10 u8l min 0 max 9\n", "line 3: a number is u16, s16, u32, s32, u32le or s32le");
+    bad(HEAD "number n \"N\" b 0x10 u16 min 0\n", "line 3: a number needs min and max");
+    bad(HEAD "number n \"N\" b 0x10 u16 min 9 max 0\n", "line 3: min is above max");
+    bad(HEAD "number n \"N\" b 0x10 u16 min 0 max 70000\n", "line 3: min and max must fit the register");
+    bad(HEAD "number n \"N\" b 0x10 u16 *0.1 min -1 max 5\n", "line 3: min and max must fit the register");
+    bad(HEAD "number n \"N\" b 0x10 u16 min 0 max 9 step 0\n", "line 3: step must be above 0");
+    bad(HEAD "number n \"N\" b 0x10 u16 min x max 9\n", "line 3: min needs a number");
+    bad(HEAD "number n \"N\" b 0x23 u32 min 0 max 9\n", "line 3: 0x0023 is outside block b");
+    bad(HEAD "select s \"S\" b 0x10 mask=0x0E 1=A\n", "line 3: 1 is outside the mask");
+    bad(HEAD "select s \"S\" b 0x10 0=A mask=0x0E\n", "line 3: mask comes before the values");
+    bad(HEAD "select s \"S\" b 0x10 0=A 1=A\n", "line 3: two choices are named A");
+    bad(HEAD "select s \"S\" b 0x10\n", "line 3: select needs: id");
+    bad(HEAD "switch w \"W\" b 0x10 bit 16\n", "line 3: bit must be 0 to 15");
+    bad(HEAD "switch w \"W\" b 0x10 on 1 off 1\n", "line 3: switch needs on V off V");
+    bad(HEAD "switch w \"W\" b 0x10 up 1\n", "line 3: switch needs bit N, or on V off V");
+    bad(HEAD "time t \"T\" b 0x10 wide\n", "line 3: unknown word 'wide'");
+    bad(HEAD "button b1 \"B\" b 0x10 value 1\n", "line 3: button comes with a later firmware");
+    assert(parse(HEAD "sensor up \"Up\" b 0x10 u16 min\n") && !strcmp(pf_str(&P, F("up")->unit), "min"));   /* minutes, still */
     puts("profile: ok");
     return 0;
 }

@@ -218,7 +218,18 @@ static bool place(ps_t *s, const pf_field_t *f, int regs)
     return true;
 }
 
-enum { M_SCALE = 1, M_UNIT = 2, M_HA = 4, M_DIAG = 8, M_WITHIN = 16, M_NODATA = 32 };
+enum { M_SCALE = 1, M_UNIT = 2, M_HA = 4, M_DIAG = 8, M_WITHIN = 16, M_NODATA = 32, M_HIDDEN = 64, M_LIMITS = 128 };
+
+/* A number's min and max, as the register values they are written as, fit its type. */
+static bool fits_type(const pf_field_t *f)
+{
+    double lo = 0, hi = 65535;
+    if (f->type == T_S16) { lo = -32768; hi = 32767; }
+    else if (f->type == T_U32 || f->type == T_U32LE) hi = 4294967295.0;
+    else if (f->type == T_S32 || f->type == T_S32LE) { lo = -2147483648.0; hi = 2147483647.0; }
+    double a = (double)f->lo / f->scale - f->offset, b = (double)f->hi / f->scale - f->offset;
+    return a >= lo - 0.5 && a <= hi + 0.5 && b >= lo - 0.5 && b <= hi + 0.5;
+}
 
 /* A word with a meaning of its own: never taken for a unit where it is not allowed. */
 static bool keyword(const char *t)
@@ -231,6 +242,7 @@ static bool keyword(const char *t)
 static bool mods(ps_t *s, pf_field_t *f, int from, unsigned allow)
 {
     bool unit = false;
+    unsigned lim = 0;
     for (int i = from; i < s->ntok; i++) {
         char *t = s->tok[i];
         int64_t l;
@@ -271,12 +283,27 @@ static bool mods(ps_t *s, pf_field_t *f, int from, unsigned allow)
             if (!num_f(lo, &f->lo) || !num_f(dd + 2, &f->hi) || f->hi < f->lo) return fail(s, "within needs lo..hi");
             f->flags |= PFF_WITHIN;
             i++;
+        } else if (!strcmp(t, "hidden") && (allow & M_HIDDEN)) {
+            f->flags |= PFF_HIDDEN;
+        } else if ((allow & M_LIMITS) && (!strcmp(t, "min") || !strcmp(t, "max") || !strcmp(t, "step"))) {
+            if (i + 1 >= s->ntok || !num_f(s->tok[i + 1], &x)) return fail(s, "%s needs a number", t);
+            if (t[1] == 'i') { f->lo = x; lim |= 1; }
+            else if (t[1] == 'a') { f->hi = x; lim |= 2; }
+            else if (x <= 0) return fail(s, "step must be above 0");
+            else f->k = x;
+            i++;
         } else if ((allow & M_UNIT) && !unit && !keyword(t) && t[0] != '"' && !strchr(t, '=') && strlen(t) <= 15) {
             unit = true;
             if (!pool_add(s, t, &f->unit)) return false;
         } else {
             return fail(s, "unknown word '%s'", t);
         }
+    }
+    if (allow & M_LIMITS) {
+        if (lim != 3) return fail(s, "a number needs min and max");
+        if (f->hi < f->lo) return fail(s, "min is above max");
+        if (!f->k) f->k = f->scale < 0 ? -f->scale : f->scale;
+        if (!fits_type(f)) return fail(s, "min and max must fit the register");
     }
     return true;
 }
@@ -433,6 +460,117 @@ static bool st_text(ps_t *s)
     t.nvname = (uint16_t)(p->nvname - t.vname);
     if (!t.nvname) return fail(s, "%s needs at least one value=name", how);
     return each(s, s->tok[1], name, &t, regs, s->ntok, 0);
+}
+
+/* id "name" block address, of a control: from a hold block, which it is written back to. */
+static bool where_ctl(ps_t *s, pf_field_t *t, const char **name)
+{
+    if (!where(s, t, name)) return false;
+    if (s->p->block[t->block].fn != 3) return fail(s, "a control needs a hold block");
+    return true;
+}
+
+/* number id "name" block address type [value] min M max M [step S] [shown] [hidden] */
+static bool st_number(ps_t *s)
+{
+    pf_field_t t;
+    const char *name;
+    tpl_init(&t);
+    if (s->ntok < 6) return fail(s, "number needs: id \"name\" block address type min M max M");
+    if (!where_ctl(s, &t, &name)) return false;
+    int ti = type_of(s->tok[5]);
+    if (ti < 0 || TYPES[ti].type > T_S32LE) return fail(s, "a number is u16, s16, u32, s32, u32le or s32le");
+    t.kind = PF_NUMBER;
+    t.type = TYPES[ti].type;
+    return each(s, s->tok[1], name, &t, TYPES[ti].regs, 6, M_SCALE | M_UNIT | M_HA | M_DIAG | M_HIDDEN | M_LIMITS);
+}
+
+/* select id "name" block address [mask=M] v=name ... [diag] [hidden]: each value as it is in
+ * the register, under the mask (as an enum reads it). */
+static bool st_select(ps_t *s)
+{
+    pf_build_t *p = s->p;
+    pf_field_t t;
+    const char *name;
+    int64_t l;
+    tpl_init(&t);
+    t.type = T_U16;
+    t.mask = 0xFFFF;
+    if (s->ntok < 6) return fail(s, "select needs: id \"name\" block address v=name ...");
+    if (!where_ctl(s, &t, &name)) return false;
+    t.kind = PF_SELECT;
+    t.vname = p->nvname;
+    for (int i = 5; i < s->ntok; i++) {
+        char *w = s->tok[i], *eq = strchr(w, '=');
+        if (!strcmp(w, "diag")) { t.flags |= PFF_DIAG; continue; }
+        if (!strcmp(w, "hidden")) { t.flags |= PFF_HIDDEN; continue; }
+        if (!eq) return fail(s, "expected value=name, not '%s'", w);
+        *eq = 0;
+        if (!strcmp(w, "mask")) {
+            if (p->nvname != t.vname) return fail(s, "mask comes before the values");
+            if (!num_i(eq + 1, 1, 0xFFFF, &l)) return fail(s, "bad mask '%s'", eq + 1);
+            t.mask = (uint32_t)l;
+            continue;
+        }
+        if (!num_i(w, 0, 0xFFFF, &l)) return fail(s, "bad value '%s'", w);
+        if ((uint32_t)l & ~t.mask) return fail(s, "%s is outside the mask", w);
+        char *vn = unq(eq + 1);
+        if (!vn || !*vn || strlen(vn) > PF_NAME_MAX) return fail(s, "the name must be \"quoted\", 1 to %d characters", PF_NAME_MAX);
+        for (int k = t.vname; k < p->nvname; k++)
+            if (!strcmp(p->pool + p->vname[k].name, vn)) return fail(s, "two choices are named %s", vn);
+        if (p->nvname == PF_VNAMES) return fail(s, "too many value names (%d)", PF_VNAMES);
+        p->vname[p->nvname].value = (uint32_t)l;
+        if (!pool_add(s, vn, &p->vname[p->nvname].name)) return false;
+        p->nvname++;
+    }
+    t.nvname = (uint16_t)(p->nvname - t.vname);
+    if (!t.nvname) return fail(s, "select needs at least one value=name");
+    return each(s, s->tok[1], name, &t, 1, s->ntok, 0);
+}
+
+/* switch id "name" block address, then bit N or on V off V, [diag] [hidden] */
+static bool st_switch(ps_t *s)
+{
+    pf_field_t t;
+    const char *name;
+    int64_t a, b;
+    int i;
+    tpl_init(&t);
+    t.type = T_U16;
+    if (s->ntok < 7) return fail(s, "switch needs: id \"name\" block address, then bit N or on V off V");
+    if (!where_ctl(s, &t, &name)) return false;
+    t.kind = PF_SWITCH;
+    if (!strcmp(s->tok[5], "bit")) {
+        if (!num_i(s->tok[6], 0, 15, &a)) return fail(s, "bit must be 0 to 15");
+        t.mask = 1u << a;
+        t.k = (float)(1u << a);
+        t.lo = 0;
+        i = 7;
+    } else if (!strcmp(s->tok[5], "on")) {
+        if (s->ntok < 9 || strcmp(s->tok[7], "off") || !num_i(s->tok[6], 0, 0xFFFF, &a) || !num_i(s->tok[8], 0, 0xFFFF, &b) || a == b)
+            return fail(s, "switch needs on V off V, two different values of 0 to 65535");
+        t.mask = 0xFFFF;
+        t.k = (float)a;
+        t.lo = (float)b;
+        i = 9;
+    } else {
+        return fail(s, "switch needs bit N, or on V off V");
+    }
+    return each(s, s->tok[1], name, &t, 1, i, M_DIAG | M_HIDDEN);
+}
+
+/* time id "name" block address [diag] [hidden]: HH:MM, the hour in the low byte */
+static bool st_time(ps_t *s)
+{
+    pf_field_t t;
+    const char *name;
+    tpl_init(&t);
+    t.type = T_U16;
+    t.mask = 0xFFFF;
+    if (s->ntok < 5) return fail(s, "time needs: id \"name\" block address");
+    if (!where_ctl(s, &t, &name)) return false;
+    t.kind = PF_TIME;
+    return each(s, s->tok[1], name, &t, 1, 5, M_DIAG | M_HIDDEN);
 }
 
 static const struct { const char *name; uint8_t fn, args; } FNS[] = {    /* args: 0 a list, 1, 2 fields, 3 a field and a number */
@@ -662,8 +800,11 @@ bool profile_parse(pf_build_t *p, const char *text, size_t n, char *err, size_t 
         else if (!strcmp(w, "text")) ok = st_text(&s);
         else if (!strcmp(w, "calc")) ok = st_calc(&s);
         else if (!strcmp(w, "reject")) ok = st_reject(&s);
-        else if (!strcmp(w, "number") || !strcmp(w, "select") || !strcmp(w, "switch") || !strcmp(w, "button"))
-            ok = fail(&s, "controls come in phase 2");
+        else if (!strcmp(w, "number")) ok = st_number(&s);
+        else if (!strcmp(w, "select")) ok = st_select(&s);
+        else if (!strcmp(w, "switch")) ok = st_switch(&s);
+        else if (!strcmp(w, "time")) ok = st_time(&s);
+        else if (!strcmp(w, "button")) ok = fail(&s, "button comes with a later firmware");
         else ok = fail(&s, "unknown statement '%s'", w);
         if (!ok) return false;
         first = false;

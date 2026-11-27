@@ -23,13 +23,15 @@
 #define PF_NAME_MAX  40
 #define PF_ID_MAX    24
 
-enum { PF_SENSOR, PF_BINARY, PF_ENUM, PF_BITS, PF_ASCII, PF_CALC, PF_CALCBIN };
+enum { PF_SENSOR, PF_BINARY, PF_ENUM, PF_BITS, PF_ASCII,
+       PF_NUMBER, PF_SELECT, PF_SWITCH, PF_TIME,    /* controls: read as the rest, and written (pfwrite.c) */
+       PF_CALC, PF_CALCBIN };                       /* calcs last: pfdecode.c works out every kind from PF_CALC */
 enum { T_U16, T_S16, T_U32, T_S32, T_U32LE, T_S32LE, T_U8H, T_U8L, T_S8H, T_S8L, T_BIT, T_COIL, T_ASCII, T_ASCIILO, T_ASCIILE };
 enum { OP_EQ, OP_NE, OP_GT, OP_LT };
 enum { F_SUM, F_MIN, F_MAX, F_AVG, F_DELTA, F_ARGMIN, F_ARGMAX, F_COUNT, F_SUB, F_MUL, F_POS, F_NEG, F_ABS,
        F_EQ, F_NE, F_GT, F_LT, F_ANYBITS, F_NOBITS };        /* F_EQ..F_LT in OP_ order */
 enum { RJ_ZERO, RJ_ZEROS, RJ_CMP };                        /* the block all 0; listed fields all 0; a comparison */
-enum { PFF_DIAG = 1, PFF_WITHIN = 2 };
+enum { PFF_DIAG = 1, PFF_WITHIN = 2, PFF_HIDDEN = 4 };    /* hidden: a control HA announces disabled */
 
 typedef struct {
     uint16_t id;                 /* pool */
@@ -49,8 +51,9 @@ typedef struct {
     uint16_t vname, nvname;            /* PF_ENUM, PF_BITS: their value names in vname[] */
     uint16_t arg, narg;                /* PF_CALC*: field indexes in arg[] */
     int32_t  offset;
-    uint32_t mask, nodata[4];          /* mask: an enum's, or anybits/nobits' */
-    float    scale, k, lo, hi;         /* k: comparison constant; lo, hi: within */
+    uint32_t mask, nodata[4];          /* mask: an enum's, a select's or a switch's bits; anybits/nobits' */
+    float    scale, k, lo, hi;         /* k: a comparison's constant, a number's step, a switch's "on" value;
+                                          lo, hi: within, or a number's min and max; lo: a switch's "off" value */
 } pf_field_t;
 
 typedef struct { uint8_t block, kind, op, nfield; uint16_t field[4]; float k; } pf_reject_t;
@@ -93,6 +96,7 @@ typedef struct {
 } pf_build_t;
 
 static inline const char *pf_str(const profile_t *p, uint16_t off) { return p->pool + off; }
+static inline bool pf_control(const pf_field_t *f) { return f->kind >= PF_NUMBER && f->kind <= PF_TIME; }
 
 /* The text into *b. False, with "line N: why" in err (or just "why"), if it will not do. */
 bool profile_parse(pf_build_t *b, const char *text, size_t n, char *err, size_t errlen);

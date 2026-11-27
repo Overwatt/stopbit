@@ -1,0 +1,8 @@
+profile c 1
+block s hold 60 6 1m
+number lim "Limit" s 60 u16 *0.1 min 0 max 25 kW
+select by "By" s 61 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC
+switch ac "AC" s 62 bit 7
+switch run "Run" s 63 on 1 off 0
+time t1 "Start" s 64
+time t2 "End" s 65
