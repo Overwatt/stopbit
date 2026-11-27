@@ -291,6 +291,15 @@ eth_status_t eth_init(const uint8_t mac[6])
     if (g_eth.phy_addr > 31)
         return g_eth.status = ETH_ERR_NO_PHY, ETH_ERR_NO_PHY;
 
+#ifdef APP_IMAGE
+    /* The PHY kept its link while the processor restarted, or is already negotiating after
+     * a reset of its own, and the loader starts the application without touching it. Told
+     * to negotiate again it drops the link for two or three seconds, on every restart. So
+     * only if it is not already set as wanted: negotiating, everything advertised. */
+    uint16_t bmcr, anar;
+    if (mdio_read(g_eth.phy_addr, 0, &bmcr) && mdio_read(g_eth.phy_addr, 4, &anar) &&
+        (bmcr & 0x1000u) && !(bmcr & 0xCC00u) && (anar & 0x01E0u) == 0x01E0u) return ETH_OK;
+#endif
     /* Advertise everything and restart autonegotiation. */
     mdio_write(g_eth.phy_addr, 4, 0x01E1);
     mdio_write(g_eth.phy_addr, 0, 0x1200);

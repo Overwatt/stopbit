@@ -5,6 +5,7 @@
 #include "button.h"
 #include "cfg.h"
 #include "eth_mac.h"
+#include "net.h"
 #include "extflash.h"
 #include "fw_id.h"
 #include "gcm_hw.h"
@@ -14,6 +15,7 @@
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern bool g_clock_hse;
 extern uint8_t _ebss, _end, _estack, _ed2bss, _eaxi, _ed3bss, _eitcmbss;
@@ -130,6 +132,7 @@ static bool measure(void)
 /* ---- main loop ----------------------------------------------------------- */
 /* Longest time between passes: since the start, and in the last 10 to 20 s. */
 static uint32_t s_loop_at, s_loop_max, s_loop[2], s_loop_turn;
+static uint32_t s_link_ms, s_ip_ms;               /* ms from the start to the link, and to an address; 0: not yet */
 static uint32_t s_loop_n, s_loop_avg;             /* passes in this window; a pass in the last one, on average */
 static bool s_loop_on;
 /* And which step of the pass was longest: since the start, and in the same window.
@@ -180,6 +183,12 @@ void hwinfo_loop(void)
     adc_poll();
     if (!s_loop_on) { s_loop_on = true; return; }
     s_loop_n++;
+    if (!s_link_ms && g_eth.link_up) s_link_ms = HAL_GetTick() | 1u;
+    if (s_link_ms && !s_ip_ms) {
+        char ip[16];
+        net_ip_str(ip);
+        if (strcmp(ip, "0.0.0.0")) s_ip_ms = HAL_GetTick() | 1u;
+    }
     if (HAL_GetTick() - s_loop_turn >= 10000u) {
         s_loop_avg = (uint32_t)((uint64_t)(HAL_GetTick() - s_loop_turn) * 1000u / s_loop_n);
         s_loop_n = 0;
@@ -229,10 +238,10 @@ size_t hwinfo_json(char *out, size_t max)
         s_button.down ? "true" : "false", U(s_button.presses), U(s_button.held_ms));
     for (int i = 0; i < EXTFLASH_COUNT; i++) OUT("%s\"0x%06lx\"", i ? "," : "", U(extflash_id(i)));
     OUT("],\"eth\":{\"phy_id\":\"0x%08lx\",\"phy_addr\":%lu,\"link\":%s,\"speed\":%d,\"full_duplex\":%s,"
-        "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu}",
+        "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu,\"link_ms\":%lu,\"ip_ms\":%lu}",
         U(g_eth.phy_id), U(g_eth.phy_addr), g_eth.link_up ? "true" : "false",
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
-        U(g_eth.rx_frames), U(g_eth.tx_frames), U(g_eth.rx_errors), U(g_eth.tx_drops));
+        U(g_eth.rx_frames), U(g_eth.tx_frames), U(g_eth.rx_errors), U(g_eth.tx_drops), U(s_link_ms), U(s_ip_ms));
 
     OUT(",\"ports\":[");
     for (int i = 0; i < PORTS; i++) {
