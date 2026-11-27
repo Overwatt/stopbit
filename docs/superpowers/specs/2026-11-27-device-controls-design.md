@@ -41,8 +41,8 @@ and `reg|regs` are not used. A control on an `input` or `discrete` block is refu
 
 - **Value:** a number's register value is value ÷ scale − offset, rounded. The step is the
   scale unless given.
-- **Writes:** one register by function 6, two (the 32-bit types) by function 16. `bit N` and
-  `mask=` read the register just before writing it and change only their own bits:
+- **Writes:** one register by function 6, two (the 32-bit types) by function 16. Each write
+  reads its register (or two) just before; `bit N` and `mask=` change only their own bits:
   (read & ~mask) | value.
 - `hidden`: announced disabled in HA, to be enabled there on purpose.
 - The limit stays at 160 fields and controls a profile.
@@ -52,7 +52,8 @@ and `reg|regs` are not used. A control on an `input` or `discrete` block is refu
 1. A command is checked against its control (see Commands) and queued. The queue has 16
    places for all devices; a newer command for a control already queued replaces its value.
 2. A port's queued writes go before its next poll, at most 2 a second per device.
-3. The register is read first if the control's `bit` or `mask` needs it; then written.
+3. The register is read. If it already holds what would be written, nothing is written and
+   the event says "unchanged"; otherwise it is written.
 4. The control's block is read at once, and HA shows what was read.
 
 Every write is in the event log with its outcome ("inverter ac_charge_soc_limit 80: ok",
@@ -128,13 +129,17 @@ gateway port drops it, and a polled port must be one; so that both can use the i
 - The two controls that can cut power to loads, `off_grid_output` and `power`, are hidden.
 - Ranges are the document's, widened where the inverters read beyond it. The inverter's own
   exception and the read-back stand behind them.
+- A write that would change nothing is skipped (Writes, step 3). Inverters may keep settings
+  in memory that wears with writing, often after about 100,000 writes; an automation that
+  sends a setting every minute would otherwise write it half a million times a year. The
+  documentation says not to send settings on a timer.
 
 ## Tests
 
 - **Host:** the parser (every control form; every error, with its line); the engine with a
   fake line and clock (a write before a poll, read-modify-write, a read-back that matches
   and one that does not, an exception, a timeout, a queued command replaced, a full queue,
-  2 a second, `controls=0`); commands of each kind; discovery payloads; the EG4 profile at
+  2 a second, `controls=0`, a write skipped as unchanged); commands of each kind; discovery payloads; the EG4 profile at
   its worst case (its state under 7.5 KB, each `/api/devices` part under 5,621 bytes); its
   settings decoded from registers read from the inverters (values only, no serial numbers),
   and writes encoded (`ac_charge` ON with register 21 at 0xF355 writes 0xF3D5).
