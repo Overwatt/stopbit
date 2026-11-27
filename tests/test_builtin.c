@@ -5,6 +5,7 @@
  *   cc -I/tmp -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm -o /tmp/bi && /tmp/bi */
 #include "profiles.h"
 #include "pfdecode.h"
+#include "pfwrite.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -94,12 +95,12 @@ int main(void)
            !strcmp(text("serial_number"), "2309876543210987"));
 
     /* ---- EG4 18kPV: as EG4's protocol document lays the registers out ---- */
-    t = profiles_text("eg4-18kpv", &n);
+    t = profiles_text("eg4-hybrid", &n);
     assert(t && profile_parse(&B, t, n, err, sizeof err));
     profile_view(&B, &P);
-    assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 1000 && P.nblock == 3);
+    assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 1000 && P.nblock == 7);
     for (int b = 0; b < P.nblock; b++)                    /* whole groups of 40, as the inverter insists */
-        assert(P.block[b].count == 40 && P.block[b].addr % 40 == 0 && P.block[b].fn == (b == 2 ? 3 : 4));
+        assert(P.block[b].count == 40 && P.block[b].addr % 40 == 0 && P.block[b].fn == (b >= 2 ? 3 : 4));
     pf_state_init(&S);
     uint16_t in[40] = { 0 };
     in[0] = 0x000C;                                         /* PV charge + on-grid */
@@ -146,6 +147,38 @@ int main(void)
     for (int k = 0; k < 2; k++) id[7 + k] = (uint16_t)((uint8_t)fw[2 * k + 1] << 8 | (uint8_t)fw[2 * k]);
     assert(pf_decode(&P, profile_block(&P, "ident"), d, regs(d, id, 40), &S));
     assert(!strcmp(text("serial_number"), "AB12345678") && !strcmp(text("firmware"), "FAAB"));
+    /* Settings, from registers read from a FlexBOSS on 2026-11-27 (values only). */
+    static const uint16_t H40[40] = { 16, 2640, 5850, 6120, 30000, 30000, 5650, 6200, 16, 16, 5650, 6200, 16, 16, 44, 2352,
+        2208, 2448, 2592, 0, 100, 0, 1000, 1000, 100, 100, 120, 100, 1, 3, 11, 16, 0, 0, 120, 100, 0, 15127, 0, 0 };
+    static const uint16_t H80[40] = { 0, 0, 120, 20, 0, 0, 0, 0, 0, 0, 240, 60, 0, 0, 0, 0, 5, 300, 0, 565,
+        490, 250, 250, 100, 0, 10, 65336, 550, 0, 400, 1065, 0, 1, 1, 0, 60036, 100, 65486, 500, 0 };
+    static const uint16_t H120[40] = { 4, 0, 0, 0, 6304, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59964, 5696, 20, 1420, 0, 0,
+        0, 0, 0, 0, 550, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 540, 560 };
+    static const uint16_t H160[40] = { 20, 0, 0, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0, 0, 0, 0, 65535, 120, 0, 4160,
+        100, 2544, 2640, 10, 20, 2400, 300, 0, 44, 0, 50, 100, 100, 20, 400, 560, 10, 100, 60, 0 };
+    id[21] = 0xF355;
+    assert(pf_decode(&P, profile_block(&P, "ident"), d, regs(d, id, 40), &S));
+    assert(pf_decode(&P, profile_block(&P, "set40"), d, regs(d, H40, 40), &S));
+    assert(pf_decode(&P, profile_block(&P, "set80"), d, regs(d, H80, 40), &S));
+    assert(pf_decode(&P, profile_block(&P, "set120"), d, regs(d, H120, 40), &S));
+    assert(pf_decode(&P, profile_block(&P, "set160"), d, regs(d, H160, 40), &S));
+    assert(near(V("ac_charge_power"), 12) && near(V("ac_charge_soc_limit"), 100) && near(V("charge_first_power"), 12));
+    assert(!strcmp(text("ac_charge_start_1"), "01:00") && !strcmp(text("ac_charge_end_1"), "03:00"));
+    assert(!strcmp(text("ac_charge_start_2"), "11:00") && !strcmp(text("ac_charge_end_2"), "16:00"));
+    assert(!strcmp(text("charge_first_end_1"), "23:59") && !strcmp(text("charge_first_start_3"), "00:00"));
+    assert(near(V("forced_discharge_power"), 12) && near(V("forced_discharge_soc"), 20));
+    assert(near(V("charge_current"), 250) && near(V("discharge_current"), 250) && near(V("export_limit"), 100));
+    assert(near(V("discharge_cutoff_soc"), 10) && near(V("off_grid_cutoff_soc"), 0) && near(V("ac_charge_start_soc"), 20));
+    assert(!strcmp(text("ac_charge_by"), "Voltage") && !strcmp(text("discharge_control"), "Voltage") && !strcmp(text("output_priority"), "Battery first"));
+    assert(V("ac_charge") == 0 && V("charge_first") == 0 && V("forced_discharge") == 0 && V("export") == 1 && V("off_grid_output") == 1 && V("power") == 1);
+    assert((P.field[F("power")].flags & PFF_HIDDEN) && (P.field[F("off_grid_output")].flags & PFF_HIDDEN) && !(P.field[F("export")].flags & PFF_HIDDEN));
+    /* ... and a command for one: its bit alone. */
+    pf_write_t w;
+    char why[32];
+    uint16_t have[2] = { 0xF355, 0 }, out[2];
+    assert(pf_command(&P, F("ac_charge"), "ON", &w, why, sizeof why) && w.addr == 21 && pf_merge(&w, have, out) && out[0] == 0xF3D5);
+    assert(pf_command(&P, F("ac_charge_power"), "8.5", &w, why, sizeof why) && w.addr == 66 && w.value[0] == 85);
+    assert(!pf_command(&P, F("ac_charge_power"), "26", &w, why, sizeof why));
     puts("builtin: ok");
     return 0;
 }

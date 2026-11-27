@@ -25,7 +25,7 @@ t modbus  -Isrc/app tests/test_modbus.c src/app/modbus.c
 t profile -Isrc/app tests/test_profile.c src/app/profile.c
 t pfdecode -Isrc/app tests/test_pfdecode.c src/app/pfdecode.c src/app/profile.c -lm
 t pfwrite -Isrc/app tests/test_pfwrite.c src/app/pfwrite.c src/app/profile.c -lm
-t builtin -I"$O" -Isrc/app tests/test_builtin.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm
+t builtin -I"$O" -Isrc/app tests/test_builtin.c src/app/pfwrite.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c -lm
 t device -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_device.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devmqtt -DD2_BSS= -I"$O" -Itests/stub -Isrc/app tests/test_devmqtt.c src/app/devmqtt.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profiles.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm
 t devroom -DD2_BSS= -DPF_ROOM=4096 -Itests/stub -Isrc/app tests/test_devroom.c tests/stub/events_stub.c src/app/pfwrite.c src/app/device.c src/app/modbus.c src/app/profile.c src/app/pfdecode.c src/app/cfg.c src/app/acl.c -lm

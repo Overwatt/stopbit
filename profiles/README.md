@@ -55,6 +55,22 @@ reject live1 if pack_voltage == 0
 | `switch` | `id "name"` and `reg A on V off V`, `coil A [on V]`, or `reg A bit N` (read-modify-write); `[state field] [hidden]` |
 | `button` | `id "name" reg\|coil address value V [hidden]` |
 
+## Controls
+
+Settings a device keeps, which Home Assistant can change when the device has
+`controls=1`. Each is read from a `hold` block, as a sensor is, and written to the same
+address: one register by function 6, two by function 16. A write reads the register first,
+changes only the control's own bits, and is not made if nothing would change.
+
+| Statement | Form |
+|---|---|
+| `number` | `id "name" block address type [*scale] [+offset] min M max M [step S] [unit] [dc=] [hidden]`; type `u16 s16 u32 s32 u32le s32le`; min and max must fit the register; the step is the scale unless given |
+| `select` | `id "name" block address [mask=M] v=name ... [hidden]`; each value as it is in the register under the mask; names unique |
+| `switch` | `id "name" block address bit N [hidden]`, or `on V off V` for a whole register |
+| `time` | `id "name" block address [hidden]`: HH:MM, the hour in the low byte, the minute in the high |
+
+`hidden`: announced disabled, so it must be enabled in Home Assistant on purpose.
+
 - **Types:** `u16 s16`; `u32 s32` (high word first), `u32le s32le` (low word first); `u8h u8l
   s8h s8l` (one byte of a register); `bit N`; `coil` (a bit of a coil or discrete block).
 - **Value:** `+N` (offset) and `*N` (scale): value = (raw + offset) × scale. `nodata V ...`:
@@ -71,10 +87,9 @@ reject live1 if pack_voltage == 0
   unavailable; `within` leaves out values outside the range (a missing cell reads 0).
 - **Limits:** 16 KB of text, lines of 1024 characters, 16 blocks, 160 fields and controls,
   names 40 characters. A model that differs (SRNE HSI1500S) gets a profile of its own.
-- **What a device may show:** its values are one MQTT message of at most 3.5 KB and one part
-  of the page's data of at most 5.6 KB, each counted with every value at its longest. That
-  is about 55 values; `tests/test_devmqtt.c` works both out for each built-in profile and
-  fails if either does not fit.
+- **What a device may show:** its state is one MQTT message of up to 7.5 KB (about 110
+  values at their longest), and /api/devices sends a device in three parts of up to 40
+  values, each at most 5.6 KB; `tests/test_devmqtt.c` holds every built-in profile to both.
 - Uploads come in phase 2. Then a profile id may be built in and uploaded: the uploaded
   one is used, and deleting it brings back the built-in one.
 
@@ -95,19 +110,25 @@ build, and `tests/test_builtin.c` checks it parses.
 | Profile | Device | From | Tried on the device |
 |---|---|---|---|
 | `eg4-bms` | EG4 LifePower4 / LL battery | github.com/RAR/esphome-eg4-bms | yes |
-| `eg4-18kpv` | EG4 18kPV hybrid inverter | EG4's "18KPV-12LV Modbus Protocol" | no |
+| `eg4-hybrid` | EG4 18kPV and FlexBOSS hybrid inverters | EG4's "18KPV-12LV Modbus Protocol", read on two FlexBOSS | yes, settings too |
 
-## eg4-18kpv
+## eg4-hybrid
 
-19200 8N1, unit 1. 54 values from three reads of 40 registers: what the inverter is doing
+19200 8N1, unit 1. 95 values from seven reads of 40 registers: what the inverter is doing
 (input 0-39, every 5 s), its totals, faults, warnings and temperatures (input 40-79, every
-10 s), and its serial number and firmware (holding 0-39). Requests are a second apart, the
-document's minimum.
+10 s), and its serial number, firmware and settings (holding 0-39, 40-79, 120-159, 160-199,
+every minute). Requests are a second apart, the document's minimum. It was read on two
+FlexBOSS; the 18kPV is the same document.
 
 - EG4's document frames each message with the inverter's serial number in it, as the Wi-Fi
-  dongle does. The profile asks in plain Modbus RTU, which the inverter's RS485 port is
-  reported to answer too (github.com/galets/eg4-modbus-monitor). If an inverter answers
-  only the other way, the profile will show it offline: the gateway does not speak that.
+  dongle does. Over RS485 the inverters answer plain Modbus RTU, to unit 0 and to their own
+  address (holding 15, 1 by default), which is what the profile asks.
+- The FlexBOSS reads some settings beyond the document's ranges: charge and discharge current
+  to 250 A, and the three powers (holding 66, 74, 82) in tenths of a kW where it says percent.
+- The settings are controls (AC charge, charge first, forced discharge, with their powers,
+  SOC limits and three time windows each; currents, export limit, cut-off SOCs, charge and
+  discharge control, output priority, export and the hidden off-grid output and power
+  switches).
 - Faults and warnings are text: the names of the set bits, each with EG4's code (`E012 UPS
   short`), or `None`.
 - Battery power is charge less discharge (positive: charging). Grid power is import less
@@ -115,7 +136,7 @@ document's minimum.
 - Left out, for the room a device has: the battery's own figures as its BMS reports them
   (input 80-119), the generator and each EPS leg (120-138), arc fault detection (140-152),
   the power factor (19: two ranges in one number, which the format cannot turn into one),
-  and every setting. The firmware text (holding 7-8) is not in EG4's document; it is where
+  and the settings listed at the end of the profile. The firmware text (holding 7-8) is not in EG4's document; it is where
   the monitor named above reads it.
 
 ## Differences from the ESPHome component (eg4-bms)
