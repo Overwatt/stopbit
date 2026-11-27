@@ -50,10 +50,11 @@ reject live1 if pack_voltage == 0
 | `text` | `id "name" block address` and `enum [mask=M] v=name ...`, `bits n=name ...` (set bits' names joined by "; "), or `ascii N`, `asciilo N` or `asciile N` registers of text: two characters a register with the high byte's first, one in the low byte, or two with the low byte's first. `enum` and `bits` may follow a type (`u32le bits ...` for 32 named bits) |
 | `calc` | `id "name" function arguments [within lo..hi] [shown]`; a comparison gives a binary, the rest a number |
 | `reject` | `block if zero` (every byte 0) or `block if field op value`: the block's reply is not used |
-| `number` | `id "name" reg\|regs address type [value] min M max M step S [state field] [shown] [hidden]` |
-| `select` | `id "name" reg address v=name ... [state field] [hidden]` |
-| `switch` | `id "name"` and `reg A on V off V`, `coil A [on V]`, or `reg A bit N` (read-modify-write); `[state field] [hidden]` |
-| `button` | `id "name" reg\|coil address value V [hidden]` |
+| `number` | `id "name" block address type [*scale] [+offset] min M max M [step S] [unit] [dc=] [hidden]` ([Controls](#controls)) |
+| `select` | `id "name" block address [mask=M] v=name ... [hidden]` |
+| `switch` | `id "name" block address bit N [hidden]`, or `on V off V` for a whole register |
+| `time` | `id "name" block address [hidden]`: HH:MM |
+| `button` | comes with a later firmware |
 
 - **Types:** `u16 s16`; `u32 s32` (high word first), `u32le s32le` (low word first); `u8h u8l
   s8h s8l` (one byte of a register); `bit N`; `coil` (a bit of a coil or discrete block).
@@ -94,7 +95,7 @@ would change.
 
 `hidden`: announced disabled, so it must be enabled in Home Assistant on purpose.
 
-## Phase 1 notes
+## Notes
 
 - Built-in profiles only (below): profiles cannot be uploaded yet.
 - `button` comes with a later firmware.
@@ -111,7 +112,7 @@ build, and `tests/test_builtin.c` checks it parses.
 | Profile | Device | From | Tried on the device |
 |---|---|---|---|
 | `eg4-bms` | EG4 LifePower4 / LL battery | github.com/RAR/esphome-eg4-bms | yes |
-| `eg4-hybrid` | EG4 18kPV and FlexBOSS hybrid inverters | EG4's "18KPV-12LV Modbus Protocol", read on two FlexBOSS | yes, settings too |
+| `eg4-hybrid` | EG4 18kPV and FlexBOSS hybrid inverters | EG4's "18KPV-12LV Modbus Protocol", read on two FlexBOSS | yes; settings read, not yet written on an inverter |
 
 ## eg4-hybrid
 

@@ -186,7 +186,17 @@ turn (up to 8). The gateway answers for itself only when the device cannot:
 | 8 already waiting | 0x06 (busy) |
 | A write from an address that may only read | 0x01 (illegal function); reads (1-4) and device identification (43/14) go through |
 | Unit 0 without `modbus_broadcast`, or 248 to 255 | 0x0A (gateway path unavailable); nothing is sent |
-| Not Modbus TCP | the connection is closed |
+| Not Modbus TCP (`modbus_framing=tcp`) | the connection is closed |
+| With `modbus_framing=rtu`: a function whose length cannot be told | 0x01 (illegal function) |
+
+With `modbus_framing=rtu` a client is never closed for what it sends. A frame's length
+comes from its function: 8 bytes for 1 to 6; for 15 and 16, 9 and the byte count. A bad
+CRC, or a function whose length cannot be told, drops what that client sent, with the rest
+of that piece (the frame's end cannot be found in it); only the unknown function is
+answered, with exception 1. An RTU reply carries no transaction ID, and an RTU master has
+one request outstanding, so a new frame from a client replaces its waiting request: one
+already on the line finishes and its reply is not passed on, as the client would take it
+for the new request's. Two frames sent together: only the second is answered.
 
 Unit 0 is a broadcast: every device on the line acts on it and none replies, so many
 programs' default of 0 would write to all of them; hence it is off unless turned on. A
@@ -211,8 +221,9 @@ use: nothing reaches the line.
 
 A device is a profile, a port and an address (1 to 247). The gateway polls it over RS485
 and publishes its values to MQTT with Home Assistant discovery, which replaces one ESP32
-per device. Phase 1 ships one profile, `eg4-bms` (EG4 LifePower4 / LL battery), and only
-reads. The profile format is in [profiles/README.md](../profiles/README.md).
+per device. Two profiles are built in: `eg4-bms` (EG4 LifePower4 / LL battery) and
+`eg4-hybrid` (EG4 18kPV and FlexBOSS inverters). A profile's controls can be written (see
+[Controls](#controls)). The profile format is in [profiles/README.md](../profiles/README.md).
 
 The port should be a Modbus gateway (`portN.mode=modbus`) with its usual local port. It
 still takes Modbus TCP clients: their requests and the gateway's own polls share the
@@ -240,7 +251,7 @@ tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=502 \
 
 | Setting | Values |
 |---|---|
-| devN.profile | a built-in profile id (`eg4-bms`); N is 1 to 16. Empty removes the device |
+| devN.profile | a built-in profile id (`eg4-bms` or `eg4-hybrid`); N is 1 to 16. Empty removes the device |
 | devN.name | a to z, 0 to 9, `_` and `-`, up to 24; unique. In topics and Home Assistant ids |
 | devN.label | Home Assistant's name for the device, up to 32; empty: the name |
 | devN.port | 1 to 4 |
@@ -320,8 +331,17 @@ with 0 they are still read, and shown as values, but not announced. A command is
 against the control (its range, its choices), then waits its turn on the port ahead of the
 polls, at most 2 a second per device. The gateway reads the control's block first (the
 same request as its poll) and writes the register only if that changes it, then reads the
-block back, so Home Assistant shows what the device holds. Each command is in the event log: written, already so, refused and why,
-failed (no reply, the device's error), or written but reading back otherwise.
+block back, so Home Assistant shows what the device holds. Each command is in the event
+log: written, already so, refused and why, failed (no reply, the device's error), written
+but reading back otherwise, or written but not read back. After a failed write the block
+is read at once, in case the write was made.
+
+Device commands do not depend on `mqtt.control`, which is for the gateway's own settings:
+anyone who can publish to `BASE/dev/<name>/set/...` can change a `controls=1` device's
+settings, hidden ones included. Secure the broker (a dedicated user, TLS, its access
+lists). In a parallel pair, set each inverter itself: the gateway does not copy a setting
+from one to the other. A change made at the inverter (its app, SolarAssistant) between the
+gateway's read and its write is overwritten for the control's bits.
 
 Do not send settings on a timer. A device may keep them in memory that wears with writing;
 the gateway skips a write that changes nothing, but a value that alternates on a schedule

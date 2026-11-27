@@ -46,7 +46,9 @@ and makes `/dev/ttyN540-NAME` (see [example.conf](example.conf)).
   carries RTU bytes as they are, so Modbus RTU programs work as on a USB adapter. A Modbus gateway
   also lets the gateway's own devices poll the same line, in turn with the program; set
   `modbus_broadcast=answer` if the program asks unit 0 (SolarAssistant does, of EG4 inverters).
-  Allow a little longer for replies, for the network.
+  Allow a little longer for replies, for the network. With devices on the port, the
+  program's requests also wait the profile's turnaround (1 s for `eg4-hybrid`) and any poll
+  ahead of them, so allow for that too.
 - **There are no modem lines.** A program that sets RTS or DTR through ioctls may complain;
   the gateway switches the line's direction itself.
 - **Port 1 is on the Tigo bus.** Anything a program writes goes onto it; set
