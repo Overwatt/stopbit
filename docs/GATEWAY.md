@@ -517,6 +517,15 @@ request/reply rounds at 9600 8N1, 19200 8E1, 38400 8O1, 115200 8N1 and 8N2, 4608
 1000000 8N1, with no errors. Not tested: several ports busy at once, long or terminated
 buses, and how fast the gateway turns the bus around (the adapter's 16 ms latency hides it).
 
+Device controls on hardware (2026-11-27): two EG4 FlexBOSS on ports 2 and 3, each port a
+Modbus gateway with `modbus_framing=rtu` and `modbus_broadcast=answer` that SolarAssistant
+reads through `proxy/` (40 requests a minute, replies matching, the inverters answering unit
+0 with unit 0). Both added as `eg4-hybrid` devices at unit 1: online, all values known, no
+misses. With controls on for one, a number (AC charge SOC limit) set from Home Assistant six
+times, 99 and 100 in turn: each written, read back and logged as set. Not yet tried: the
+other controls, a select, a switch or a time written, and the gateway's polls sharing the
+port with SolarAssistant (it was stopped during the write test).
+
 ## Events
 
 The Events page lists what happened, newest first, each with its time in your own time

@@ -112,7 +112,7 @@ build, and `tests/test_builtin.c` checks it parses.
 | Profile | Device | From | Tried on the device |
 |---|---|---|---|
 | `eg4-bms` | EG4 LifePower4 / LL battery | github.com/RAR/esphome-eg4-bms | yes |
-| `eg4-hybrid` | EG4 18kPV and FlexBOSS hybrid inverters | EG4's "18KPV-12LV Modbus Protocol", read on two FlexBOSS | yes; settings read, not yet written on an inverter |
+| `eg4-hybrid` | EG4 18kPV and FlexBOSS hybrid inverters | EG4's "18KPV-12LV Modbus Protocol", read on two FlexBOSS | yes; one setting written on a FlexBOSS |
 
 ## eg4-hybrid
 
@@ -120,9 +120,11 @@ build, and `tests/test_builtin.c` checks it parses.
 (input 0-39, every 10 s), its totals, faults, warnings and temperatures (input 40-79, every
 minute), and its serial number, firmware and settings (holding 0-39, 40-79, 80-119,
 120-159, 160-199, every 2 minutes): about 9.5 requests a minute. Requests are a second
-apart, the document's minimum; with SolarAssistant's reads on the same port the line is
-then near full, so the turnaround is to be set from the inverter's measured reply time. It
-was read on two FlexBOSS; the 18kPV is the same document.
+apart, the document's minimum: a 40-register reply takes 110 to 300 ms on the FlexBOSS, and
+the turnaround is 700 ms. Tried on two FlexBOSS on 2026-11-27, sharing their ports with
+SolarAssistant (RTU over TCP): all 95 values read, the settings agreeing with the EG4 app's
+except register 120 (shown raw, see the profile), and AC charge SOC limit written from Home
+Assistant and read back, several times. The 18kPV is the same document; not tried on one.
 
 - EG4's document frames each message with the inverter's serial number in it, as the Wi-Fi
   dongle does. Over RS485 the inverters answer plain Modbus RTU, to unit 0 and to their own
