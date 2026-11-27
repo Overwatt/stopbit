@@ -8,22 +8,33 @@ hackable and observable, not a copy of the vendor's whole feature list.
 
 Not made or endorsed by the vendor.
 
-![The Status page: a verdict, a list of parts, and one port's report](docs/images/status.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/status-dark.png">
+  <img src="docs/images/status.png" alt="The Status page: a verdict, the ports and settings with their states, and one port's report">
+</picture>
 
 *Example data.*
 
 ## What it does
 
-- **RS485 to network.** Each port is a TCP server, TCP client or UDP endpoint, with its own
-  line settings, 300 to 2,000,000 baud.
+- **RS485 to network.** Each port is a TCP server, TCP client, UDP endpoint or Modbus TCP
+  gateway, with its own line settings, 300 to 2,000,000 baud.
+- **Devices.** The gateway polls Modbus RTU devices itself and publishes their readings to
+  MQTT, with Home Assistant discovery. One profile so far: the EG4 LifePower4 / LL battery,
+  reading only. A Modbus port can serve its devices without listening on the network.
 - **Status page.** A verdict that names the fault, every part's state, and each port's last
-  ten minutes of traffic. Works on a phone, in light and dark, with no internet.
+  ten minutes of traffic. Works on a phone and with no internet. Light or dark follows the
+  system, or is chosen in the header for that browser.
 - **Listen only.** A port's transmitter can be turned off in hardware setup, so watching a
   live bus cannot disturb it.
+- **Access lists.** Per port, by address: read, or read and write.
 - **Alert if quiet.** Per port: silence, or no client, for a chosen time.
-- **MQTT,** with Home Assistant discovery that can be turned off.
-- **Updates over the network,** from the web page or the command line, into two slots. An
-  update that does not start is undone by the loader.
+- **MQTT,** optionally over TLS, with Home Assistant discovery that can be turned off.
+- **Prometheus** figures at `/metrics`, an **event log**, and a **settings file** to
+  download and restore.
+- **Updates over the network,** from the web page or the command line, into two slots, with
+  up to seven images kept to go back to. An update that does not start is undone by
+  the loader.
 - **Console** (`tools/n540.py HOST`): the same settings, plus send, watch and traffic logs.
 - **Reload button:** hold 3 to 15 seconds to get back to DHCP with no web password.
 
@@ -33,27 +44,36 @@ On one gateway:
 
 - All four ports with a USB-RS485 adapter, 9600 to 1,000,000 baud, both ways and
   request/reply, with no errors.
-- A real bus at 38,400 baud: every packet checksum valid in each 30-second capture.
+- A real bus at 38,400 baud: every packet checksum valid in each 30-second capture. It has
+  carried that bus, listen only, since 25 November 2026.
+- A real EG4 battery, polled over Modbus RTU at 9600 baud beside that bus.
+- MQTT over TLS to Mosquitto with a Let's Encrypt certificate, and HTTPS renewing its own
+  certificate.
 - Update, rollback and refusal of bad images.
 
-Not tested: several ports busy at once, long or terminated buses, more than 1,000,000 baud,
+Every push also runs the host tests, a simulator of the web server and installs, MQTT over
+TLS against Mosquitto, and a short fuzz of the parsers (GitHub Actions).
+
+Not tested: all four ports busy at once, long or terminated buses, more than 1,000,000 baud,
 power loss during an update, and silence on the wire in listen only (checked by counters,
 not measured). [GATEWAY.md](docs/GATEWAY.md) and [NETWORK-UPDATE.md](docs/NETWORK-UPDATE.md)
 have the details.
 
 ## Security, plainly
 
-- Use it on a network you trust. Pages are HTTP, and **the ports' data sockets have no
-  login**. A port can be limited to listed addresses, to read or to read and write; that
-  goes by IP address, so it is not proof against someone who takes one over.
+- Use it on a network you trust. Pages are HTTP unless HTTPS is on, and **the ports' data
+  sockets have no login**. A port can be limited to listed addresses, to read or to read
+  and write; that goes by IP address, so it is not proof against someone who takes one
+  over.
 - Anyone on the network can view the pages. Changes need the web password, which is unset
   at first, or the update key. Neither crosses the network in clear.
 - **The web password can install firmware**, which is full control. Replacing the loader and
   reading flash need the update key.
 - HTTPS can be turned on, and renew its Let's Encrypt certificate through Route 53
   ([HTTPS.md](docs/HTTPS.md)); plain HTTP stays available beside it.
-- MQTT is unencrypted, and the gateway sends the broker's login in clear. With changes
-  allowed over MQTT, anyone who can publish to the broker can make them.
+- MQTT can be encrypted, with the broker's certificate checked against the Let's Encrypt
+  and Amazon roots. Without TLS, the broker's login crosses the network in clear. With
+  changes allowed over MQTT, anyone who can publish to the broker can make them.
 
 ## Build
 
@@ -75,6 +95,14 @@ cmake --build build
 
 The first configure creates `secrets/n540.key`, the update key, and compiles it into both.
 **Back it up:** without it, only SWD can replace the loader.
+
+The version is the release tag when built from one (`2026.48.0`), else the short commit. It
+is set when CMake configures, so run the first command again after committing.
+
+## Releases
+
+Tagged `YEAR.WEEK.N`, by ISO week. They carry no firmware files: every image holds the
+update key it was built with, so build your own, and its key is yours.
 
 ## Install
 
@@ -122,14 +150,15 @@ loader. Pins, and how sure we are of each, are in [HARDWARE.md](docs/HARDWARE.md
 
 ```
 src/loader/   boot, network update, slot choice
-src/app/      ports, settings, MQTT, console, API
+src/app/      ports, Modbus, devices, settings, MQTT, console, API
 src/http/     web server shared by both
 src/net/      Ethernet driver, lwIP glue
 src/common/   flash, slots, watchdog, SHA-256
 src/board/    the pin map
 web/          the page, one file, built into the firmware
+profiles/     device profiles, built into the firmware
 tools/        n540.py (updates, console), SWD scripts
-tests/        host and on-device tests
+tests/        host, simulator, fuzz and on-device tests
 docs/         GATEWAY, HARDWARE, NETWORK-UPDATE, DUMPS, HTTPS, ROADMAP
 ```
 
