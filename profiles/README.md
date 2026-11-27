@@ -116,10 +116,12 @@ build, and `tests/test_builtin.c` checks it parses.
 ## eg4-hybrid
 
 19200 8N1, unit 1. 95 values from seven reads of 40 registers: what the inverter is doing
-(input 0-39, every 5 s), its totals, faults, warnings and temperatures (input 40-79, every
-10 s), and its serial number, firmware and settings (holding 0-39, 40-79, 120-159, 160-199,
-every minute). Requests are a second apart, the document's minimum. It was read on two
-FlexBOSS; the 18kPV is the same document.
+(input 0-39, every 10 s), its totals, faults, warnings and temperatures (input 40-79, every
+minute), and its serial number, firmware and settings (holding 0-39, 40-79, 80-119,
+120-159, 160-199, every 2 minutes): about 9.5 requests a minute. Requests are a second
+apart, the document's minimum; with SolarAssistant's reads on the same port the line is
+then near full, so the turnaround is to be set from the inverter's measured reply time. It
+was read on two FlexBOSS; the 18kPV is the same document.
 
 - EG4's document frames each message with the inverter's serial number in it, as the Wi-Fi
   dongle does. Over RS485 the inverters answer plain Modbus RTU, to unit 0 and to their own

@@ -103,14 +103,17 @@ gateway port drops it, and a polled port must be one; so that both can use the i
 ## The EG4 profile
 
 - The profile becomes `eg4-hybrid`, model "18kPV / FlexBOSS": both use this register map.
-- Settings are read from holding 40-79, 80-119, 120-159 and 160-199 every minute, `info`;
-  `ident` (0-39, which holds register 21) goes from every 15 minutes to every minute. With
-  SolarAssistant's reads, the line is about 45% in use.
+- Live values (input 0-39) are read every 10 s and totals (input 40-79) every minute.
+  Settings are read from holding 40-79, 80-119, 120-159 and 160-199 every 2 minutes, `info`;
+  `ident` (0-39, which holds register 21) goes from every 15 minutes to every 2 minutes:
+  about 9.5 requests a minute. With SolarAssistant's ~40 reads a minute and the profile's
+  ~9.5, at 1 s turnaround the line is near full; the turnaround is set from the inverter's
+  measured reply time before devices share the port.
 - 41 controls, which take the profile to 95 values:
 
 | Group | Controls |
 |---|---|
-| AC charging | `ac_charge` switch (21 bit 7); power (66, 0-25 kW); SOC limit (67, 0-100 %); start SOC (160, 0-90 %) and stop SOC (161, 20-100 %); current (168, 0-250 A); `ac_charge_by` select (120, mask 0x000E: 0 Off, 2 Time, 4 Voltage, 6 SOC); three windows, each a start and an end (68-73) |
+| AC charging | `ac_charge` switch (21 bit 7); power (66, 0-25 kW); SOC limit (67, 0-100 %); start SOC (160, 0-90 %) and stop SOC (161, 0-100 %); current (168, 0-250 A); `ac_charge_by` select (120, mask 0x000E: 0 Off, 2 Time, 4 Voltage, 6 SOC); three windows, each a start and an end (68-73) |
 | Charge first | `charge_first` switch (21 bit 11); power (74, 0-25 kW); SOC limit (75, 0-100 %); three windows (76-81) |
 | Forced discharge | `forced_discharge` switch (21 bit 10); power (82, 0-25 kW); SOC limit (83, 0-100 %); three windows (84-89) |
 | Battery | charge and discharge current limits (101, 102, 0-250 A); on-grid cut-off SOC (105, 10-90 %); off-grid cut-off SOC (125, 0-90 %); `discharge_control` select (120, mask 0x0030: 0 Voltage, 16 SOC, 32 Both) |

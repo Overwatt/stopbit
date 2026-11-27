@@ -99,8 +99,12 @@ int main(void)
     assert(t && profile_parse(&B, t, n, err, sizeof err));
     profile_view(&B, &P);
     assert(P.baud == 19200 && !strcmp(P.frame, "8N1") && P.turn_ms == 1000 && P.nblock == 7);
-    for (int b = 0; b < P.nblock; b++)                    /* whole groups of 40, as the inverter insists */
+    float per_min = 0;
+    for (int b = 0; b < P.nblock; b++) {                  /* whole groups of 40, as the inverter insists */
         assert(P.block[b].count == 40 && P.block[b].addr % 40 == 0 && P.block[b].fn == (b >= 2 ? 3 : 4));
+        per_min += 60000.0f / (float)P.block[b].period_ms;
+    }
+    assert(per_min < 10);                                   /* 9.5 a minute: SolarAssistant shares the line */
     pf_state_init(&S);
     uint16_t in[40] = { 0 };
     in[0] = 0x000C;                                         /* PV charge + on-grid */
@@ -162,6 +166,21 @@ int main(void)
     assert(pf_decode(&P, profile_block(&P, "set80"), d, regs(d, H80, 40), &S));
     assert(pf_decode(&P, profile_block(&P, "set120"), d, regs(d, H120, 40), &S));
     assert(pf_decode(&P, profile_block(&P, "set160"), d, regs(d, H160, 40), &S));
+    /* Every control reads as Home Assistant is told it may: a number within its min and max,
+     * a select one of its choices (else HA calls each state message invalid). */
+    for (int i = 0; i < P.nfield; i++) {
+        const pf_field_t *f = &P.field[i];
+        if (!pf_control(f)) continue;
+        bool ok = pf_ok(&S, i);
+        float tol = (f->k > 0 ? f->k : 1) / 1000;
+        if (ok && f->kind == PF_NUMBER) ok = S.val[i].v >= f->lo - tol && S.val[i].v <= f->hi + tol;
+        if (ok && f->kind == PF_SELECT) {
+            ok = false;
+            for (int k = 0; k < f->nvname; k++) ok = ok || P.vname[f->vname + k].value == S.val[i].raw;
+        }
+        if (!ok) printf("%s reads %s\n", pf_str(&P, f->id), pf_ok(&S, i) ? "outside its range or choices" : "nothing");
+        assert(ok);
+    }
     assert(near(V("ac_charge_rate"), 12) && near(V("ac_charge_soc_limit"), 100) && near(V("charge_first_rate"), 12));
     assert(!strcmp(text("ac_charge_start_1"), "01:00") && !strcmp(text("ac_charge_end_1"), "03:00"));
     assert(!strcmp(text("ac_charge_start_2"), "11:00") && !strcmp(text("ac_charge_end_2"), "16:00"));
@@ -172,6 +191,7 @@ int main(void)
     assert(!strcmp(text("ac_charge_by"), "Voltage") && !strcmp(text("discharge_control"), "Voltage") && !strcmp(text("output_priority"), "Battery first"));
     assert(V("ac_charge") == 0 && V("charge_first") == 0 && V("forced_discharge") == 0 && V("export") == 1 && V("off_grid_output") == 1 && V("power") == 1);
     assert((P.field[F("power")].flags & PFF_HIDDEN) && (P.field[F("off_grid_output")].flags & PFF_HIDDEN) && !(P.field[F("export")].flags & PFF_HIDDEN));
+    assert(!strcmp(pf_str(&P, P.field[F("power")].name), "Power (off: standby)"));   /* what off does, where HA shows it */
     /* ... and a command for one: its bit alone. */
     pf_write_t w;
     char why[32];

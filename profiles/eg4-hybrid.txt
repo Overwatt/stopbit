@@ -10,6 +10,11 @@
 # three powers (66, 74, 82) in tenths of a kW where it says percent. Left out: the battery's
 # own figures as its BMS reports them (80-119), the generator and each EPS leg (120-138),
 # arc fault detection (140-152), the power factor (19), and the settings listed at the end.
+# Line use: SolarAssistant, sharing the port, reads about 40 times a minute and these blocks
+# about 9.5 times, each request after the turnaround: at 1 s the line is near full. The
+# turnaround is to be set on the gateway from measurements, the inverter's reply time
+# (/api/state modbus last_ms, avg_ms) and SolarAssistant's spacing, before devices share
+# the port (the device-controls plan: Checkpoint A, Task 8).
 profile eg4-hybrid 1
 name "18kPV / FlexBOSS"
 maker "EG4"
@@ -18,13 +23,13 @@ stale 5
 timeout 1000ms
 turnaround 1000ms                   # "minimum polling period: 1 s"
 
-block live   input 0  40 5s
-block totals input 40 40 10s
-block ident  hold  0  40 1m info
-block set40  hold  40  40 1m info
-block set80  hold  80  40 1m info
-block set120 hold  120 40 1m info
-block set160 hold  160 40 1m info
+block live   input 0  40 10s
+block totals input 40 40 1m
+block ident  hold  0  40 2m info
+block set40  hold  40  40 2m info
+block set80  hold  80  40 2m info
+block set120 hold  120 40 2m info
+block set160 hold  160 40 2m info
 
 text   status                 "Status"                    live 0  enum mask=0x00FF 0x00=Standby 0x01=Fault 0x02="Firmware update" 0x04="PV on-grid" 0x08="PV charge" 0x0C="PV charge + on-grid" 0x10="Battery on-grid" 0x14="PV + battery on-grid" 0x20="AC charge" 0x28="PV + AC charge" 0x40="Battery off-grid" 0x80="PV off-grid" 0xC0="PV + battery off-grid" 0x88="PV charge + off-grid"
 sensor pv_voltage_1..3        "PV # voltage"              live 1  u16 *0.1 V dc=voltage sc=measurement prec=1
@@ -75,8 +80,8 @@ calc grid_power               "Grid power"                sub grid_import_power 
 calc pv_energy_today          "PV energy today"           sum pv_energy_today_1..3 kWh dc=energy sc=total_increasing prec=1
 calc pv_energy                "PV energy"                 sum pv_energy_1..3 kWh dc=energy sc=total_increasing prec=1
 
-# Settings: written from Home Assistant when the device has controls=1. Read once a minute,
-# and again at once after a write. A write that would change nothing is not made. Left out:
+# Settings: written from Home Assistant when the device has controls=1. Read every two
+# minutes, and again at once after a write. A write that would change nothing is not made. Left out:
 # register 11 (restore defaults, clear records, reboot), grid protection (25-63), the clock,
 # PV input mode, parallel and lead-acid settings, the 0.1 % settings (138-143), AC-first
 # windows (152-157), generator charging (194-198).
@@ -84,7 +89,7 @@ switch ac_charge               "AC charge"                  ident  21  bit 7
 number ac_charge_rate          "AC charge rate"             set40  66  u16 *0.1 min 0 max 25 kW dc=power
 number ac_charge_soc_limit     "AC charge SOC limit"        set40  67  u16 min 0 max 100 %
 number ac_charge_start_soc     "AC charge start SOC"        set160 160 u16 min 0 max 90 %
-number ac_charge_stop_soc      "AC charge stop SOC"         set160 161 u16 min 20 max 100 %
+number ac_charge_stop_soc      "AC charge stop SOC"         set160 161 u16 min 0 max 100 %
 number ac_charge_current       "AC charge current"          set160 168 u16 min 0 max 250 A dc=current
 select ac_charge_by            "AC charge by"               set120 120 mask=0x000E 0=Off 2=Time 4=Voltage 6=SOC
 time   ac_charge_start_1       "AC charge 1 start"          set40  68
@@ -119,5 +124,5 @@ number off_grid_cutoff_soc     "Off-grid cut-off SOC"       set120 125 u16 min 0
 select discharge_control       "Discharge control"          set120 120 mask=0x0030 0=Voltage 16=SOC 32=Both
 switch export                  "Export to grid"             ident  21  bit 15
 switch off_grid_output         "Off-grid output"            ident  21  bit 0 hidden
-switch power                   "Power"                      ident  21  bit 9 hidden
+switch power                   "Power (off: standby)"       ident  21  bit 9 hidden
 select output_priority         "Output priority"            set120 145 0="Battery first" 1="PV first" 2="AC first"
