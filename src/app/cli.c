@@ -97,7 +97,7 @@ static void c_status(out_t *o, int argc, char **argv)
     cli_sys(&s);
     ago(s.uptime_s, up, sizeof up);
     put(o, "%s (%s)\n", cli_cfg()->device_name, s.host);
-    put(o, "firmware  %s, slot %c\n", s.version, s.slot == 0 ? 'A' : s.slot == 1 ? 'B' : '-');
+    put(o, "firmware  Stopbit %s, slot %c\n", s.version, s.slot == 0 ? 'A' : s.slot == 1 ? 'B' : '-');
     put(o, "up        %s, %lu boots, last start: %s\n", up, (unsigned long)s.boots, reset_name(s.reset_log[0]));
     put(o, "address   %s / %s, gateway %s (%s)\n", s.ip, s.mask, s.gateway, cli_cfg()->net.dhcp ? "DHCP" : "static");
     put(o, "ethernet  %s, %d Mb/s %s duplex\n", s.mac, s.speed, s.full_duplex ? "full" : "half");

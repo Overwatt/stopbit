@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>N540 gateway</title>
+<title>Stopbit</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='3' y='19' width='58' height='40' rx='6' fill='%231f8f4e'/%3E%3Cpath d='M3 51h58v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z' fill='%2317763f'/%3E%3Cg fill='%230c3a20'%3E%3Crect x='8' y='24' width='10' height='10' rx='2'/%3E%3Crect x='21' y='24' width='10' height='10' rx='2'/%3E%3Crect x='34' y='24' width='10' height='10' rx='2'/%3E%3Crect x='47' y='24' width='10' height='10' rx='2'/%3E%3C/g%3E%3Cg fill='%23d4dade'%3E%3Ccircle cx='13' cy='43' r='5'/%3E%3Ccircle cx='26' cy='43' r='5'/%3E%3Ccircle cx='39' cy='43' r='5'/%3E%3Ccircle cx='52' cy='43' r='5'/%3E%3C/g%3E%3Cg stroke='%237a8790' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M10.2 43h5.6M23.2 43h5.6M36.2 43h5.6M49.2 43h5.6'/%3E%3C/g%3E%3Cpath d='M13 3V28' stroke='%23ff8a1f' stroke-width='5.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{color-scheme:light dark;
@@ -24,7 +24,7 @@ header{background:var(--shell);color:#fff}header .in{display:flex;flex-wrap:wrap
 header b{font-size:1.1875rem;font-weight:700;overflow-wrap:anywhere}
 .logo{width:40px;height:40px;flex:none;margin-right:-18px}
 header :focus-visible{outline-color:#fff;outline-offset:-2px}
-.meta{color:var(--shell-soft);margin:0;line-height:1.3}.meta span{display:block}.meta .up{font-size:.8125rem;color:var(--shell-dim)}.grow{flex:1}
+.meta{color:var(--shell-soft);margin:0;line-height:1.3}.meta span{display:block}.meta .up{font-size:.8125rem;color:var(--shell-dim)}.brand{margin:0;line-height:1.3;min-width:0}.brand b{display:block}.brand span{display:block;font-size:.8125rem;color:var(--shell-dim);overflow-wrap:anywhere}.grow{flex:1}
 header button,header button.primary{background:rgb(255 255 255/.1);color:#fff;font-weight:500}header button:hover,header button.primary:hover{background:rgb(255 255 255/.18)}header button:active,header button.primary:active{background:rgb(255 255 255/.24)}header button:disabled,header button.primary:disabled{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px var(--shell-soft)}header .msg.bad{color:#ffd0ca;flex-basis:100%}
 header input{background:#fff;color:#0b2230;border-color:#5b7f91}header input::placeholder{color:#2d5468}
 h1,h2,h3{font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}
@@ -109,7 +109,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 </head>
 <body data-view="list">
 <header><div class="in">
- <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="3" y="19" width="58" height="40" rx="6" fill="#1f8f4e"/><path d="M3 51h58v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z" fill="#17763f"/><g fill="#0c3a20"><rect x="8" y="24" width="10" height="10" rx="2"/><rect x="21" y="24" width="10" height="10" rx="2"/><rect x="34" y="24" width="10" height="10" rx="2"/><rect x="47" y="24" width="10" height="10" rx="2"/></g><g fill="#d4dade"><circle cx="13" cy="43" r="5"/><circle cx="26" cy="43" r="5"/><circle cx="39" cy="43" r="5"/><circle cx="52" cy="43" r="5"/></g><g stroke="#7a8790" stroke-width="1.8" stroke-linecap="round"><path d="M10.2 43h5.6M23.2 43h5.6M36.2 43h5.6M49.2 43h5.6"/></g><path d="M13 3V28" stroke="#ff8a1f" stroke-width="5.5" stroke-linecap="round"/></svg><b id="dname">N540 gateway</b>
+ <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="3" y="19" width="58" height="40" rx="6" fill="#1f8f4e"/><path d="M3 51h58v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z" fill="#17763f"/><g fill="#0c3a20"><rect x="8" y="24" width="10" height="10" rx="2"/><rect x="21" y="24" width="10" height="10" rx="2"/><rect x="34" y="24" width="10" height="10" rx="2"/><rect x="47" y="24" width="10" height="10" rx="2"/></g><g fill="#d4dade"><circle cx="13" cy="43" r="5"/><circle cx="26" cy="43" r="5"/><circle cx="39" cy="43" r="5"/><circle cx="52" cy="43" r="5"/></g><g stroke="#7a8790" stroke-width="1.8" stroke-linecap="round"><path d="M10.2 43h5.6M23.2 43h5.6M36.2 43h5.6M49.2 43h5.6"/></g><path d="M13 3V28" stroke="#ff8a1f" stroke-width="5.5" stroke-linecap="round"/></svg><p class="brand"><b>Stopbit</b><span id="dname"></span></p>
  <span class="grow"></span>
  <p class="meta"><span id="dip">Connecting…</span><span class="up" id="dup"></span></p>
  <form id="login" class="acts" hidden>
@@ -349,7 +349,7 @@ function showStatic(){document.querySelector("[data-static]").hidden=$("net").el
 function fillForms(){const n=$("net").elements;for(const k of ["mode","ip","mask","gateway","dns","ntp"])n[k].value=cfg.net[k]||"";
  if(cfg.net.mode==="dhcp"&&st){if(!n.ip.value)n.ip.value=st.ip;if(!n.mask.value)n.mask.value=st.mask;if(!n.gateway.value)n.gateway.value=st.gateway}
  $("dev").elements.name.value=cfg.device.name;fillMqtt();showStatic();title()}
-function title(){const n=cfg.device.name||"N540 gateway";$("dname").textContent=n;document.title=n}
+function title(){const n=cfg.device.name;$("dname").textContent=n;document.title=n?n+" · Stopbit":"Stopbit"}
 $("net").elements.mode.onchange=showStatic;
 $("net").onsubmit=async ev=>{ev.preventDefault();const n=$("net").elements,m=$("net").querySelector(".msg");
  const L=["net.mode="+n.mode.value];if(n.mode.value==="static")for(const k of ["ip","mask","gateway","dns"])L.push("net."+k+"="+n[k].value.trim());

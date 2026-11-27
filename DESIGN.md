@@ -1,5 +1,5 @@
 ---
-name: N540 gateway
+name: Stopbit
 description: Every part of the gateway is a station that reports its own condition.
 colors:
   shell: "#0d4a68"
@@ -193,7 +193,7 @@ components:
     padding: "12px 16px"
 ---
 
-# Design System: N540 gateway
+# Design System: Stopbit
 
 ## Overview
 
@@ -285,7 +285,8 @@ with no internet.
   at 44ch.
 - **Title** (750, 1.25rem, -.01em): sections and fieldsets in the sheet.
 - **Reading** (650, 1.25rem): a value under its label in the report.
-- **Station** (650, 1.0625rem): names in the list. The device name is 700, 1.1875rem.
+- **Station** (650, 1.0625rem): names in the list. The product name in the shell bar is 700, 1.1875rem;
+  the device name under it is .8125rem in shell-dim, as the uptime under the address.
 - **Body** (400, 16px, 1.45): list readings, table cells, messages. Prose stops at 66ch.
   Buttons are 600.
 - **Label** (400, .9375rem, soft ink): field and reading labels. Table heads use 500.
@@ -300,7 +301,8 @@ The product's own terms stay: heard, sent, turned away, station.
 
 ## Layout
 
-A shell bar across the top (72px): logo, name, address and uptime, sign-in. Notices
+A shell bar across the top (72px): logo, product name over device name, address over
+uptime, sign-in. Notices
 come under it, on the ground. Then two columns: the list (400px) and the sheet, which runs to
 the right and bottom edges and starts 26px below whatever is above it. Sheet content stops at
 1000px, inside 34px by 44px padding. The outer gutter is 32px.

@@ -22,7 +22,7 @@ Four jobs, all confirmed:
 
 ## Product Purpose
 
-Open firmware that turns a USR-N540, a 4-port RS485-to-Ethernet box, into a gateway its
+Stopbit is open firmware that turns a USR-N540, a 4-port RS485-to-Ethernet box, into a gateway its
 owner can inspect, change and update over the network, replacing the closed vendor
 firmware. Built for fun; it does not aim to reproduce the vendor's whole feature list.
 
@@ -78,10 +78,10 @@ Terms used in the UI and docs: port, line (the serial side), network, listen onl
 
 - **Terse, facts only.** No explanatory filler. Set by the owner after seeing a page that
   had it. Warnings about consequences, such as transmitting or losing access, stay.
-- **Name: open.** "N540 gateway" is what the page and Home Assistant show; "lino" is the
-  project folder; the repository is "RS485-To-TCP-Bridge". The owner is happy for
-  something catchy to be proposed. Nothing has been chosen. Each device's own name is
-  editable and is what its page title shows.
+- **Name: Stopbit** (chosen by the owner, 2026-11-26). The page shows it beside the logo,
+  with the device's own name under it; the repository is "stopbit". The tool (`n540.py`),
+  MQTT topics, Home Assistant entity IDs, `n540_` metric names and host names keep "n540":
+  they are in use. Each device's own name is editable and leads its page title.
 - It is not the vendor's product and must not look like it or use its name as its own.
 
 ## Evidence on Hand

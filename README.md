@@ -1,9 +1,9 @@
 <img src="docs/images/logo.svg" width="96" alt="">
 
-# Open firmware for the USR-N540
+# Stopbit
 
-Firmware for the **USR-N540**, a 4-port RS485-to-Ethernet gateway, that replaces the
-vendor's closed one. Bare-metal C on an STM32H750, with lwIP. A for-fun project: open,
+Open firmware for the **USR-N540**, a 4-port RS485-to-Ethernet gateway, that replaces
+the vendor's closed one. Bare-metal C on an STM32H750, with lwIP. A for-fun project: open,
 hackable and observable, not a copy of the vendor's whole feature list.
 
 Not made or endorsed by the vendor.
