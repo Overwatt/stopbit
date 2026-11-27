@@ -337,7 +337,7 @@ int main(void)
     c.dev[0].address = 1;                                      /* same address; change the label instead */
     snprintf(c.dev[0].label, sizeof c.dev[0].label, "changed");
     device_configure(&c);
-    set_reply(60, 0xF3D5, 0x0008, 70000, 0);
+    set_reply(60, 0xF3D5, 0x0001, 70000, 0);
     assert(event(3, "t1=09:00; device changed"));
 
     /* The last device on the port removed while its write is on the line, the queue started again. */
