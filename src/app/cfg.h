@@ -97,10 +97,6 @@ bool cfg_modbus_tcp(const cfg_t *c, int port);
 const char *cfg_modbus_unit0(const cfg_t *c, int port);
 /* Whether this port's TCP clients send RTU frames rather than Modbus TCP. */
 bool cfg_modbus_rtu(const cfg_t *c, int port);
-/* What unit 0 is on this port's Modbus gateway: "0" refused, "1" every device, "answer" a device that answers. */
-const char *cfg_modbus_unit0(const cfg_t *c, int port);
-/* Whether this port's TCP clients send RTU frames rather than Modbus TCP. */
-bool cfg_modbus_rtu(const cfg_t *c, int port);
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);
