@@ -520,7 +520,7 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  st.ports.forEach((_,i)=>{const [c,t]=portState(i);setItem(1+i,c,(i+1)+" "+pn(i),t)});
  setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
  const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
- setItem(8,!evs?"idle":evBad(evs[0])?"warn":"ok","Events",!evs?"Reading":evs.length?evWhen(evs[0],true):"None yet");
+ setItem(8,!evs?"idle":evs.length&&evBad(evs[0])?"warn":"ok","Events",!evs?"Reading":evs.length?evWhen(evs[0],true):"None yet");
  setItem(9,!devs?"idle":devs.devices.some(d=>d.error||!d.online)?"warn":"ok","Devices",!devs?"Reading":!devs.devices.length?"None":devs.devices.filter(d=>d.online).length+" of "+devs.devices.length+" online");
  const hf=hwFaults();setItem(7,!hw?"idle":hf.length?(hf.some(x=>x[0]==="bad")?"bad":"warn"):"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
  const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All normal");v.title=first?first[1]:"";
