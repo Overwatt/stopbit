@@ -46,6 +46,9 @@ On one gateway:
   request/reply, with no errors.
 - A real bus at 38,400 baud: every packet checksum valid in each 30-second capture. It has
   carried that bus, listen only, since 25 November 2026.
+- Measured on that bus: a packet goes out 1.76 ms after its last byte, 1.75 ms of that the
+  silence that ends a packet; a restart takes the network away for 0.8 s; a client that
+  stops reading has 17 KB held for it before it misses anything (a port in loopback).
 - A real EG4 battery, polled over Modbus RTU at 9600 baud beside that bus.
 - MQTT over TLS to Mosquitto with a Let's Encrypt certificate, and HTTPS renewing its own
   certificate.
@@ -55,8 +58,9 @@ Every push also runs the host tests, a simulator of the web server and installs,
 TLS against Mosquitto, and a short fuzz of the parsers (GitHub Actions).
 
 Not tested: all four ports busy at once, long or terminated buses, more than 1,000,000 baud,
-power loss during an update, and silence on the wire in listen only (checked by counters,
-not measured). [GATEWAY.md](docs/GATEWAY.md) and [NETWORK-UPDATE.md](docs/NETWORK-UPDATE.md)
+power loss during an update, silence on the wire in listen only (checked by counters,
+not measured), a real device since profiles were packed on 27 November 2026 (only a port
+that does not answer, since), and an image built with `-DAPP_LTO=ON`. [GATEWAY.md](docs/GATEWAY.md) and [NETWORK-UPDATE.md](docs/NETWORK-UPDATE.md)
 have the details.
 
 ## Security, plainly
@@ -98,6 +102,8 @@ The first configure creates `secrets/n540.key`, the update key, and compiles it 
 
 The version is the release tag when built from one (`2026.48.0`), else the short commit. It
 is set when CMake configures, so run the first command again after committing.
+
+`-DAPP_LTO=ON` makes `app.bin` about 16 KB smaller. It is off unless asked for.
 
 ## Releases
 
