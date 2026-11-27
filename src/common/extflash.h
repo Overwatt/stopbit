@@ -2,8 +2,8 @@
  * extflash.h — The two on-board GD25Q16 SPI NOR chips, bit-banged.
  *   0: QUADSPI bank 2 pins (stock firmware's XIP code flash)
  *   1: SPI4 pins, CS = PE4
- * Bit-banging keeps the loader tiny and identical for both chips; ~1 MB/s is
- * plenty for loading an image at boot.
+ * Bit-banging keeps the loader tiny and identical for both chips; ~0.6 MB/s is
+ * plenty for loading an image at boot. The application clocks chip 1 through SPI4.
  */
 #ifndef EXTFLASH_H
 #define EXTFLASH_H
@@ -25,4 +25,9 @@ bool     extflash_busy(int dev);
 /* Called over and over while extflash_erase() waits, which is 50 ms or so a sector.
  * Must not use the flash. */
 void     extflash_meanwhile(void (*fn)(void));
+#ifdef APP_IMAGE
+/* Whether chip 1 is clocked by SPI4 (the application checks at start-up; see extflash.c),
+ * and if not, why. */
+bool     extflash_spi(const char **why);
+#endif
 #endif

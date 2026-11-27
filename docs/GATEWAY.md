@@ -57,7 +57,10 @@ The Hardware page reads `GET /api/hardware`, which like `/api/state` needs no pa
 temperature is the processor's own sensor, so it reads above room temperature. `loop` is the
 main loop's longest pause, recently (10 to 20 s) and since the start: which step of the pass
 took longest and how much of that was AES-GCM, and which API reply took longest to make.
-`avg_us` is what a pass took on average over the last 10 s. `mem` lists each memory's use;
+`avg_us` is what a pass took on average over the last 10 s. `eth.link_ms` and `eth.ip_ms`
+are how long after its start the application had a link and an address. `flash_spi` says
+whether the second flash chip is clocked by the SPI peripheral (checked against reading it
+by hand at each start; if not, `flash_spi_why` says why and it is read by hand, slower). `mem` lists each memory's use;
 ITCM holds the web server's buffers, so that AXI SRAM beyond the program is all TLS heap.
 `aes` says whether the crypto engine encrypts TLS records ([HTTPS.md](HTTPS.md)).
 

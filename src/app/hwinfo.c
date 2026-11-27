@@ -237,7 +237,10 @@ size_t hwinfo_json(char *out, size_t max)
     OUT("},\"button\":{\"pressed\":%s,\"presses\":%lu,\"held_ms\":%lu},\"flash\":[",
         s_button.down ? "true" : "false", U(s_button.presses), U(s_button.held_ms));
     for (int i = 0; i < EXTFLASH_COUNT; i++) OUT("%s\"0x%06lx\"", i ? "," : "", U(extflash_id(i)));
-    OUT("],\"eth\":{\"phy_id\":\"0x%08lx\",\"phy_addr\":%lu,\"link\":%s,\"speed\":%d,\"full_duplex\":%s,"
+    const char *spi_why;
+    bool spi = extflash_spi(&spi_why);
+    OUT("],\"flash_spi\":%s,\"flash_spi_why\":\"%s\"", spi ? "true" : "false", spi_why);
+    OUT(",\"eth\":{\"phy_id\":\"0x%08lx\",\"phy_addr\":%lu,\"link\":%s,\"speed\":%d,\"full_duplex\":%s,"
         "\"rx\":%lu,\"tx\":%lu,\"rx_err\":%lu,\"tx_drop\":%lu,\"link_ms\":%lu,\"ip_ms\":%lu}",
         U(g_eth.phy_id), U(g_eth.phy_addr), g_eth.link_up ? "true" : "false",
         g_eth.speed100 ? 100 : 10, g_eth.full_duplex ? "true" : "false",
