@@ -93,6 +93,10 @@ typedef struct {
     dev_cfg_t  dev[DEVS];
 } cfg_t;
 
+/* For the event log: the ports a change touched (bit per port), its own record and what is
+ * kept apart from it (access list, quiet, Modbus options, address); and whether the devices changed. */
+uint32_t cfg_ports_changed(const cfg_t *was, const cfg_t *now);
+bool cfg_devs_changed(const cfg_t *was, const cfg_t *now);
 /* Whether device i (0-based) is on (devN.enabled, the default). */
 bool cfg_dev_enabled(const cfg_t *c, int i);
 /* Minutes without traffic or a client before a port alerts; 0 = never. */

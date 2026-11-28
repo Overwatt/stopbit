@@ -604,6 +604,24 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
     return n;
 }
 
+uint32_t cfg_ports_changed(const cfg_t *was, const cfg_t *now)
+{
+    const more_cfg_t *a = &was->more, *b = &now->more;
+    uint32_t bits = (uint32_t)((a->modbus_broadcast ^ b->modbus_broadcast) | (a->modbus_no_tcp ^ b->modbus_no_tcp) |
+                               (a->modbus_rtu ^ b->modbus_rtu) | (a->modbus_answer ^ b->modbus_answer));
+    for (int i = 0; i < PORTS; i++)
+        if (memcmp(&was->port[i], &now->port[i], sizeof was->port[i]) || memcmp(&was->access[i], &now->access[i], sizeof was->access[i]) ||
+            cfg_quiet_min(was, i) != cfg_quiet_min(now, i) || a->modbus_timeout[i] != b->modbus_timeout[i] ||
+            memcmp(a->ip[i], b->ip[i], sizeof a->ip[i]))
+            bits |= 1u << i;
+    return bits & ((1u << PORTS) - 1);
+}
+
+bool cfg_devs_changed(const cfg_t *was, const cfg_t *now)
+{
+    return memcmp(was->dev, now->dev, sizeof was->dev) || memcmp(was->more.dev_off, now->more.dev_off, sizeof was->more.dev_off);
+}
+
 bool cfg_dev_enabled(const cfg_t *c, int i)
 {
     return i < 0 || i >= DEVS || !(c->more.dev_off[i >> 3] >> (i & 7) & 1);

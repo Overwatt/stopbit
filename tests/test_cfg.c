@@ -280,6 +280,36 @@ int main(void)
         c = keep;
     }
 
+    /* For the event log: which ports a save touched, and whether the devices changed. Each
+     * setting kept apart from the port's own record counts for its port. */
+    {
+        cfg_t a = c, b;
+#define TOUCHES(s, mask, devs) do { b = a; if (!set(&b, s)) { printf("FAIL should accept %s: %s\n", s, err); return 1; } \
+        if (cfg_ports_changed(&a, &b) != (mask) || cfg_devs_changed(&a, &b) != (devs)) { \
+            printf("FAIL %s: ports %x devices %d\n", s, (unsigned)cfg_ports_changed(&a, &b), cfg_devs_changed(&a, &b)); return 1; } } while (0)
+        TOUCHES("device.name=x", 0, false);
+        TOUCHES("port3.baud=19200", 4, false);
+        TOUCHES("port1.access=10.20.1.54 read", 1, false);
+        TOUCHES("port2.quiet_min=30", 2, false);
+        TOUCHES("port2.enabled=1\nport2.mode=modbus\nport2.local_port=502", 2, false);
+        assert(set(&a, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502"));
+        TOUCHES("port2.modbus_timeout=700", 2, false);
+        TOUCHES("port2.modbus_broadcast=1", 2, false);
+        TOUCHES("port2.modbus_broadcast=answer", 2, false);
+        TOUCHES("port2.modbus_tcp=0", 2, false);
+        TOUCHES("port2.modbus_framing=rtu", 2, false);
+        TOUCHES("port2.ip=10.20.0.11", 2, false);
+        TOUCHES("dev1.profile=eg4-bms\ndev1.name=m\ndev1.port=2\ndev1.address=3", 0, true);
+        assert(set(&a, "dev1.profile=eg4-bms\ndev1.name=m\ndev1.port=2\ndev1.address=3"));
+        TOUCHES("dev1.enabled=0", 0, true);
+        TOUCHES("dev1.controls=1", 0, true);
+        TOUCHES("dev1.profile=", 0, true);
+        TOUCHES("port4.name=x\ndev1.label=y", 8, true);
+        b = a;
+        assert(!cfg_ports_changed(&a, &b) && !cfg_devs_changed(&a, &b));
+#undef TOUCHES
+    }
+
     /* Worst case must fit the HTTP response buffer alongside its headers. */
     for (int i = 0; i < PORTS; i++) {
         memset(c.port[i].name, '"', 23); memset(c.port[i].remote_host, 'a', 47);

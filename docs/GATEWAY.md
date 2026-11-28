@@ -575,7 +575,8 @@ port with SolarAssistant (it was stopped during the write test).
 
 The Events page lists what happened, newest first, each with its time in your own time
 zone: starts (and why: power-on, a restart, the watchdog), faults, firmware kept, settings
-saved (and what), network trials kept or reverted, MQTT connecting and dropping, port
+saved (and what: the ports, their addresses and Modbus options included, the devices, the
+network, MQTT), network trials kept or reverted, MQTT connecting and dropping, port
 alerts raised and cleared, addresses turned away (once per address per ten minutes),
 extra addresses taken on, refused or given up,
 renewals, certificates installed, the clock being set, failed sign-ins (counted, at most

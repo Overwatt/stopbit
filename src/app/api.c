@@ -52,17 +52,15 @@ static uint32_t  s_save_at;
 static void note(const cfg_t *was, const cfg_t *now)
 {
     char what[44] = "";
-    uint32_t ports = 0;
+    const uint32_t ports = cfg_ports_changed(was, now);
 #define WHAT(x) snprintf(what + strlen(what), sizeof what - strlen(what), "%s%s", what[0] ? "," : "", x)
     if (strcmp(was->device_name, now->device_name)) WHAT("name");
     if (memcmp(&was->net, &now->net, sizeof was->net)) WHAT("network");
     if (strcmp(was->more.ntp, now->more.ntp)) WHAT("time server");
     if (memcmp(&was->mqtt, &now->mqtt, sizeof was->mqtt) || strcmp(was->more.topic, now->more.topic) ||
         was->more.mqtt_tls != now->more.mqtt_tls) WHAT("mqtt");
+    if (cfg_devs_changed(was, now)) WHAT("devices");
 #undef WHAT
-    for (int i = 0; i < PORTS; i++)
-        if (memcmp(&was->port[i], &now->port[i], sizeof was->port[i]) || memcmp(&was->access[i], &now->access[i], sizeof was->access[i]) ||
-            cfg_quiet_min(was, i) != cfg_quiet_min(now, i)) ports |= 1u << i;
     if (what[0] || ports) events_add(EV_SETTINGS, 0, ports, what);
 }
 
