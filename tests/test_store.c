@@ -145,6 +145,21 @@ int main(void)
     }
     assert(cfg_load(&d) && !d.dev[2].profile[0] && d.port[1].mode == MODE_MODBUS);   /* the rest as it was */
 
+    /* devN.enabled=0: a bit in the later settings, kept across a load. One for a place with
+     * no device (a save cut between the two records) is dropped when loaded. */
+    memset(F, 0xFF, sizeof F);
+    cfg_load(&c);
+    set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\ndev3.profile=eg4-bms\ndev3.name=eg4m\ndev3.port=2\ndev3.address=16\ndev3.enabled=0");
+    assert(cfg_save(&c) && cfg_load(&d) && !memcmp(&c, &d, sizeof c) && !cfg_dev_enabled(&d, 2) && cfg_dev_enabled(&d, 0));
+    {
+        cfg_t s = c;
+        set(&s, "dev3.profile=");
+        memcpy(s.more.dev_off, c.more.dev_off, sizeof s.more.dev_off);              /* the bit, as an older save left it */
+        assert(cfg_save(&s) && cfg_load(&d) && !d.dev[2].profile[0] && !d.more.dev_off[0] && !d.more.dev_off[1]);
+        set(&d, "dev3.profile=eg4-bms\ndev3.name=new\ndev3.port=2\ndev3.address=17");
+        assert(cfg_dev_enabled(&d, 2));                                              /* a new device there: on */
+    }
+
     /* power cut at every flash operation of a save that changes devices (and the main
      * record): each is old or new, never neither, and the settings save again. From one
      * device copy written, and from both. */

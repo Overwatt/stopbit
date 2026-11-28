@@ -11,6 +11,7 @@
 
 typedef struct {
     bool       used;
+    bool       off;                /* devN.enabled=0: settings kept, no profile, not polled, not in HA */
     uint8_t    gen, slot;          /* gen: bumps when reconfigured (replies to the old one are ignored) */
     const profile_t *p;            /* NULL: not polled; see error */
     dev_cfg_t  cfg;

@@ -206,6 +206,46 @@ int main(void)
     run(); assert(Ln == 8);
     Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
 
+    /* A device turned off: its settings kept, not polled, gone from HA, commands refused.
+     * Back on: polled again, afresh. */
+    {
+        char e[96];
+        int g = gone_n;
+        char t0[] = "dev2.enabled=0";
+        if (!cfg_parse(&c, t0, e, sizeof e)) { puts(e); assert(0); }
+        device_configure(&c);
+        const device_t *d1 = device_get(1);
+        assert(gone_n == g + 1 && !strcmp(gone_name, "p1"));
+        assert(d1 && d1->off && !d1->p && !d1->online && !d1->error[0] && !strcmp(d1->cfg.name, "p1") && d1->cfg.address == 2);
+        int up[PORTS], all[PORTS];
+        device_count(up, all);
+        assert(all[1] == 2);                                          /* eg4m and nope, not p1 */
+        n = device_json(1, j, sizeof j);
+        assert(n && json_ok(j) && strstr(j, "\"enabled\":false") && strstr(j, "\"values\":[]") && !strstr(j, "\"model\""));
+        assert(device_json(0, j, sizeof j) && strstr(j, "\"enabled\":true"));
+        assert(!device_command("p1", "anything", "1", false));
+        Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
+        for (int k = 0; k < 30; k++) {                                /* 5 minutes: only eg4m is asked */
+            t_now += 10000;
+            run();
+            assert(Ln == 0 || L[0] == 0x10);
+            Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
+        }
+        char t1[] = "dev2.enabled=1";
+        if (!cfg_parse(&c, t1, e, sizeof e)) { puts(e); assert(0); }
+        device_configure(&c);
+        assert(d1->p && !d1->off && d1->polls == 0);
+        bool asked = false;
+        for (int k = 0; k < 4 && !asked; k++) {
+            t_now += 10000;
+            run();
+            asked = Ln && L[0] == 2;
+            Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
+        }
+        assert(asked);
+        Ln = 0; M[1].qn = 0; M[1].state = MB_IDLE;
+    }
+
     /* The last device on a port removed: no extra quiet, no line use. */
     device_reply(1, tag(0, 0), -1, NULL, 0);
     t_now += 61000;

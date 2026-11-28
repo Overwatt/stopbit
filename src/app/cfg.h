@@ -61,7 +61,9 @@ typedef struct {
     uint8_t ip_enabled;            /* in the stored record only (cfg_store.c): bit per port that is on and has, or had in
                                       the stored record, an address: the main record has such a port off, for
                                       older firmware, and a save cut short between the two records reads old or new */
-    uint8_t spare[129];            /* for later settings */
+    uint8_t dev_off[2];            /* bit per device (devN.enabled=0): its settings kept, not polled, not in HA.
+                                      Older firmware polls it */
+    uint8_t spare[127];            /* for later settings */
 } more_cfg_t;
 _Static_assert(sizeof(more_cfg_t) == 256, "more_cfg_t is stored: keep its size");
 
@@ -91,6 +93,8 @@ typedef struct {
     dev_cfg_t  dev[DEVS];
 } cfg_t;
 
+/* Whether device i (0-based) is on (devN.enabled, the default). */
+bool cfg_dev_enabled(const cfg_t *c, int i);
 /* Minutes without traffic or a client before a port alerts; 0 = never. */
 uint16_t cfg_quiet_min(const cfg_t *c, int port);
 /* How long a Modbus gateway on this port waits for a reply, ms. */

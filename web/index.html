@@ -225,7 +225,7 @@ code{font:.875em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
   <p class="hint">Kept in the gateway through restarts and power cuts: the last 200 or so.</p></div>
  <div id="p-devices" hidden><div class="top"><a class="back" href="#status">All stations</a><div class="head"><h2>Devices</h2><button id="devadd" class="primary" type="button" data-auth="">Add device</button></div><p class="say" id="dsay"></p></div>
   <table class="stack" id="devrows"></table>
-  <section id="devone" hidden><div class="head"><h3 id="devname"></h3><button id="devedit" type="button" data-auth="">Edit</button><button id="devdel" class="danger" type="button" data-auth="">Remove</button></div><p class="hint" id="devwhy"></p><table class="stack" id="devvals"></table></section>
+  <section id="devone" hidden><div class="head"><h3 id="devname"></h3><button id="devedit" type="button" data-auth="">Edit</button><button id="devtoggle" type="button" data-auth="">Turn off</button><button id="devdel" class="danger" type="button" data-auth="">Remove</button></div><p class="hint" id="devwhy"></p><table class="stack" id="devvals"></table></section>
   <section id="devform" hidden></section>
  </div>
 </main></div>
@@ -545,7 +545,8 @@ function paint(){if(!st||!cfg)return;if(!items.length)buildList();
  setItem(5,st.net_pending?"warn":"ok","Network",st.net_pending?"On trial":st.speed+" Mb/s");
  const f=st.crashes-(st.uptime_s<30?1:0)>0;setItem(6,st.fw_trial||f?"warn":"ok","Firmware",st.fw_trial?"On trial":f?"Failed starts":st.version);
  setItem(8,!evs?"idle":evs.length&&evBad(evs[0])?"warn":"ok","Events",!evs?"Reading":evs.length?evWhen(evs[0],true):"None yet");
- setItem(9,!devs?"idle":devs.devices.some(d=>d.error||!d.online)?"warn":"ok","Devices",!devs?"Reading":!devs.devices.length?"None":devs.devices.filter(d=>d.online).length+" of "+devs.devices.length+" online");
+ const DE=devs?devs.devices.filter(d=>d.enabled):[];   /* those turned off are left out */
+ setItem(9,!devs?"idle":DE.some(d=>d.error||!d.online)?"warn":"ok","Devices",!devs?"Reading":!devs.devices.length?"None":!DE.length?"All off":DE.filter(d=>d.online).length+" of "+DE.length+" online");
  const hf=hwFaults();setItem(7,!hw?"idle":hf.length?(hf.some(x=>x[0]==="bad")?"bad":"warn"):"ok","Hardware",!hw?"Reading":hf.length?plural(hf.length,"fault"):hw.cpu.temp_c!=null?nb(Math.round(hw.cpu.temp_c)+" °C"):"Up "+dur(st.uptime_s));
  const L=issues(),v=$("verdict"),first=L[0];put(v,first?el("a",{href:first[2]},first[1]):"All normal");v.title=first?first[1]:"";
  const on=st.ports.filter((s,i)=>portState(i)[0]==="ok"),sum=on.length?plural(on.length,"port")+" connected":st.ports.every(s=>s.state==="off")?"All ports are off":"No port is connected";
@@ -713,14 +714,15 @@ let devs=null,devAt=0,devSel=0,devEd=null;
 async function devices(force){const now=performance.now();if(!force&&devAt&&now-devAt<(page==="devices"?3000:30000))return;devAt=now;
  try{devs=await getj("/api/devices")}catch(e){devAt=0;return}drawDevices()}
 const devVal=(v,u)=>v===null?"Unknown":v===true?"On":v===false?"Off":typeof v==="number"?nb(v.toLocaleString(undefined,{maximumFractionDigits:3})+(u?" "+u:"")):v;
-function drawDevices(){if(!devs||page!=="devices")return;const D=devs.devices,on=D.filter(d=>d.online).length;
- const use=[...new Set(D.map(d=>d.port))].sort().map(p=>"port "+p+" "+Math.round(devs.line_use[p-1]/10)+"%").join(", ");
- put($("dsay"),D.length?plural(D.length,"device")+", "+on+" online. Line use: "+use+".":"No devices yet. Add one on a port set to Modbus gateway.");
+function drawDevices(){if(!devs||page!=="devices")return;const D=devs.devices,on=D.filter(d=>d.online).length,off=D.filter(d=>!d.enabled).length;
+ const use=[...new Set(D.filter(d=>d.enabled).map(d=>d.port))].sort().map(p=>"port "+p+" "+Math.round(devs.line_use[p-1]/10)+"%").join(", ");
+ put($("dsay"),D.length?plural(D.length,"device")+", "+on+" online"+(off?", "+off+" off":"")+"."+(use?" Line use: "+use+".":""):"No devices yet. Add one on a port set to Modbus gateway.");
  fillRows($("devrows"),["Device","Model","Where","State","Last read"],D.map(d=>[el("a",{href:"#devices",class:"name",onclick(e){e.preventDefault();devSel=d.n;devEd=null;drawDevices()}},d.label||d.name),
   d.model?d.maker+" "+d.model:d.profile,"Port "+d.port+", address "+d.address,
-  d.error?el("span",{class:"bad"},d.error):d.online?el("span",{class:"ok"},"Online"):el("span",{class:"warn"},"Offline"),d.ago_ms<0?"Never":ago(d.ago_ms)]));
+  !d.enabled?"Off":d.error?el("span",{class:"bad"},d.error):d.online?el("span",{class:"ok"},"Online"):el("span",{class:"warn"},"Offline"),d.ago_ms<0?"Never":ago(d.ago_ms)]));
  const d=D.find(x=>x.n===devSel);$("devone").hidden=!d||!!devEd;
- if(d&&!devEd){put($("devname"),d.label||d.name);put($("devwhy"),plural(d.polls,"read")+", "+d.misses.toLocaleString()+(d.misses===1?" miss":" misses")+(d.why?". Last: "+d.why:"")+".");
+ if(d&&!devEd){put($("devname"),d.label||d.name);$("devtoggle").textContent=d.enabled?"Turn off":"Turn on";
+  put($("devwhy"),!d.enabled?"Off: not read, and not in Home Assistant. Its settings are kept.":plural(d.polls,"read")+", "+d.misses.toLocaleString()+(d.misses===1?" miss":" misses")+(d.why?". Last: "+d.why:"")+".");
   fillRows($("devvals"),["Value","Now"],(d.values||[]).map(v=>[v[1],devVal(v[2],v[3])]))}
  $("devform").hidden=!devEd;authUI()}   /* the form is built when opened, so a refresh does not wipe what is typed */
 function devOpen(d){devEd=d;if(d)$("devform").replaceChildren(devForm(d));drawDevices()}
@@ -735,14 +737,19 @@ function devForm(d){const mb=cfg.ports.map((p,i)=>[i+1,p]).filter(([,p])=>p.mode
    el("label",{},"Home Assistant IDs",el("select",{name:"ids"},el("option",{value:"own",selected:d.ids!=="esphome"},"The gateway's own"),el("option",{value:"esphome",selected:d.ids==="esphome"},"The ESP32's (ESPHome)"))),
    el("label",{},"ESPHome prefix",el("input",{name:"prefix",value:d.prefix||"",maxLength:24,pattern:"[a-z0-9_]*"}))),
   el("p",{class:"hint"},mb.length?"ESPHome IDs only once the ESP32 is removed from Home Assistant: two cannot hold the same ID.":"First set a port to Modbus gateway."),
+  el("div",{class:"checks",style:"margin:16px 0 20px"},el("label",{class:"check"},el("input",{type:"checkbox",name:"controls",checked:!!d.controls}),
+   el("span",{},"Let Home Assistant change its settings",el("span",{},"Its profile's settings, if it has any, appear in Home Assistant as controls. Anyone who can publish to your broker can then change them, without this page's password.")))),
   el("div",{class:"acts"},el("button",{class:"primary","data-auth":""},"Save device"),el("button",{type:"button",onclick(){devEd=null;drawDevices()}},"Cancel"),el("p",{class:"msg",role:"status"})));
  f.onsubmit=async ev=>{ev.preventDefault();const e=f.elements,m=f.querySelector(".msg");
   const n=d.n||[...Array(16).keys()].map(k=>k+1).find(k=>!devs.devices.some(x=>x.n===k));if(!n)return say(m,"All 16 places are in use.","bad");
   const L=["profile","name","label","port","address","ids","prefix"].map(k=>"dev"+n+"."+k+"="+e[k].value.trim());
+  L.push("dev"+n+".controls="+(e.controls.checked?1:0));if(!d.n)L.push("dev"+n+".enabled=1");
   say(m,"Saving…");try{await post("/api/config",L.join("\n"));devEd=null;devSel=n;await devices(true)}catch(x){say(m,x.message,"bad")}};
  return f}
 $("devadd").onclick=()=>devOpen({});
 $("devedit").onclick=()=>devOpen(devs.devices.find(x=>x.n===devSel)||null);
+$("devtoggle").onclick=async()=>{const d=devs.devices.find(x=>x.n===devSel);if(!d)return;
+ try{await post("/api/config","dev"+d.n+".enabled="+(d.enabled?0:1));await devices(true)}catch(e){say($("devwhy"),e.message,"bad")}};
 $("devdel").onclick=async()=>{const d=devs.devices.find(x=>x.n===devSel);if(!d)return;
  try{await post("/api/config","dev"+d.n+".profile=");devSel=0;await devices(true)}catch(e){say($("devwhy"),e.message,"bad")}};
 

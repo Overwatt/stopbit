@@ -293,10 +293,18 @@ tools/n540.py $H set port2.enabled=1 port2.mode=modbus port2.local_port=502 \
 | devN.address | 1 to 247; unique on its port |
 | devN.ids | `own` (the default) or `esphome` (below) |
 | devN.prefix | the ESP32's name, a to z, 0 to 9 and `_`; needed for `ids=esphome` |
-| devN.controls | 0 or 1: announce the profile's controls to Home Assistant and accept commands for them (below) |
+| devN.enabled | 1 (the default) or 0: off, below |
+| devN.controls | 0 or 1: announce the profile's controls to Home Assistant and accept commands for them (below). On the page: **Let Home Assistant change its settings** in the device's form |
 
 A device without a profile, name, port or address is refused, e.g. "Device 1: choose its
 profile". `ids=esphome` without a prefix is refused too.
+
+A device turned off (`devN.enabled=0`, or **Turn off** on its page) keeps its settings, but
+is not read, its commands are refused, and it is removed from Home Assistant as if deleted;
+turned on, it is announced again under the same IDs. It is left out of the port's device
+count, the line use and `/metrics`. Removing a device clears it, so a new one in its place
+starts on. The setting is kept with the later settings, which older firmware does not read:
+after a rollback, such a device is read again.
 
 ### Topics
 
@@ -305,7 +313,7 @@ profile". `ids=esphome` without a prefix is refused too.
 | `BASE/dev/<name>/state` | one JSON object of the device's values, retained. After a change at most once a second, and at least once a minute |
 | `BASE/dev/<name>/status` | `online` or `offline`, retained |
 | `BASE/dev/<name>/set/<control>` | a command: a number, a choice's name, ON or OFF, or HH:MM. Not retained |
-| `homeassistant/<sensor, binary_sensor, number, select, switch or text>/HOST_<name>/<field>/config` | discovery, retained. Emptied when the device is removed or changed |
+| `homeassistant/<sensor, binary_sensor, number, select, switch or text>/HOST_<name>/<field>/config` | discovery, retained. Emptied when the device is removed, turned off or changed |
 
 An entity is available only while the gateway, the device and its value are all present.
 Each device is a Home Assistant device (the profile's maker and model), shown via the

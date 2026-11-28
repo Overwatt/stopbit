@@ -605,7 +605,7 @@ int api_metrics(uint32_t part, char *out, size_t max)
     }
     for (int i = 0; i < DEVS; i++) {
         const device_t *dv = device_get(i);
-        if (!dv) continue;
+        if (!dv || dv->off) continue;                   /* off: not a device to watch */
         m.dev[i] = (typeof(m.dev[i])){ dv->cfg.name, true, dv->online, dv->polls, dv->misses };
     }
     for (int i = 0; i < PORTS; i++) m.line_use[i] = device_line_use(i);

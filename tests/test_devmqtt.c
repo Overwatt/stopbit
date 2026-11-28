@@ -142,6 +142,29 @@ int main(void)
         assert(strstr(tv2, "value_json['total_voltage']") && !strstr(tv2, "value_json."));
     }
 
+    /* Turned off: emptied as if removed, then nothing while off. Back on: announced again. */
+    {
+        char e[96];
+        int nf0 = d->p->nfield, empty0 = 0;
+        char t0[] = "dev1.enabled=0";
+        if (!cfg_parse(&c, t0, e, sizeof e)) { puts(e); assert(0); }
+        Pn = 0;
+        device_configure(&c);
+        drain(true);
+        for (int k = 0; k < Pn; k++) empty0 += Pb[k].payload[0] == 0;
+        assert(Pn == nf0 + 2 && empty0 == Pn && find("solar/dev/eg4m/state") && find("solar/dev/eg4m/status"));
+        t_now += 120000;
+        assert(drain(true) == 0);
+        char t1[] = "dev1.enabled=1";
+        if (!cfg_parse(&c, t1, e, sizeof e)) { puts(e); assert(0); }
+        Pn = 0;
+        device_configure(&c);
+        drain(true);
+        const char *tv3 = find("homeassistant/sensor/n540-test_eg4m/total_voltage/config");
+        assert(Pn == nf0 + 2 && tv3 && strstr(tv3, "\"unique_id\":\"n540-test_eg4m_eg4_bms_total_voltage\""));
+        assert(!strcmp(find("solar/dev/eg4m/status"), "offline"));   /* not read since */
+    }
+
     /* Removed: every config, the state and the status emptied. */
     int nf = d->p->nfield;
     memset(&c.dev[0], 0, sizeof c.dev[0]);

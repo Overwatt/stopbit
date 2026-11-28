@@ -213,6 +213,13 @@ static bool apply(cfg_t *c, const char *k, const char *v)
         char *e;
         long n = strtol(k + 3, &e, 10);
         if (n < 1 || n > DEVS || *e != '.') return false;
+        uint8_t *off = &c->more.dev_off[(n - 1) >> 3], bit = (uint8_t)(1u << ((n - 1) & 7));
+        if (!strcmp(e + 1, "enabled")) {
+            if (strcmp(v, "0") && strcmp(v, "1")) return false;
+            *off = v[0] == '0' ? (uint8_t)(*off | bit) : (uint8_t)(*off & ~bit);
+            return true;
+        }
+        if (!strcmp(e + 1, "profile") && !*v) *off &= (uint8_t)~bit;      /* removed: a new one here starts on */
         return dev_apply(&c->dev[n - 1], e + 1, v);
     }
     if (!strncmp(k, "port", 4) && k[4] >= '1' && k[4] < '1' + PORTS && k[5] == '.') {
@@ -435,7 +442,7 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
         const dev_cfg_t *d = &c->dev[i];
         if (!d->profile[0]) {                           /* settings of no device would not survive cfg_dev_lines() */
             static const dev_cfg_t none;
-            if (memcmp(d, &none, sizeof none)) { snprintf(err, errlen, "Device %d: choose its profile", i + 1); return false; }
+            if (memcmp(d, &none, sizeof none) || !cfg_dev_enabled(c, i)) { snprintf(err, errlen, "Device %d: choose its profile", i + 1); return false; }
             continue;
         }
         if (!d->name[0]) { snprintf(err, errlen, "Device %d: give it a name", i + 1); return false; }
@@ -597,6 +604,11 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
     return n;
 }
 
+bool cfg_dev_enabled(const cfg_t *c, int i)
+{
+    return i < 0 || i >= DEVS || !(c->more.dev_off[i >> 3] >> (i & 7) & 1);
+}
+
 size_t cfg_dev_lines(const cfg_t *c, int i, char *out, size_t max)
 {
     if (i < 0 || i >= DEVS) return 0;
@@ -605,8 +617,8 @@ size_t cfg_dev_lines(const cfg_t *c, int i, char *out, size_t max)
     if (!max) return 0;
     if (!d->profile[0]) { ADD("dev%d.profile=\n", i + 1); return n; }
     ADD("dev%d.profile=%s\ndev%d.name=%s\ndev%d.label=%s\ndev%d.port=%u\ndev%d.address=%u\n"
-        "dev%d.controls=%u\ndev%d.ids=%s\ndev%d.prefix=%s\n",
+        "dev%d.enabled=%d\ndev%d.controls=%u\ndev%d.ids=%s\ndev%d.prefix=%s\n",
         i + 1, d->profile, i + 1, d->name, i + 1, d->label, i + 1, d->port, i + 1, d->address,
-        i + 1, d->controls, i + 1, d->ids ? "esphome" : "own", i + 1, d->prefix);
+        i + 1, cfg_dev_enabled(c, i), i + 1, d->controls, i + 1, d->ids ? "esphome" : "own", i + 1, d->prefix);
     return n;
 }

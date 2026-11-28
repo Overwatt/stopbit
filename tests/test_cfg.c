@@ -221,6 +221,28 @@ int main(void)
         assert(cfg_parse(&t2, l, err, sizeof err) && !memcmp(&t2.dev[15], &c.dev[15], sizeof c.dev[15]));
         for (size_t k = 0; k < 40; k++) assert(!cfg_dev_lines(&c, 0, l, k));      /* never cut short */
     }
+    /* devN.enabled: on unless set; off keeps the device's settings. Removing the device
+     * drops it, so a new one in the same place starts on. */
+    assert(cfg_dev_enabled(&c, 15) && cfg_dev_enabled(&c, 0));
+    OK("dev16.enabled=0");
+    assert(!cfg_dev_enabled(&c, 15) && cfg_dev_enabled(&c, 0) && !strcmp(c.dev[15].name, "p1") && c.dev[15].port == 2);
+    REFUSED("dev16.enabled=2"); REFUSED("dev16.enabled=yes");
+    BAD("dev5.enabled=0"); assert(strstr(err, "Device 5: choose its profile"));   /* no device there */
+    assert(cfg_dev_enabled(&c, 4));
+    {
+        char l[600];
+        cfg_t t2 = c;
+        assert(cfg_dev_lines(&c, 15, l, sizeof l) && strstr(l, "dev16.enabled=0\n") && strstr(l, "dev16.controls="));
+        char rm[] = "dev16.profile=";
+        assert(cfg_parse(&t2, rm, err, sizeof err) && cfg_dev_enabled(&t2, 15));
+        assert(cfg_parse(&t2, l, err, sizeof err) && !cfg_dev_enabled(&t2, 15) && !memcmp(&t2.dev[15], &c.dev[15], sizeof c.dev[15]));
+        assert(cfg_dev_lines(&c, 0, l, sizeof l) && strstr(l, "dev1.enabled=1\n"));
+        assert(cfg_dev_lines(&c, 5, l, sizeof l) && !strcmp(l, "dev6.profile=\n"));
+    }
+    OK("dev16.enabled=1"); assert(cfg_dev_enabled(&c, 15));
+    OK("dev16.enabled=0\ndev16.profile=\ndev16.profile=eg4-bms\ndev16.name=p1\ndev16.port=2\ndev16.address=1");
+    assert(cfg_dev_enabled(&c, 15));                                               /* removed and added: on */
+    OK("dev16.enabled=0");
     OK("dev16.profile=");
     assert(!c.dev[15].name[0] && !c.dev[15].port && !c.dev[15].label[0]);
     OK("dev1.profile=\nport2.mode=server\nport2.local_port=4002\nport2.enabled=0");

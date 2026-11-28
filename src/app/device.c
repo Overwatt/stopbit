@@ -80,7 +80,7 @@ void device_count(int up[PORTS], int all[PORTS])
     for (int i = 0; i < PORTS; i++) up[i] = all[i] = 0;
     for (int i = 0; i < DEVS; i++) {
         const device_t *d = device_get(i);
-        if (!d || d->cfg.port < 1 || d->cfg.port > PORTS) continue;
+        if (!d || d->off || d->cfg.port < 1 || d->cfg.port > PORTS) continue;
         all[d->cfg.port - 1]++;
         up[d->cfg.port - 1] += d->online;
     }
@@ -163,8 +163,8 @@ void device_configure(const cfg_t *c)
     for (int i = 0; i < DEVS; i++) {
         device_t *d = &s_dev[i];
         const dev_cfg_t *k = &c->dev[i];
-        bool want = k->profile[0] != 0;
-        if (d->used == want && (!want || !memcmp(&d->cfg, k, sizeof *k))) continue;
+        bool want = k->profile[0] != 0, off = want && !cfg_dev_enabled(c, i);
+        if (d->used == want && (!want || (!memcmp(&d->cfg, k, sizeof *k) && d->off == off))) continue;
         if (d->used) {
             if (s_gone) s_gone(i, d);
             if (d->p) s_slot[d->slot].users--;
@@ -176,6 +176,7 @@ void device_configure(const cfg_t *c)
         d->used = true;
         d->cfg = *k;
         d->seq = 1;
+        if ((d->off = off)) continue;
         d->p = load(d, k->profile);
         for (int b = 0; d->p && b < d->p->nblock; b++) d->due[b] = HAL_GetTick();
     }
@@ -469,7 +470,7 @@ bool device_command(const char *name, const char *control, const char *payload, 
     device_t *d = &s_dev[i];
     snprintf(what, sizeof what, "%s=%s", control, payload);
     if (d->p) f = profile_field(d->p, control);
-    const char *why = retained ? "retained" : !d->cfg.controls ? "controls off" :
+    const char *why = retained ? "retained" : d->off ? "device off" : !d->cfg.controls ? "controls off" :
                       f < 0 || !pf_control(&d->p->field[f]) ? "no such control" :
                       d->cfg.port < 1 || d->cfg.port > PORTS || !bridge_modbus_port(d->cfg.port - 1) ? "port off" : NULL;
     pf_write_t w;
@@ -575,9 +576,10 @@ int device_json_part(int i, int k, char *out, size_t max)
     if (k == 0) {
         if (!d) return -1;
         if (!json_str(d->cfg.label, s[0], sizeof s[0]) || !json_str(d->error, s[1], sizeof s[1]) || !json_str(d->why, s[2], sizeof s[2])) return -1;
-        OUT("{\"n\":%d,\"profile\":\"%s\",\"name\":\"%s\",\"label\":%s,\"port\":%u,\"address\":%u,\"controls\":%s,"
+        OUT("{\"n\":%d,\"profile\":\"%s\",\"name\":\"%s\",\"label\":%s,\"port\":%u,\"address\":%u,\"enabled\":%s,\"controls\":%s,"
             "\"ids\":\"%s\",\"prefix\":\"%s\",\"error\":%s,\"online\":%s,\"polls\":%lu,\"misses\":%lu,\"why\":%s,\"ago_ms\":%ld",
-            i + 1, d->cfg.profile, d->cfg.name, s[0], d->cfg.port, d->cfg.address, d->cfg.controls ? "true" : "false",
+            i + 1, d->cfg.profile, d->cfg.name, s[0], d->cfg.port, d->cfg.address, d->off ? "false" : "true",
+            d->cfg.controls ? "true" : "false",
             d->cfg.ids ? "esphome" : "own", d->cfg.prefix, s[1], d->online ? "true" : "false",
             (unsigned long)d->polls, (unsigned long)d->misses, s[2],
             d->last_ok ? (long)((HAL_GetTick() - d->last_ok) & 0x7FFFFFFF) : -1L);

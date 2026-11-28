@@ -174,6 +174,7 @@ static void dev_load(cfg_t *c)
         dev_cfg_t *d = &c->dev[i];
         d->profile[sizeof d->profile - 1] = d->name[sizeof d->name - 1] = 0;
         d->label[sizeof d->label - 1] = d->prefix[sizeof d->prefix - 1] = 0;
+        if (!d->profile[0]) c->more.dev_off[i >> 3] &= (uint8_t)~(1u << (i & 7));   /* a save cut between the records */
     }
     memcpy(s_dsaved, c->dev, sizeof s_dsaved);
 }
