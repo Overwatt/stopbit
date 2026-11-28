@@ -340,6 +340,7 @@ function editor(p,i){
  const f=el("form",{onsubmit:async ev=>{ev.preventDefault();const L=[];
    for(const e of f.elements){if(!e.name)continue;const v=e.type==="checkbox"?(e.checked?"1":"0"):e.value.trim();
     const was=typeof p[e.name]==="boolean"?(p[e.name]?"1":"0"):String(p[e.name]);if(v!==was)L.push("port"+(i+1)+"."+e.name+"="+(v===""&&e.type==="number"?"0":v))}
+   if(f.elements.mode.value==="client"&&p.ip&&!L.some(x=>x.startsWith("port"+(i+1)+".ip=")))L.push("port"+(i+1)+".ip=");
    if(!L.length){say(msg,"No changes to save.");return}
    save.disabled=true;say(msg,"Saving…");
    try{await post("/api/config",L.join("\n"));cfg=await getj("/api/config");editing=false;title();showSheet();await tick()}

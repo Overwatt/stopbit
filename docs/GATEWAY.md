@@ -187,6 +187,8 @@ beside it, up to 3:
   address. If another device claims it later, the gateway answers once, and gives it up at
   a second claim within 10 s. It is tried again at a restart, at the next settings save,
   or when the cable is back; one in use is announced again then, and kept.
+- A UDP port at an address that is not in use (being checked, held by another device, or
+  outside the subnet) sends nothing from it; what it hears is counted as not delivered.
 - The web page, and ports left blank, answer on every address. What the gateway starts
   itself (MQTT, NTP, DNS, renewals, client-mode ports) keeps the main address.
 - Two ports may share a local port only if each has an address of its own, and the two
