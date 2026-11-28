@@ -13,6 +13,9 @@ void net_ip_str(char out[16]);
 void net_addrs(char ip[16], char mask[16], char gw[16]);
 /* Switch addressing at run time. Addresses in network byte order. */
 void net_set(bool dhcp, uint32_t ip, uint32_t mask, uint32_t gw, uint32_t dns);
+/* The main interface (the application's: src/app/addrs.c). */
+struct netif;
+struct netif *net_netif(void);
 /* Hardware RNG. Returns false (and writes nothing useful) if it has failed. */
 bool rng_fill(void *dst, uint32_t len);
 #endif

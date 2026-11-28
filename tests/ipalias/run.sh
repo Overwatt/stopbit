@@ -21,4 +21,5 @@ t() {   # name, then flags and sources
   else echo "$n: FAILED"; echo "$out" | tail -20; fail=1; fi
 }
 t ipalias tests/ipalias/test_ipalias.c src/ipalias/ipalias.c
+t addrs -Itests/stub -Isrc/app -Isrc/net tests/ipalias/test_addrs.c src/app/addrs.c src/ipalias/ipalias.c tests/stub/events_stub.c src/app/cfg.c src/app/acl.c
 exit $fail

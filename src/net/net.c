@@ -219,3 +219,7 @@ void net_set(bool dhcp, uint32_t ip, uint32_t mask, uint32_t gw, uint32_t dns)
     (void)dns;
 #endif
 }
+
+#ifdef APP_IMAGE
+struct netif *net_netif(void) { return &s_if; }
+#endif

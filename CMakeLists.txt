@@ -169,6 +169,7 @@ file(GLOB NET_SRC    "${CMAKE_SOURCE_DIR}/src/net/*.c")
 file(GLOB HTTP_SRC   "${CMAKE_SOURCE_DIR}/src/http/*.c")
 file(GLOB LOADER_SRC "${CMAKE_SOURCE_DIR}/src/loader/*.c")
 file(GLOB APP_SRC    "${CMAKE_SOURCE_DIR}/src/app/*.c")
+file(GLOB IPALIAS_SRC "${CMAKE_SOURCE_DIR}/src/ipalias/*.c")   # the application's only: src/net goes into the loader too
 
 # The same loader, linked for internal flash and for SRAM (SWD testing).
 foreach(where flash ram)
@@ -187,8 +188,9 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/gen/profiles_gen.h
     DEPENDS ${PROFILE_TXT} ${CMAKE_SOURCE_DIR}/tools/embed_profiles.py)
 n540_image(app app_ram.ld ${LWIP_MQTT_SRC}
     ${CMAKE_BINARY_DIR}/gen/web_page.h ${CMAKE_BINARY_DIR}/gen/profiles_gen.h
-    ${APP_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
+    ${APP_SRC} ${IPALIAS_SRC} ${CORE_SRC} ${COMMON_SRC} ${NET_SRC} ${HTTP_SRC} ${LWIP_SRC} ${MBEDTLS_SRC})
 target_include_directories(app.elf SYSTEM PRIVATE ${MBEDTLS_PUBLIC})
+target_include_directories(app.elf PRIVATE ${CMAKE_SOURCE_DIR}/src/ipalias)
 target_compile_definitions(app.elf PRIVATE MBEDTLS_CONFIG_FILE="mbedtls_cfg.h" TF_PSA_CRYPTO_CONFIG_FILE="crypto_cfg.h")
 # -DAPP_LTO=ON: the application optimised as a whole at link time, which makes it about
 # 15 KB smaller (measured 2026-11-27: 314 KB for 330 KB). Off unless asked for: nothing

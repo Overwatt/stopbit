@@ -37,6 +37,8 @@ typedef enum {
     EV_WRITE,          /* a device's control: port its port; a: device number (0 unknown) | outcome << 8,
                           0 ok, 1 unchanged, 2 refused, 3 failed, 4 reads back otherwise;
                           s: "control=value", then "; " and why */
+    EV_ADDRESS,        /* an extra address (portN.ip, addrs.c): a: the address; s: "live", "outside",
+                          or "taken " / "lost " and the other device's MAC */
 } ev_kind_t;
 
 void events_init(void);            /* finds where the log ends; after extflash_init() */
