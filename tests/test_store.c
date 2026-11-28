@@ -200,6 +200,33 @@ int main(void)
             }
         printf("power cut at each of %ld operations of a save %s a port's address: on, old or new address\n", total, rev ? "setting" : "clearing");
     }
+    /* power cut at every flash operation of a save that clears two ports' addresses and
+     * moves one of them off the shared local port: valid, and old, new, or both ports off */
+    {
+        static uint8_t img[0xE000];
+        char e[96];
+        memset(F, 0xFF, sizeof F);
+        cfg_load(&c);
+        set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport2.ip=10.20.0.12\n"
+                "port3.enabled=1\nport3.mode=modbus\nport3.local_port=502\nport3.ip=10.20.0.11");
+        assert(cfg_save(&c));
+        cfg_t old = c;
+        memcpy(img, F[1] + 0xEE000, sizeof img);
+        set(&c, "port2.ip=\nport3.ip=\nport3.local_port=503");
+        cfg_load(&d);
+        f_ops = 0; assert(cfg_save(&c)); long total = f_ops;
+        for (long k = 0; k < total; k++)
+            for (int rep = 0; rep < 20; rep++) {
+                memcpy(F[1] + 0xEE000, img, sizeof img);
+                cfg_load(&d);
+                f_ops = 0; f_cut = k; srand((unsigned)(k * 100 + rep));
+                if (!setjmp(f_power)) { cfg_save(&c); assert(!"cut"); }
+                f_cut = -1;
+                assert(cfg_load(&d) && cfg_validate(&d, e, sizeof e));
+                assert(!memcmp(&d, &old, sizeof d) || !memcmp(&d, &c, sizeof d) || (!d.port[1].enabled && !d.port[2].enabled));
+            }
+        printf("power cut at each of %ld operations of a save clearing two ports' addresses: valid, old, new or off\n", total);
+    }
     /* Ports at addresses of their own, both on 502: the main record has them off, so older
      * firmware, which reads it alone, still accepts it; this firmware reads them back on. */
     {

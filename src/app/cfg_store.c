@@ -150,15 +150,20 @@ static bool access_save(const cfg_t *c)
 }
 
 /* Anything not stored, or not readable, is its default. */
-static void more_load(cfg_t *c)
+static uint8_t more_load(cfg_t *c)       /* the ports its bit turned on */
 {
+    uint8_t on = 0;
     memset(&c->more, 0, sizeof c->more);
     if (side_load(&s_more, &c->more) != 1) memset(&c->more, 0, sizeof c->more);
     c->more.ntp[sizeof c->more.ntp - 1] = c->more.topic[sizeof c->more.topic - 1] = 0;
     s_msaved = c->more;
     for (int p = 0; p < PORTS; p++)     /* the main record has it off, for older firmware (or not yet saved) */
-        if (c->more.ip_enabled >> p & 1) c->port[p].enabled = 1;
+        if ((c->more.ip_enabled >> p & 1) && !c->port[p].enabled) {
+            c->port[p].enabled = 1;
+            on |= (uint8_t)(1u << p);
+        }
     c->more.ip_enabled = 0;             /* only ever in the stored record */
+    return on;
 }
 
 static void dev_load(cfg_t *c)
@@ -188,13 +193,14 @@ bool cfg_load(cfg_t *c)
     bool ok = s_cur >= 0 && cfg_validate(c, err, sizeof err);
     if (!ok) cfg_defaults(c);
     access_load(c);
-    more_load(c);
+    uint8_t on = more_load(c);
     dev_load(c);
-    bool ips = false;
+    bool ips = on != 0;
     for (int p = 0; p < PORTS; p++) ips = ips || cfg_port_ip(c, p);
-    if (ips && !cfg_validate(c, err, sizeof err))       /* the records disagree: those ports stay off */
+    if (ips && !cfg_validate(c, err, sizeof err))       /* the records disagree: the main record was valid alone,
+                                                           so ports at an address, or turned on by the bit, stay off */
         for (int p = 0; p < PORTS; p++)
-            if (cfg_port_ip(c, p)) c->port[p].enabled = 0;
+            if (cfg_port_ip(c, p) || (on >> p & 1)) c->port[p].enabled = 0;
     return ok;
 }
 
