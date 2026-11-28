@@ -225,6 +225,39 @@ int main(void)
     assert(!c.dev[15].name[0] && !c.dev[15].port && !c.dev[15].label[0]);
     OK("dev1.profile=\nport2.mode=server\nport2.local_port=4002\nport2.enabled=0");
 
+    /* portN.ip: the port's own address; blank, every address. */
+    {
+        cfg_t keep = c;
+        uint32_t b;
+        assert(ip4_parse("10.20.0.11", &b));
+        OK("port2.ip=10.20.0.11"); assert(cfg_port_ip(&c, 1) == b && !cfg_port_ip(&c, 0));
+        static char jj[4344];
+        assert(cfg_json(&c, jj, sizeof jj) && strstr(jj, "\"ip\":\"10.20.0.11\",\"quiet_min\"") && strstr(jj, "\"ip\":\"\",\"quiet_min\""));
+        assert(cfg_lines(&c, jj, sizeof jj) && strstr(jj, "port2.ip=10.20.0.11\n") && strstr(jj, "port1.ip=\n"));
+        static cfg_t t; cfg_defaults(&t); assert(cfg_parse(&t, jj, err, sizeof err) && cfg_port_ip(&t, 1) == b);
+        OK("port2.ip="); assert(!cfg_port_ip(&c, 1));
+        BAD("port2.ip=10.20.0"); BAD("port2.ip=10.20.0.256"); BAD("port5.ip=10.20.0.11");
+        /* Against a static main address: in its subnet, not its network, broadcast or router. */
+        OK("net.mode=static\nnet.ip=10.20.0.10\nnet.mask=255.255.255.0\nnet.gateway=10.20.0.1");
+        OK("port1.enabled=0\nport4.enabled=0\nport2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport3.enabled=1\nport3.mode=modbus\nport3.local_port=4003");
+        BAD("port3.local_port=502");                                          /* both on every address */
+        BAD("port3.local_port=502\nport3.ip=10.20.0.11");                      /* port 2 is still on every address */
+        assert(strstr(err, "addresses of their own"));
+        OK("port2.ip=10.20.0.10\nport3.ip=10.20.0.11\nport3.local_port=502");  /* the main one, and an extra one */
+        BAD("port3.ip=10.20.0.10");                                            /* one address, one port */
+        BAD("port3.ip=10.30.0.11"); assert(strstr(err, "subnet"));
+        BAD("port3.ip=10.20.0.0"); BAD("port3.ip=10.20.0.255"); BAD("port3.ip=10.20.0.1");
+        BAD("port3.ip=127.0.0.1"); BAD("port3.ip=224.0.0.5"); BAD("port3.ip=0.1.2.3");
+        OK("port4.enabled=1\nport4.mode=udp\nport4.local_port=502\nport4.ip=10.20.0.11");   /* UDP beside TCP */
+        BAD("port4.mode=client\nport4.remote_host=10.20.0.50\nport4.remote_port=4000"); assert(strstr(err, "client"));
+        OK("port4.enabled=0\nport4.mode=client\nport4.remote_host=10.20.0.50\nport4.remote_port=4000");   /* off: kept */
+        /* No more than EXTRA_IPS besides the main one. */
+        OK("net.mode=dhcp\nport1.enabled=1\nport1.mode=server\nport1.local_port=4001\nport1.ip=10.20.0.21\nport2.ip=10.20.0.22\nport3.ip=10.20.0.23\nport4.ip=");
+        BAD("port4.enabled=1\nport4.mode=server\nport4.local_port=4004\nport4.ip=10.20.0.24"); assert(strstr(err, "3"));
+        OK("port4.enabled=1\nport4.mode=server\nport4.local_port=4004\nport4.ip=10.20.0.23");     /* at one of them */
+        c = keep;
+    }
+
     /* Worst case must fit the HTTP response buffer alongside its headers. */
     for (int i = 0; i < PORTS; i++) {
         memset(c.port[i].name, '"', 23); memset(c.port[i].remote_host, 'a', 47);
@@ -232,6 +265,7 @@ int main(void)
         assert(acl_parse(&c.access[i], "255.255.255.240/31 write, 255.255.255.242/31 write, 255.255.255.244/31 write, 255.255.255.246/31 write, 255.255.255.248/31 write, 255.255.255.250/31 write, 255.255.255.252/31 write, 255.255.255.254/31 write"));
     }
     memset(c.device_name, '\\', 31);
+    memset(c.more.ip, 0xFF, sizeof c.more.ip);                   /* "255.255.255.255" each */
     l = cfg_json(&c, j, sizeof j);
     printf("ok: %d change sets, worst-case JSON %zu bytes\n", n, l);
     assert(l && l < 4344);                      /* http.c: RESP_MAX - 256 */

@@ -173,6 +173,29 @@ int main(void)
             }
         printf("power cut at each of %ld operations of a save with devices: old or new, never neither\n", total);
     }
+    /* Ports at addresses of their own, both on 502: the main record has them off, so older
+     * firmware, which reads it alone, still accepts it; this firmware reads them back on. */
+    {
+        char e[96];
+        cfg_defaults(&c);
+        set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport2.ip=10.20.0.12\n"
+                "port3.enabled=1\nport3.mode=modbus\nport3.local_port=502\nport3.ip=10.20.0.11\n"
+                "port4.enabled=0\nport4.ip=10.20.0.13\nport1.enabled=1\nport1.listen_only=1");
+        assert(cfg_validate(&c, e, sizeof e));
+        assert(cfg_save(&c));
+        uint32_t s0, s1, m0, m1;
+        memcpy(&m0, F[1] + 0xF0000, 4); memcpy(&s0, F[1] + 0xF0008, 4);
+        memcpy(&m1, F[1] + 0xF1000, 4); memcpy(&s1, F[1] + 0xF1008, 4);
+        bool second = m1 == 0x47464335u && (m0 != 0x47464335u || s1 > s0);
+        static cfg_t old;
+        cfg_defaults(&old);
+        memcpy(&old, F[1] + (second ? 0xF1000 : 0xF0000) + 48, 656);  /* what older firmware reads */
+        assert(old.port[0].enabled && old.port[0].listen_only && !old.port[1].enabled && !old.port[2].enabled && !old.port[3].enabled);
+        assert(cfg_validate(&old, e, sizeof e));
+        assert(cfg_load(&d) && !memcmp(&c, &d, sizeof c));
+        assert(d.port[1].enabled && d.port[2].enabled && !d.port[3].enabled && cfg_port_ip(&d, 3) && !d.more.ip_enabled);
+        assert(cfg_save(&d) && cfg_load(&c) && !memcmp(&c, &d, sizeof c));   /* and again */
+    }
     (void)ops;
     puts("ok");
     return 0;

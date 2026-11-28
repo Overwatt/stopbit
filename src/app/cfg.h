@@ -57,7 +57,10 @@ typedef struct {
     uint8_t modbus_rtu;            /* bit per port: TCP clients send RTU frames (modbus_framing=rtu) */
     uint8_t modbus_answer;         /* bit per port: unit 0 is a device that answers (modbus_broadcast=answer);
                                       modbus_broadcast's bit is then clear */
-    uint8_t spare[146];            /* for later settings */
+    uint8_t ip[PORTS][4];          /* each port's own address (portN.ip), network byte order; 0 = every address */
+    uint8_t ip_enabled;            /* in the stored record only (cfg_store.c): bit per port with an address, on or
+                                      not; the main record has such a port off, for older firmware */
+    uint8_t spare[129];            /* for later settings */
 } more_cfg_t;
 _Static_assert(sizeof(more_cfg_t) == 256, "more_cfg_t is stored: keep its size");
 
@@ -97,6 +100,10 @@ bool cfg_modbus_tcp(const cfg_t *c, int port);
 const char *cfg_modbus_unit0(const cfg_t *c, int port);
 /* Whether this port's TCP clients send RTU frames rather than Modbus TCP. */
 bool cfg_modbus_rtu(const cfg_t *c, int port);
+
+/* The port's own address (portN.ip), network byte order; 0: every address the gateway has. */
+uint32_t cfg_port_ip(const cfg_t *c, int port);
+#define EXTRA_IPS 3                /* addresses besides the main one, at most (src/ipalias: IPALIAS_MAX) */
 void cfg_defaults(cfg_t *c);
 /* Network back to DHCP, web password cleared; the rest stays. */
 void cfg_reset_access(cfg_t *c);

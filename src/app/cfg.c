@@ -56,6 +56,7 @@ unsigned cfg_modbus_timeout(const cfg_t *c, int i) { return c->more.modbus_timeo
 bool cfg_modbus_tcp(const cfg_t *c, int i) { return !(c->more.modbus_no_tcp >> i & 1); }
 const char *cfg_modbus_unit0(const cfg_t *c, int i) { return c->more.modbus_answer >> i & 1 ? "answer" : c->more.modbus_broadcast >> i & 1 ? "1" : "0"; }
 bool cfg_modbus_rtu(const cfg_t *c, int i) { return c->more.modbus_rtu >> i & 1; }
+uint32_t cfg_port_ip(const cfg_t *c, int i) { uint32_t a; memcpy(&a, c->more.ip[i], 4); return a; }
 
 void cfg_defaults(cfg_t *c)
 {
@@ -244,6 +245,12 @@ static bool apply(cfg_t *c, const char *k, const char *v)
             c->more.modbus_timeout[k[4] - '1'] = (uint16_t)(min == MB_TIMEOUT_MS ? 0 : min);   /* the default stays 0 */
             return true;
         }
+        if (!strcmp(k + 6, "ip")) {                          /* blank: every address */
+            uint32_t a = 0;
+            if (*v && !ip4_parse(v, &a)) return false;
+            memcpy(c->more.ip[k[4] - '1'], &a, 4);
+            return true;
+        }
         if (strcmp(k + 6, "quiet_min") || !parse_u32(v, &min)) return false;
         for (unsigned q = 0; q < 16; q++)
             if (QUIET_MIN[q] == min) {
@@ -349,6 +356,11 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
             return false;
         }
         if (!p->enabled) continue;
+        uint32_t pip = cfg_port_ip(c, i);
+        if (pip && p->mode == MODE_CLIENT) {
+            snprintf(err, errlen, "Port %d: a TCP client connects from the main address; clear its address", i + 1);
+            return false;
+        }
         if (p->mode == MODE_CLIENT) {
             if (!p->remote_host[0] || !p->remote_port) {
                 snprintf(err, errlen, "Port %d: TCP client needs a remote host and port", i + 1);
@@ -374,13 +386,49 @@ bool cfg_validate(const cfg_t *c, char *err, size_t errlen)
                 return false;
             }
         }
-        for (int j = 0; j < i; j++) {
-            const port_cfg_t *q = &c->port[j];
-            if (q->enabled && q->mode != MODE_CLIENT && (q->mode == MODE_UDP) == (p->mode == MODE_UDP) &&
-                q->local_port == p->local_port) {
-                snprintf(err, errlen, "Ports %d and %d both use local port %u", j + 1, i + 1, p->local_port);
+        if (pip) {
+            uint32_t a = be(pip);
+            if ((a >> 24) == 0 || (a >> 24) == 127 || (a >> 28) >= 14) {
+                snprintf(err, errlen, "Port %d: enter a usable address, or leave it blank", i + 1);
                 return false;
             }
+            if (!c->net.dhcp) {
+                uint32_t ip = be(c->net.ip), m = be(c->net.mask);
+                if ((a & m) != (ip & m)) {
+                    snprintf(err, errlen, "Port %d: its address must be in the gateway's subnet", i + 1);
+                    return false;
+                }
+                if ((a & ~m) == 0 || (a & ~m) == ~m || (c->net.gw && a == be(c->net.gw))) {
+                    snprintf(err, errlen, "Port %d: that address is the subnet's own, or its router's", i + 1);
+                    return false;
+                }
+            }
+        }
+        for (int j = 0; j < i; j++) {
+            const port_cfg_t *q = &c->port[j];
+            uint32_t qip = cfg_port_ip(c, j);
+            if (q->enabled && q->mode != MODE_CLIENT && (q->mode == MODE_UDP) == (p->mode == MODE_UDP) &&
+                q->local_port == p->local_port && !(pip && qip && pip != qip)) {
+                snprintf(err, errlen, pip || qip ? "Ports %d and %d both use local port %u: only ports at addresses of their own may share one"
+                                                 : "Ports %d and %d both use local port %u", j + 1, i + 1, p->local_port);
+                return false;
+            }
+        }
+    }
+    {
+        uint32_t seen[PORTS];
+        int n = 0;
+        for (int i = 0; i < PORTS; i++) {               /* the extra addresses: ports' own, not the main one */
+            uint32_t a = cfg_port_ip(c, i);
+            const port_cfg_t *p = &c->port[i];
+            if (!a || !p->enabled || p->mode == MODE_CLIENT || (!c->net.dhcp && a == c->net.ip)) continue;
+            bool dup = false;
+            for (int k = 0; k < n; k++) dup = dup || seen[k] == a;
+            if (!dup) seen[n++] = a;
+        }
+        if (n > EXTRA_IPS) {
+            snprintf(err, errlen, "No more than %d addresses besides the gateway's own", EXTRA_IPS);
+            return false;
         }
     }
     for (int i = 0; i < DEVS; i++) {
@@ -493,9 +541,10 @@ size_t cfg_json(const cfg_t *c, char *out, size_t max)
         if (i) ADD(",");
         if (!(w = cfg_port_json(&c->port[i], out + n, max - n))) return 0;
         n += w - 1;
-        char t[ACL_TEXT];
+        char t[ACL_TEXT], a[16] = "";
         acl_text(&c->access[i], t);
-        ADD(",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":\"%s\",\"modbus_framing\":\"%s\",\"modbus_tcp\":%s}", cfg_quiet_min(c, i), t,
+        if (cfg_port_ip(c, i)) ip4_fmt(cfg_port_ip(c, i), a);
+        ADD(",\"ip\":\"%s\",\"quiet_min\":%u,\"access\":\"%s\",\"modbus_timeout\":%u,\"modbus_broadcast\":\"%s\",\"modbus_framing\":\"%s\",\"modbus_tcp\":%s}", a, cfg_quiet_min(c, i), t,
             cfg_modbus_timeout(c, i), cfg_modbus_unit0(c, i), cfg_modbus_rtu(c, i) ? "rtu" : "tcp", cfg_modbus_tcp(c, i) ? "true" : "false");
     }
     ADD("]}\n");
@@ -538,10 +587,12 @@ size_t cfg_lines(const cfg_t *c, char *out, size_t max)
         snprintf(pre, sizeof pre, "port%d", i + 1);
         if (!(w = fields_lines(pre, &c->port[i], PORT_F, NPORT_F, out + n, max - n))) return 0;
         n += w;
-        char t[ACL_TEXT];
+        char t[ACL_TEXT], a[16] = "";
         acl_text(&c->access[i], t);
+        if (cfg_port_ip(c, i)) ip4_fmt(cfg_port_ip(c, i), a);
         ADD("%s.quiet_min=%u\n%s.access=%s\n%s.modbus_timeout=%u\n%s.modbus_broadcast=%s\n%s.modbus_framing=%s\n%s.modbus_tcp=%u\n", pre, cfg_quiet_min(c, i), pre, t,
             pre, cfg_modbus_timeout(c, i), pre, cfg_modbus_unit0(c, i), pre, cfg_modbus_rtu(c, i) ? "rtu" : "tcp", pre, (unsigned)cfg_modbus_tcp(c, i));
+        ADD("%s.ip=%s\n", pre, a);
     }
     return n;
 }
