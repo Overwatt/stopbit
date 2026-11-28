@@ -12,6 +12,9 @@
 #include "netif/ethernet.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef APP_IMAGE
+#include "ipalias.h"
+#endif
 
 uint8_t g_mac[6];
 char    g_hostname[16];
@@ -166,7 +169,9 @@ void net_poll(void)
         s_rxp[k].custom_free_function = rx_free;
         struct pbuf *p = pbuf_alloced_custom(PBUF_RAW, (u16_t)len, PBUF_REF, &s_rxp[k], b, ETH_FRAME_MAX);
         if (!p) { eth_rx_give(k); continue; }
-        if (s_if.input(p, &s_if) != ERR_OK) pbuf_free(p);
+        struct netif *to = ipalias_input_netif(p);           /* ARP to or from an extra address: its own */
+        if (!to) to = &s_if;
+        if (to->input(p, to) != ERR_OK) pbuf_free(p);
     }
     if (!eth_rx_spare()) pbuf_free_ooseq_pending = 1;  /* as lwIP does when its pool runs dry */
 #else
@@ -182,8 +187,17 @@ void net_poll(void)
     if (HAL_GetTick() - last_link >= 200) {
         last_link = HAL_GetTick();
         bool up = eth_poll_link();
-        if (up && !netif_is_link_up(&s_if)) netif_set_link_up(&s_if);
-        else if (!up && netif_is_link_up(&s_if)) netif_set_link_down(&s_if);
+        if (up && !netif_is_link_up(&s_if)) {
+            netif_set_link_up(&s_if);
+#ifdef APP_IMAGE
+            ipalias_link(1);
+#endif
+        } else if (!up && netif_is_link_up(&s_if)) {
+            netif_set_link_down(&s_if);
+#ifdef APP_IMAGE
+            ipalias_link(0);
+#endif
+        }
     }
     sys_check_timeouts();
 }

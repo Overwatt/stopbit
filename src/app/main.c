@@ -23,6 +23,7 @@
 #include "devmqtt.h"
 #include "device.h"
 #include "api.h"
+#include "addrs.h"
 
 #define HEALTHY_MS  30000u     /* uptime that clears the crash counter */
 #define TRIAL_MS   180000u     /* unconfirmed images give up after this */
@@ -102,6 +103,7 @@ int main(void)
     for (;;) { wdt_feed(); if (HAL_GetTick() > 15000u) NVIC_SystemReset(); }
 #endif
     CRUMB(1); net_init();        /* marks the Ethernet memory uncacheable */
+    addrs_init();                    /* before api_init gives it the ports' addresses */
     CRUMB(2); SCB_EnableDCache();    /* nothing else here uses DMA */
     CRUMB(3); bridge_init();
     device_init();                   /* before any configure: api_init applies the settings */
@@ -116,7 +118,7 @@ int main(void)
     for (;;) {
         hwinfo_loop();
         wdt_feed();
-        STEP(11, "network"); net_poll();
+        STEP(11, "network"); net_poll(); addrs_poll();
         STEP(12, "web"); http_poll();
         STEP(13, "https"); tls_poll();
         STEP(14, "renewal"); acme_poll();

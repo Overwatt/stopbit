@@ -1,4 +1,5 @@
 #include "api.h"
+#include "addrs.h"
 #include "clock.h"
 #include "events.h"
 #include "cfg.h"
@@ -249,9 +250,14 @@ static int get_one(const char *path, char *out, size_t max)
         if (w < 0 || (size_t)w >= max - n) return 0;
         n += (size_t)w;
     }
-    if (n + 4 > max) return 0;
-    memcpy(out + n, "]}\n", 4);
-    return (int)(n + 3);
+    if (n + 2 > max) return 0;
+    memcpy(out + n, "],", 2);
+    n += 2;
+    size_t ad = addrs_json(out + n, max - n);           /* at most 160 bytes */
+    if (!ad || n + ad + 3 > max) return 0;
+    n += ad;
+    memcpy(out + n, "}\n", 3);
+    return (int)(n + 2);
 }
 
 /* Optional "mqtt.password_enc=<128 hex>" line: 64 zero-padded bytes XORed with
