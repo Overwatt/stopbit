@@ -23,6 +23,7 @@
 #include "quiet.h"
 #include "knock.h"
 #include "modbus.h"
+#include "addrs.h"
 #include "stm32h7xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/udp.h"
@@ -60,6 +61,7 @@ static const char *const LS_NAME[] = { "off", "listening", "connecting", "connec
 
 typedef struct {
     port_cfg_t cfg;
+    uint32_t ip;                /* the address it listens on (portN.ip); 0 every one */
     uint8_t  state;
     struct tcp_pcb *listener;
     struct udp_pcb *udp;
@@ -83,6 +85,7 @@ static D2 uint8_t s_ring[RINGS][RING];
 static bool s_ring_used[RINGS];
 static uint32_t s_rings, s_rings_peak, s_rings_waits;
 static port_cfg_t s_want[PORTS];
+static uint32_t s_want_ip[PORTS];
 static uint16_t s_quiet[PORTS];
 static acl_t s_acl[PORTS];
 static const char *const ALERT[] = { "", "silent", "no_client", "turned_away" };
@@ -286,7 +289,8 @@ static void start_listen(port_t *p)
     struct tcp_pcb *l = tcp_new();
     if (l) {
         ip_set_option(l, SOF_REUSEADDR);
-        if (tcp_bind(l, IP_ADDR_ANY, p->cfg.local_port) == ERR_OK) {
+        ip_addr_t a = IPADDR4_INIT(p->ip);
+        if (tcp_bind(l, p->ip ? &a : IP_ADDR_ANY, p->cfg.local_port) == ERR_OK) {
             struct tcp_pcb *ll = tcp_listen_with_backlog(l, MAX_CLIENTS);
             if (ll) {
                 p->listener = ll;
@@ -392,7 +396,8 @@ static void cb_udp(void *arg, struct udp_pcb *u, struct pbuf *q, const ip_addr_t
 static void start_udp(port_t *p)
 {
     p->udp = udp_new();
-    if (!p->udp || udp_bind(p->udp, IP_ADDR_ANY, p->cfg.local_port) != ERR_OK) {
+    ip_addr_t a = IPADDR4_INIT(p->ip);
+    if (!p->udp || udp_bind(p->udp, p->ip ? &a : IP_ADDR_ANY, p->cfg.local_port) != ERR_OK) {
         if (p->udp) { udp_remove(p->udp); p->udp = NULL; }
         p->state = LS_ERROR;
         p->retry_at = HAL_GetTick() + 1000;
@@ -527,6 +532,12 @@ void bridge_configure(const cfg_t *c)
     s_mb_answer = c->more.modbus_answer; s_mb_rtu = c->more.modbus_rtu;
     s_mb_no_tcp = c->more.modbus_no_tcp;
     memcpy(s_acl, c->access, sizeof s_acl);     /* for new arrivals at once, the rest in bridge_poll */
+    uint32_t want[PORTS];
+    for (int i = 0; i < PORTS; i++) {
+        s_want_ip[i] = cfg_port_ip(c, i);
+        want[i] = c->port[i].enabled && c->port[i].mode != MODE_CLIENT ? s_want_ip[i] : 0;
+    }
+    addrs_want(want);
     memcpy(s_want, c->port, sizeof s_want);
     s_dirty = true;
 }
@@ -600,6 +611,16 @@ static void forwarded(port_t *p, uint32_t us)
     if (us > p->fwd.max_us) p->fwd.max_us = us;
 }
 
+/* From the port's own address, through the main interface: udp_sendto refuses a source the
+ * route's interface does not have (src/ipalias/ipalias.h). */
+static err_t udp_out(port_t *p, struct pbuf *q)
+{
+    if (!p->ip) return udp_sendto(p->udp, q, &p->udp_peer, p->udp_peer_port);
+    ip_addr_t src = IPADDR4_INIT(p->ip);
+    struct netif *n = ip_route(&src, &p->udp_peer);
+    return n ? udp_sendto_if_src(p->udp, q, &p->udp_peer, p->udp_peer_port, n, &src) : ERR_RTE;
+}
+
 static void serial_to_net(int i)
 {
     static uint8_t buf[1400];
@@ -617,7 +638,7 @@ static void serial_to_net(int i)
         struct pbuf *q = p->udp_have_peer ? pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM) : NULL;
         if (q) {
             pbuf_take(q, buf, n);
-            if (udp_sendto(p->udp, q, &p->udp_peer, p->udp_peer_port) == ERR_OK) { p->net_tx += n; forwarded(p, idle); }
+            if (udp_out(p, q) == ERR_OK) { p->net_tx += n; forwarded(p, idle); }
             else p->net_lost += n;
             pbuf_free(q);
         } else if (p->udp_have_peer) {
@@ -712,7 +733,7 @@ void bridge_poll(void)
     if (s_dirty) {
         s_dirty = false;
         for (int i = 0; i < PORTS; i++) {
-            if (same_wiring(&s_p[i].cfg, &s_want[i])) {
+            if (same_wiring(&s_p[i].cfg, &s_want[i]) && s_p[i].ip == s_want_ip[i]) {
                 s_p[i].cfg = s_want[i];
                 s_mb[i].timeout_ms = s_mb_timeout[i];
                 s_mb[i].broadcast = unit0(i); modbus_set_rtu(&s_mb[i], s_mb_rtu >> i & 1);
@@ -722,6 +743,7 @@ void bridge_poll(void)
             }
             port_stop(i);
             s_p[i].cfg = s_want[i];
+            s_p[i].ip = s_want_ip[i];
             port_start(i);
         }
     }

@@ -47,10 +47,10 @@ void events_add(ev_kind_t k, int port, uint32_t a, const char *s)
 
 /* ---- network side ---- */
 static struct tcp_pcb T[256]; static struct udp_pcb U[4];
-static struct { uint32_t ip; u16_t port; int n; } US[64]; static int USn;
+static struct { uint32_t ip, src; u16_t port; int n; } US[64]; static int USn;
 static uint32_t dns_answer; static int connects;
 struct tcp_pcb *tcp_new(void) { for (int i = 0; i < 256; i++) if (!T[i].used) { memset(&T[i], 0, sizeof T[i]); T[i].used = true; return &T[i]; } abort(); }
-err_t tcp_bind(struct tcp_pcb *p, const void *a, u16_t port) { p->port = port; return ERR_OK; }
+err_t tcp_bind(struct tcp_pcb *p, const void *a, u16_t port) { p->port = port; p->local = a ? ((const ip_addr_t *)a)->addr : 0; return ERR_OK; }
 struct tcp_pcb *tcp_listen_with_backlog(struct tcp_pcb *p, u8_t n) { p->listening = true; return p; }
 void tcp_accept(struct tcp_pcb *p, acc_fn f) { p->acc = f; }
 void tcp_arg(struct tcp_pcb *p, void *a) { p->arg = a; }
@@ -68,10 +68,18 @@ struct pbuf *pbuf_alloc(int a, u16_t n, int b) { struct pbuf *q = calloc(1, size
 void pbuf_take(struct pbuf *q, const void *d, u16_t n) { memcpy(q->payload, d, n); }
 void pbuf_free(struct pbuf *q) { while (q) { struct pbuf *n = q->next; free(q->payload); free(q); q = n; } }
 struct udp_pcb *udp_new(void) { for (int i = 0; i < 4; i++) if (!U[i].used) { U[i].used = true; return &U[i]; } abort(); }
-err_t udp_bind(struct udp_pcb *u, const void *a, u16_t p) { return ERR_OK; }
+static struct udp_pcb *U_bound;                                         /* the pcb last bound */
+err_t udp_bind(struct udp_pcb *u, const void *a, u16_t p) { U_bound = u; u->local = a ? ((const ip_addr_t *)a)->addr : 0; return ERR_OK; }
 void udp_remove(struct udp_pcb *u) { u->used = false; }
 void udp_recv(struct udp_pcb *u, udp_fn f, void *a) { u->rx = f; u->arg = a; }
-err_t udp_sendto(struct udp_pcb *u, struct pbuf *q, const ip_addr_t *ip, u16_t port) { US[USn].ip = ip->addr; US[USn].port = port; US[USn++].n = q->tot_len; return ERR_OK; }
+err_t udp_sendto(struct udp_pcb *u, struct pbuf *q, const ip_addr_t *ip, u16_t port) { US[USn].ip = ip->addr; US[USn].src = 0; US[USn].port = port; US[USn++].n = q->tot_len; return ERR_OK; }
+static int s_netif;                                                     /* where ip_route sends: anywhere */
+struct netif *ip_route(const ip_addr_t *src, const ip_addr_t *dst) { (void)src; (void)dst; return (struct netif *)&s_netif; }
+err_t udp_sendto_if_src(struct udp_pcb *u, struct pbuf *q, const ip_addr_t *ip, u16_t port, struct netif *n, const ip_addr_t *src)
+{ assert(n == (struct netif *)&s_netif); US[USn].ip = ip->addr; US[USn].src = src->addr; US[USn].port = port; US[USn++].n = q->tot_len; return ERR_OK; }
+#include "addrs.h"
+static uint32_t want_ip[PORTS]; static int wants;
+void addrs_want(const uint32_t ip[PORTS]) { memcpy(want_ip, ip, sizeof want_ip); wants++; }
 err_t dns_gethostbyname(const char *n, ip_addr_t *ip, void (*f)(const char *, const ip_addr_t *, void *), void *a) { ip->addr = dns_answer; return ERR_OK; }
 char *ipaddr_ntoa_r(const ip_addr_t *ip, char *b, int n) { inet_ntop(AF_INET, &ip->addr, b, (socklen_t)n); return b; }
 
@@ -81,6 +89,17 @@ static uint32_t ip(const char *s) { return inet_addr(s); }
 static void set(const char *t)
 { char b[512], e[96]; strcpy(b, t); if (!cfg_parse(&C, b, e, sizeof e) || !cfg_validate(&C, e, sizeof e)) { puts(e); abort(); } bridge_configure(&C); bridge_poll(); }
 static struct tcp_pcb *listener(u16_t port) { for (int i = 0; i < 256; i++) if (T[i].used && T[i].listening && !T[i].closed && T[i].port == port) return &T[i]; return NULL; }
+static struct tcp_pcb *listener_at(u16_t port, uint32_t local)
+{ for (int i = 0; i < 256; i++) if (T[i].used && T[i].listening && !T[i].closed && T[i].port == port && T[i].local == local) return &T[i]; return NULL; }
+static struct tcp_pcb *from_at(struct tcp_pcb *l, const char *src)
+{
+    static u16_t n = 60000;
+    struct tcp_pcb *p = tcp_new();
+    p->remote_ip.addr = ip(src); p->remote_port = n++;
+    err_t e = l->acc(l->arg, p, ERR_OK);
+    assert((e == ERR_ABRT) == p->aborted);
+    return p;
+}
 static struct tcp_pcb *from(u16_t port, const char *src)
 {
     static u16_t n = 50000;
@@ -538,6 +557,34 @@ int main(void)
     printf("widest with Modbus %zu bytes, and its 11 figures as long as they get\n", n + PORTS * 11 * 9);
     assert(n && n + PORTS * 11 * 9 + PORTS * 40 + PORTS * 58 < 4344 - 900);   /* and "fwd_us" and "peer_lost" at their longest */
     for (size_t k = 0; k < n; k++) assert(!bridge_json(j, k));
+    /* ---- a port at an address of its own (portN.ip) ---- */
+    {
+    set("port1.enabled=0\nport1.ip=10.0.0.12\n"
+        "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport2.ip=10.0.0.10\nport2.access=\n"
+        "port3.enabled=1\nport3.mode=modbus\nport3.local_port=502\nport3.ip=10.0.0.11\nport3.access=\n"
+        "port4.enabled=1\nport4.mode=client\nport4.remote_host=h.lan\nport4.remote_port=7\nport4.ip=");
+    assert(!want_ip[0] && want_ip[1] == ip("10.0.0.10") && want_ip[2] == ip("10.0.0.11") && !want_ip[3]);   /* off, client: none */
+    struct tcp_pcb *l2 = listener_at(502, ip("10.0.0.10")), *l3 = listener_at(502, ip("10.0.0.11"));
+    assert(l2 && l3 && l2 != l3);
+    struct tcp_pcb *c3 = from_at(l3, "10.0.0.50");
+    assert(!c3->aborted);
+    int o3 = opened[2];
+    set("port3.ip=10.0.0.13");                                          /* moved: listening there, its client gone */
+    assert(c3->closed || c3->aborted);
+    assert(!listener_at(502, ip("10.0.0.11")) && listener_at(502, ip("10.0.0.13")) && listener_at(502, ip("10.0.0.10")) == l2);
+    assert(opened[2] == o3 + 1 && want_ip[2] == ip("10.0.0.13"));
+    set("port3.ip=\nport3.local_port=4003");                            /* blank: every address */
+    assert(listener_at(4003, 0) && !want_ip[2]);
+    /* UDP from its address goes out through the main interface; without one, as before. */
+    set("port4.mode=udp\nport4.remote_host=\nport4.remote_port=0\nport4.local_port=4004\nport4.ip=10.0.0.10\nport4.access=10.0.0.9 write");
+    struct udp_pcb *u4 = U_bound;
+    assert(u4 && u4->local == ip("10.0.0.10") && want_ip[3] == ip("10.0.0.10"));
+    USn = 0; dgram(u4, "10.0.0.9", 99, "w"); heard(3, "r");
+    assert(line(3, "w") && USn == 1 && US[0].src == ip("10.0.0.10") && US[0].ip == ip("10.0.0.9") && US[0].port == 99);
+    set("port4.ip=");
+    u4 = U_bound; USn = 0; dgram(u4, "10.0.0.9", 99, "w"); heard(3, "r");
+    assert(line(3, "w") && u4->local == 0 && USn == 1 && US[0].src == 0);
+    }
     puts("ok");
     return 0;
 }
