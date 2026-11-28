@@ -31,7 +31,7 @@ So one address shows SolarAssistant one device. Routing a second unit to another
   takes it on as an extra address. With 4 ports, up to 3 extra addresses.
 - An extra address is static, in the main address's subnet, with the main mask and router.
   The main address may be static or from DHCP; with DHCP the subnet is checked once the
-  main address is known, and an extra address outside it is not used (an event says so).
+  main address is known, and an extra address outside it, or equal to its network or broadcast address, is not used (an event says so).
 - Two ports may share a local port only if each has an address of its own and the two
   differ. A blank port and an addressed one cannot share: blank is every address. 80 stays
   refused for ports, as the web page listens on every address.
@@ -98,8 +98,8 @@ ipalias_state_t ipalias_state(int i, ip4_addr_t *addr);
   to). No routing hook is needed. And lwIP's input (`ip4_input`) already takes a packet
   for any interface that is up, so a listener bound to the extra address gets its
   connections.
-- An ARP frame whose sender or target is an extra address (configured, whether checked yet
-  or not) goes to that address's interface; every other frame goes to the main one. The
+- An ARP frame whose sender or target is an extra address (configured and not in
+  conflict, whether checked yet or not) goes to that address's interface; every other frame goes to the main one. The
   target, so a request for the extra address is answered (by `etharp_input` on that
   interface, with its address); the sender, so another device's probe for it, or claim to
   it, reaches its conflict detection. Frames shorter than an ARP frame, and anything not

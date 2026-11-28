@@ -143,14 +143,16 @@ void ipalias_link(int up)
 struct netif *ipalias_input_netif(const struct pbuf *p)
 {
     uint8_t f[42];                      /* Ethernet header, then ARP: sender at 22 and 28, target at 38 */
-    if (!s_main || p->tot_len < sizeof f || pbuf_copy_partial(p, f, sizeof f, 0) != sizeof f) return NULL;
+    bool any = false;
+    for (int i = 0; i < IPALIAS_MAX; i++) any |= s_a[i].used;
+    if (!any || !s_main || p->tot_len < sizeof f || pbuf_copy_partial(p, f, sizeof f, 0) != sizeof f) return NULL;
     if (f[12] != 0x08 || f[13] != 0x06) return NULL;
     ip4_addr_t s, t;
     memcpy(&s.addr, f + 28, 4);
     memcpy(&t.addr, f + 38, 4);
     for (int i = 0; i < IPALIAS_MAX; i++) {
         alias_t *a = &s_a[i];
-        if (!a->used || (!ip4_addr_eq(&s, &a->addr) && !ip4_addr_eq(&t, &a->addr))) continue;
+        if (!a->used || a->st == IPALIAS_CONFLICT || (!ip4_addr_eq(&s, &a->addr) && !ip4_addr_eq(&t, &a->addr))) continue;
         bool about = ip4_addr_eq(&s, &a->addr) || ip4_addr_isany_val(s);     /* a claim, or a probe */
         if (about && memcmp(f + 22, s_main->hwaddr, ETH_HWADDR_LEN)) memcpy(a->other.addr, f + 22, ETH_HWADDR_LEN);
         return &a->nif;

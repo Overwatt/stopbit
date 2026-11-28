@@ -15,8 +15,9 @@ static u32_t s_now;
 u32_t sys_now(void) { return s_now; }
 
 static struct netif M;
-static const uint8_t MAC[6] = { 2, 0, 0, 0, 0, 0x10 }, H[6] = { 2, 0, 0, 0, 0, 0x50 }, X[6] = { 2, 0, 0, 0, 0, 0x99 };
-static ip4_addr_t A, B, C, D, HIP, XIP;      /* main, extra ones, a host, another device */
+static const uint8_t MAC[6] = { 2, 0, 0, 0, 0, 0x10 }, H[6] = { 2, 0, 0, 0, 0, 0x50 }, H2[6] = { 2, 0, 0, 0, 0, 0x51 },
+    X[6] = { 2, 0, 0, 0, 0, 0x99 };
+static ip4_addr_t A, B, C, D, HIP, H2IP, XIP;      /* main, extra ones, two hosts, another device */
 
 /* ---- what went out ---- */
 static uint8_t out[256][128]; static int outn;
@@ -65,16 +66,17 @@ static void arp_in(int op, const uint8_t *sha, uint32_t spa, const uint8_t *tha,
     memcpy(f + 22, sha, 6); memcpy(f + 28, &spa, 4); memcpy(f + 32, op == 1 ? NONE : tha, 6); memcpy(f + 38, &tpa, 4);
     rx(f, sizeof f);
 }
-static void syn_in(uint32_t dst, int dport, int sport)       /* from the host H */
+static void syn_from(const uint8_t *mac, uint32_t ip, uint32_t dst, int dport, int sport)
 {
     uint8_t f[54] = { 0 };
-    memcpy(f, MAC, 6); memcpy(f + 6, H, 6); f[12] = 0x08;
+    memcpy(f, MAC, 6); memcpy(f + 6, mac, 6); f[12] = 0x08;
     f[14] = 0x45; f[17] = 40; f[20] = 0x40; f[22] = 64; f[23] = 6;
-    memcpy(f + 26, &HIP.addr, 4); memcpy(f + 30, &dst, 4);
+    memcpy(f + 26, &ip, 4); memcpy(f + 30, &dst, 4);
     f[34] = (uint8_t)(sport >> 8); f[35] = (uint8_t)sport; f[36] = (uint8_t)(dport >> 8); f[37] = (uint8_t)dport;
     f[41] = 1; f[46] = 0x50; f[47] = 0x02; f[48] = 0xFF; f[49] = 0xFF;        /* seq 1, SYN, window */
     rx(f, sizeof f);
 }
+static void syn_in(uint32_t dst, int dport, int sport) { syn_from(H, HIP.addr, dst, dport, sport); }     /* from the host H */
 
 static void run(u32_t ms) { for (u32_t t = 0; t < ms; t += 10) { s_now += 10; sys_check_timeouts(); } }
 
@@ -111,7 +113,7 @@ int main(void)
 {
     srand(1);
     IP4_ADDR(&A, 10, 20, 0, 10); IP4_ADDR(&B, 10, 20, 0, 11); IP4_ADDR(&C, 10, 20, 0, 12); IP4_ADDR(&D, 10, 20, 0, 13);
-    IP4_ADDR(&HIP, 10, 20, 0, 50); IP4_ADDR(&XIP, 10, 20, 0, 99);
+    IP4_ADDR(&HIP, 10, 20, 0, 50); IP4_ADDR(&H2IP, 10, 20, 0, 51); IP4_ADDR(&XIP, 10, 20, 0, 99);
     ip4_addr_t mask, gw;
     IP4_ADDR(&mask, 255, 255, 255, 0); IP4_ADDR(&gw, 10, 20, 0, 1);
     lwip_init();
@@ -167,6 +169,18 @@ int main(void)
     tcp_abort(c);
     puts("ok   TCP to the extra address, from it; out from the main one");
 
+    /* A client that asks only for the extra address: its entry is learned on the extra
+     * interface, so the SYN-ACK waits for one ARP exchange from the main address. */
+    o = outn;
+    arp_in(1, H2, H2IP.addr, NULL, B.addr);
+    assert(arps(o, 2, B.addr, H2IP.addr) == 1);
+    syn_from(H2, H2IP.addr, B.addr, 502, 40002);
+    assert(!tcp_seg(o) && arps(o, 1, A.addr, H2IP.addr) == 1);
+    arp_in(2, H2, H2IP.addr, MAC, A.addr);
+    s = tcp_seg(o);
+    assert(s && at(s, 26) == B.addr && at(s, 30) == H2IP.addr && (s[47] & 0x12) == 0x12);
+    puts("ok   a client that asked only for the extra address");
+
     /* UDP bound to the extra address: udp_sendto refuses; udp_sendto_if_src through the main
      * interface sends from it. */
     struct udp_pcb *u = udp_new();
@@ -191,7 +205,23 @@ int main(void)
     run(15000);
     assert(arps(o, 2, B.addr, 0) == 0 && arps(o, 1, 0, B.addr) == 0);         /* not answered, not tried again */
     assert(state_of(&B) == IPALIAS_CONFLICT);
-    puts("ok   claimed by another: defended, then given up");
+
+    /* The device that has it still talks to the gateway: its ARP frames go to the main interface. */
+    o = outn;
+    struct tcp_pcb *g = tcp_new();
+    assert(tcp_connect(g, &B, 80, NULL) == ERR_OK);
+    assert(arps(o, 1, A.addr, B.addr) == 1 && !tcp_seg(o));
+    arp_in(2, X, B.addr, MAC, A.addr);
+    s = tcp_seg(o);
+    assert(s && at(s, 26) == A.addr && at(s, 30) == B.addr && (s[47] & 0x02));
+    tcp_abort(g);
+    o = outn;
+    arp_in(1, X, XIP.addr, NULL, A.addr);
+    assert(arps(o, 2, A.addr, XIP.addr) == 1);
+    o = outn;
+    arp_in(1, X, B.addr, NULL, A.addr);
+    assert(arps(o, 2, A.addr, B.addr) == 1);
+    puts("ok   claimed by another: defended, then given up, still reachable");
 
     /* Asked again: checked again. Another device answering the probe for a new one. */
     ip4_addr_t two[2] = { B, C };

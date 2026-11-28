@@ -32,19 +32,24 @@ typedef enum {
 } ipalias_state_t;
 
 /* A place's state changed. other: with IPALIAS_CONFLICT, the MAC address of the device
- * that has the address; else NULL. */
+ * that has the address; else NULL. It runs inside lwIP's ACD and ARP input, so it must not
+ * call back into the module (ipalias_set, ipalias_link). */
 typedef void (*ipalias_cb)(int i, ipalias_state_t st, const struct eth_addr *other);
 
 void ipalias_init(struct netif *main, ipalias_cb cb);
 /* The addresses wanted, at most IPALIAS_MAX (more are ignored, as are 0 and repeats). One
  * no longer listed is given up; a new one is checked; one kept stays as it is, except one
- * in conflict, which is checked again. */
+ * in conflict, which is checked again. The main interface's own address is not left out
+ * here: the caller leaves it out. */
 void ipalias_set(const ip4_addr_t *addr, int n);
 /* The main interface's link has changed (call after netif_set_link_up/down). Up: an
  * address in use is announced again; one not in use is checked again. Down: checks stop. */
 void ipalias_link(int up);
 /* The interface a received frame belongs to: an extra address's for an ARP frame to or
- * from that address; NULL for the main interface (everything else). */
+ * from an address that is configured and not in conflict; NULL for the main interface
+ * (everything else, and all frames while no address is configured). A client that asks
+ * only for an extra address is learned on that interface, so the first reply to it waits
+ * for one ARP exchange from the main address. */
 struct netif *ipalias_input_netif(const struct pbuf *p);
 /* Place i (0 to IPALIAS_MAX - 1): its state, and its address if not IPALIAS_OFF. */
 ipalias_state_t ipalias_state(int i, ip4_addr_t *addr);
