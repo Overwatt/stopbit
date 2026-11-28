@@ -33,23 +33,32 @@ So one address shows SolarAssistant one device. Routing a second unit to another
   The main address may be static or from DHCP; with DHCP the subnet is checked once the
   main address is known, and an extra address outside it is not used (an event says so).
 - Two ports may share a local port only if each has an address of its own and the two
-  differ. A blank port and an addressed one cannot share: blank is every address. 80 and
-  443 stay refused for ports, as the web page listens on every address.
+  differ. A blank port and an addressed one cannot share: blank is every address. 80 stays
+  refused for ports, as the web page listens on every address.
+- Older firmware reads only the main settings record, and checks it alone: two enabled
+  ports on one local port would make it refuse the record and load defaults (port 1's
+  listen-only and the static address with them). So a port with an address is stored in
+  the main record as off, and whether it is on is kept with its address in `more_cfg_t`
+  (`ip_enabled`, in the stored record only). After a rollback to firmware without extra
+  addresses, such a port is off; this firmware reads it back as it was.
 - Server, Modbus and UDP modes use it. Client mode refuses an address: it connects out,
   from the main address.
 - Checked when settings are saved: the form of the address; not the main address's subnet
   broadcast or network address; in the main subnet when the main address is static; no
   more than 3 extra; the sharing rule above; client mode. Stored in `more_cfg_t`, 4 bytes a
-  port (16 of the 146 spare); in the settings text as `portN.ip=` and in the JSON as `"ip"`.
+  port and `ip_enabled` (17 of the 146 spare); in the settings text as `portN.ip=` and in
+  the JSON as `"ip"`.
 
 ## Behaviour
 
 - Before an extra address is used, the gateway checks the LAN for it with ARP probes
-  (lwIP's address conflict detection, ACD: about 5 to 9 s). If another device has it, it is
+  (lwIP's address conflict detection, ACD: about 6 to 9 s). If another device has it, it is
   not used, and an event names that device's MAC address. If another device claims it
   later, the gateway defends it (an announcement); a second claim within 10 s and it gives
   it up, with an event. An address not in
-  use is tried again at a restart, the next settings save, or when the cable is back.
+  use is tried again at a restart, the next settings save, or when the cable is back. One
+  in use, when the cable is back, is announced again and kept, as lwIP does for the main
+  address: connections to it survive a short unplugging.
 - The web page, and ports left blank, answer on every address.
 - What the gateway starts itself keeps the main address: MQTT, NTP, DNS, certificate
   renewal, client-mode ports. The mDNS name stays on the main address.
@@ -62,11 +71,12 @@ So one address shows SolarAssistant one device. Routing a second unit to another
 - Events: an extra address in use; refused, with the other device's MAC; given up, with
   its MAC; outside the main subnet.
 
-## The module: `src/net/ipalias.c`, `ipalias.h`
+## The module: `src/ipalias/ipalias.c`, `ipalias.h`
 
 lwIP gives an interface one IPv4 address. The module gives the main interface up to
 `IPALIAS_MAX` more, using only lwIP (netif, etharp, ACD), nothing of the gateway's own, so
-that others can use it.
+that others can use it. A directory of its own, built into the application only:
+everything in `src/net` is built into the loader too.
 
 ```c
 #define IPALIAS_MAX 3
@@ -76,7 +86,7 @@ typedef void (*ipalias_cb)(int i, ipalias_state_t st, const struct eth_addr *oth
 void ipalias_init(struct netif *main, ipalias_cb cb);
 void ipalias_set(const ip4_addr_t *addr, int n);           /* the list; entries unchanged keep their state */
 void ipalias_link(int up);                                 /* the main interface's link changed */
-struct netif *ipalias_input_netif(const struct pbuf *p);   /* where a received frame goes */
+struct netif *ipalias_input_netif(const struct pbuf *p);   /* an extra address's interface, or NULL: the main one */
 ipalias_state_t ipalias_state(int i, ip4_addr_t *addr);
 ```
 
@@ -95,13 +105,18 @@ ipalias_state_t ipalias_state(int i, ip4_addr_t *addr);
   it, reaches its conflict detection. Frames shorter than an ARP frame, and anything not
   ARP, go to the main interface. ACD's callback gives no MAC address, so the sorting keeps
   the sender's MAC of the last such frame not from the gateway itself, for the report.
-- The interface has no address until ACD's probes pass (`acd_start` with the address);
-  then the address is set and ACD announces it. ACD goes on watching while it is in use;
+- The interface has no address until ACD has probed and announced it (`acd_start` with
+  the address; `ACD_IP_OK` comes after the announcements); then the address is set. ACD
+  goes on watching while it is in use;
   a conflict it declines (`ACD_DECLINE`) clears the address and is reported, and its
   `ACD_RESTART_CLIENT` that follows is not acted on (the address is tried again only as
   under Behaviour). Its own link
   never changes, so the main interface's link is passed on by `ipalias_link`: down stops
-  the check, up checks again (the address may have been taken meanwhile).
+  a check under way; up announces again an address in use (`etharp_gratuitous`) and
+  checks again one that is not.
+- A UDP PCB bound to an extra address must send with `udp_sendto_if_src` and the main
+  interface: `udp_sendto` refuses a source address that the route's interface lacks
+  (`ERR_RTE`). TCP has no such check.
 - `ipalias_set` compares with what it has: an address no longer listed is removed (its
   ACD and interface), a new one added and checked, one kept is left as it is.
 - About 400 bytes of RAM for 3 (an interface and its ACD each), 1 to 2 KB of code.
@@ -110,34 +125,43 @@ ipalias_state_t ipalias_state(int i, ip4_addr_t *addr);
 
 ## The gateway's side
 
-- `net.c`: a received frame goes to the interface `ipalias_input_netif` gives; link
-  changes go to `ipalias_link` as well; `ipalias_init` after the main interface is added.
-  All inside `APP_IMAGE`: `net.c` is built into the loader too, which stays byte-identical
-  (checked with `cmp`, as always). `lwipopts.h` does not change.
-- `cfg.c`: `portN.ip`, its checks and its text and JSON.
+- `net.c`: a received frame goes to the interface `ipalias_input_netif` gives (the main
+  one when NULL); link changes go to `ipalias_link` as well; `net_netif()` gives the main
+  interface. All inside `APP_IMAGE`: `net.c` is built into the loader too, which stays
+  byte-identical (checked with `cmp`, as always). `lwipopts.h` does not change.
+- `cfg.c`: `portN.ip`, its checks and its text and JSON. `cfg_store.c`: a port with an
+  address stored as off in the main record, its `ip_enabled` bit beside its address.
+- `addrs.c` (new): the list. `addrs_want` takes each port's address (from
+  `bridge_configure`: enabled ports not in client mode); `addrs_poll` (main loop, after
+  `net_poll`) makes the list when that or the main address has changed (a new DHCP
+  lease): the addresses that are not the main one, in its subnet, given to `ipalias_set`;
+  one outside it left out and reported. It turns the module's callbacks into events, and
+  gives `"addresses"` for `/api/state`.
 - `bridge.c`: a port's listener (TCP) or socket (UDP) is bound to its address, or to every
-  address when blank. The extra addresses are the ports' addresses that are not the main
-  one, given to `ipalias_set` when settings are applied, and again when the main address
-  changes (a new DHCP lease); an address outside the main subnet then is left out and
-  reported.
+  address when blank, and bound again when it changes. UDP from a port with an address
+  goes out with `udp_sendto_if_src`.
 - `events.h`: a kind for the extra address events; `api.c` and `web/index.html`: the list,
   the Address field.
 
 ## Tests
 
-- `tests/test_ipalias.c`: the module against real lwIP on the host (the copy in `build/`),
-  frames in and the frames sent caught at the link output. An ARP request for an extra
-  address is answered with that address and the gateway's MAC, and one for the main
-  address as before; nothing is answered before the check passes; a conflict during the
-  check, and one after, are found and reported with the other MAC; a TCP SYN to the extra
-  address on a port listened to there is answered from that address, through the main
-  interface; the same SYN to the main address is refused when only the extra address
-  listens there; a connection made out from an unbound PCB has the main address; link down
-  and up checks again; `ipalias_set` keeps unchanged entries as they are. In
-  `tests/host.sh`.
-- `test_cfg`: every rule under Settings, text and JSON both ways.
-- `test_bridge`: a listener bound to its address, bound again when it changes; the list
-  given to `ipalias_set`.
+- `tests/ipalias/run.sh`, against real lwIP on the host (its source from `build/_deps`, so
+  it runs in CI's firmware job, after the build is configured):
+  - `test_ipalias.c`, the module alone, frames in and the frames sent caught at the link
+    output. An ARP request for an extra address is answered with that address and the
+    gateway's MAC, and one for the main address as before; nothing is answered before the
+    check passes; a conflict during the check, and one after, are found and reported with
+    the other MAC; a TCP SYN to the extra address on a port listened to there is answered
+    from that address, through the main interface; the same SYN to the main address is
+    refused when only the extra address listens there; a connection made out from an
+    unbound PCB has the main address; UDP from the extra address through the main
+    interface; unplugged and back; `ipalias_set` keeps unchanged entries as they are.
+  - `test_addrs.c`, `addrs.c` with the module: which addresses become extra ones, the
+    events, a change of main address, the JSON.
+- `test_cfg`: every rule under Settings, text and JSON both ways. `test_store`: the main
+  record as older firmware reads it, and read back whole.
+- `test_bridge`: a listener bound to its address, bound again when it changes; UDP from
+  its address; the list given to `addrs_want`.
 - Before pushing: the whole of CI, the simulator tests, MQTT over TLS and the fuzzing
   included; the loader compared byte for byte.
 
