@@ -312,7 +312,7 @@ const devOnly=p=>p.mode==="modbus"&&p.modbus_tcp===false;   /* no listener: only
 const devsOn=i=>st.devices&&st.devices[i]||[0,0];              /* [online, configured] */
 function where(p){if(devOnly(p))return "No TCP clients";
  if(p.mode==="client")return p.remote_host?p.remote_host+":"+p.remote_port:"No remote set";
- return "Port "+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
+ return (p.ip&&p.mode!=="client"?p.ip+", port ":"Port ")+p.local_port+(p.mode==="udp"&&p.remote_host?" to "+p.remote_host+":"+p.remote_port:"")}
 /* access lists: "10.0.0.5 read, 10.0.0.0/24 write"; the most specific entry decides */
 const ipn=t=>{const m=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(t);return m&&m.slice(1).every(x=>+x<256)?m.slice(1).reduce((a,x)=>a*256+ +x,0):-1};
 const entries=t=>t.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{const [a,r]=x.split(/\s+/),[h,b]=a.split("/");return {a,r:r||"read",ip:ipn(h),bits:b===undefined?32:+b}});
@@ -346,7 +346,7 @@ function editor(p,i){
    catch(e){say(msg,e.message,"bad")}finally{save.disabled=!key}}},
   el("fieldset",{},el("legend",{},"Port "+(i+1)),el("div",{class:"grid-f"},inp("name","Name",{maxLength:23},1)),el("div",{class:"checks",style:"margin-top:12px"},chk("enabled","Enabled","Opens the serial line and its network endpoint."))),
   el("fieldset",{},el("legend",{},"Serial line"),el("div",{class:"grid-f"},inp("baud","Baud rate",{...num(300,2000000),list:"bauds"}),sel("data_bits","Data bits",[[8,"8"],[7,"7"]]),sel("parity","Parity",[["none","None"],["even","Even"],["odd","Odd"]]),sel("stop_bits","Stop bits",[[1,"1"],[2,"2"]]))),
-  el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535}),inp("modbus_timeout","Reply timeout, ms",num(50,10000)),sel("modbus_framing","Clients send",[["tcp","Modbus TCP"],["rtu","RTU over TCP"]]),sel("modbus_broadcast","Unit 0",[["0","Refused"],["1","Broadcast"],["answer","Answers"]])),
+  el("fieldset",{},el("legend",{},"Network"),el("div",{class:"grid-f"},sel("mode","Mode",Object.entries(MODES)),inp("local_port","Local port",{type:"number",min:0,max:65535}),inp("ip","Address",{maxLength:15,placeholder:"every address"}),inp("remote_host","Remote host",{maxLength:47},1),inp("remote_port","Remote port",{type:"number",min:0,max:65535}),inp("modbus_timeout","Reply timeout, ms",num(50,10000)),sel("modbus_framing","Clients send",[["tcp","Modbus TCP"],["rtu","RTU over TCP"]]),sel("modbus_broadcast","Unit 0",[["0","Refused"],["1","Broadcast"],["answer","Answers"]])),
    el("div",{class:"checks","data-f":"modbus_tcp",style:"margin-top:12px"},chk("modbus_tcp","Accept TCP clients","Off, the port only polls its devices for MQTT. The local port is kept so that older firmware still accepts these settings.")),hint),
   acc,
   el("fieldset",{},el("legend",{},"Packets"),el("div",{class:"grid-f"},inp("gap_ms","Silence that ends a packet, ms",num(0,1000),1),inp("packet_len","Longest packet, bytes",num(1,1400))),el("p",{class:"hint"},"A silence of 0 is automatic: 3.5 characters, at least 1.75\u00a0ms, as Modbus RTU requires.")),
@@ -355,7 +355,7 @@ function editor(p,i){
   el("div",{class:"acts"},save,el("button",{type:"button",onclick(){editing=false;showSheet()}},"Cancel"),msg));
  const m=f.elements.mode;m.onchange=()=>{const v=m.value,off=v==="modbus"&&!f.elements.modbus_tcp.checked;
   acc.hidden=off;for(const n of ["modbus_broadcast","modbus_framing"])f.querySelector("[data-f="+n+"]").hidden=off||v!=="modbus";   /* both concern TCP clients */
-  f.querySelector("[data-f=local_port]").hidden=v==="client";
+  f.querySelector("[data-f=local_port]").hidden=f.querySelector("[data-f=ip]").hidden=v==="client";
   f.querySelector("[data-f=remote_host]").hidden=f.querySelector("[data-f=remote_port]").hidden=v==="server"||v==="modbus";
   f.querySelector("[data-f=modbus_timeout]").hidden=f.querySelector("[data-f=modbus_tcp]").hidden=v!=="modbus";
   for(const n of ["listen_only","echo_cancel"])f.elements[n].closest("label").hidden=v==="modbus";   /* refused; always on */
@@ -431,7 +431,7 @@ async function tick(){clearTimeout(timer);
   $("dip").textContent=s.ip;$("dup").textContent="Up "+dur(s.uptime_s);
   $("trial").hidden=!s.net_pending;$("trialsec").textContent=s.net_pending_s+" seconds";$("fwtrial").hidden=!s.fw_trial||updating;
   const c=s.clock,utc=c.now.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d).*/,"$1-$2-$3 $4:$5 UTC");
-  fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[]), /* the rest is in the sentence or the form */
+  fillDl($("netinfo"),[["Name",s.host+".local"],["MAC",s.mac],...(s.addresses&&s.addresses.length?[["Extra addresses",s.addresses.map(a=>a.ip+" ("+(ASTATE[a.state]||a.state)+")").join(", ")]]:[]),...(cfg.net.mode==="dhcp"?[["Subnet mask",s.mask],["Gateway",s.gateway]]:[]), /* the rest is in the sentence or the form */
    ["Clock",c.src==="none"?el("span",{class:"warn"},"Not set yet"):utc,c.src==="ntp"?sub("Synced "+ago(c.ago*1000).toLowerCase()+(c.from?" from "+c.from:"")):c.src==="restart"?sub("Carried over the restart; waiting for the time server"):null]]);
   paint();hardware();https();events();devices()}
  catch(e){failing++;if(failing>1){$("offline").hidden=updating;if(!updating&&st&&cfg)stale();else if(!updating)put($("verdict"),"Not responding")}}
@@ -523,6 +523,7 @@ function issues(){const L=[],m=cfg.mqtt,q=st.mqtt;
   else if(s.state!=="off"){const [du,dn]=devsOn(i);if(du<dn)L.push(["warn",pn(i)+": "+(dn===1?"its device is offline":(dn-du)+" of "+dn+" devices offline"),"#devices"])}});
  if(st.fw_trial)L.push(["warn","Firmware is on trial","#firmware"]);
  if(st.net_pending)L.push(["warn","Network settings are on trial","#network"]);
+ if((st.addresses||[]).some(a=>a.state==="conflict"||a.state==="outside"))L.push(["warn","An extra address is not in use","#network"]);
  if(st.crashes-(st.uptime_s<30?1:0)>0)L.push(["warn","The gateway failed to start cleanly","#firmware"]);
  for(const [c,t] of hwFaults())L.push([c,t,"#hardware"]);
  return L.sort((a,b)=>(a[0]==="bad"?0:1)-(b[0]==="bad"?0:1))}
@@ -570,7 +571,7 @@ function sentence(i){const s=st.ports[i],p=cfg.ports[i],r=rate[i]||[0,0],L=[],n=
  else if(devOnly(p))L.push("No TCP clients; only its devices use the line.");
  else if(p.mode==="udp"&&n)L.push("Exchanging with "+host(s.peers[0])+(n>1?" and "+(n-1)+" more":"")+".");
  else if(n)L.push(n>1?n+" clients connected.":host(s.peers[0])+" connected.");   /* they connect to us; the list is under Clients */
- else L.push(p.mode==="udp"?"Ready on UDP port "+p.local_port+".":"Waiting for a client on port "+p.local_port+".");
+ else L.push((p.mode==="udp"?"Ready on UDP port ":"Waiting for a client on port ")+p.local_port+(p.ip?" at "+p.ip:"")+".");
  const [du,dn]=devsOn(i);
  if(dn)L.push(dn===1?(du?"Its device is online.":"Its device is offline."):du===dn?"All "+dn+" devices are online.":(dn-du)+" of "+dn+" devices are offline.");
  const lim=p.quiet_min;
@@ -663,6 +664,7 @@ let evs=null,evMore=false,evAt=0,evOlder=[];
 const ipOf=a=>[a&255,a>>>8&255,a>>>16&255,a>>>24].join("."),
  ALERTS={silent:"quiet for longer than allowed","no_client":"no client for longer than allowed","turned_away":"someone unlisted keeps trying"},
  WHO={web:"asked for on this page",mqtt:"asked for over MQTT",console:"asked for at the console","new firmware":"for new firmware",loader:"into the loader"};
+const ASTATE={checking:"checking",live:"in use",conflict:"in use elsewhere",outside:"outside the subnet"};
 function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
  switch(k){
  case 1:return "Started "+s+(a&0x800000?" at power-on":a&0x1000000?" after a restart":a&0x400000?" after the watchdog or the reset pin":"");
@@ -686,8 +688,9 @@ function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
  case 19:return plural(a,"event")+" not kept: too many at once";
  case 20:{const d=a&255,o=a>>8,i=s.indexOf("; "),w=i<0?s:s.slice(0,i),m=i<0?"":s.slice(i+2),who=d?"Device "+d:"A device";
   return o===0?who+" set "+w+(m?" ("+m+")":""):o===1?who+": "+w+", already so":o===2?who+": "+w+" refused"+(m?", "+m:""):o===3?who+": "+w+" failed"+(m?", "+m:""):who+": "+w+" written, reads back "+m}
+  case 21:{const w=(s||"").split(" ");return "Address "+ipOf(a)+(w[0]==="live"?" in use":w[0]==="outside"?" not used: outside the gateway's subnet":w[0]==="taken"?" not used: "+w[1]+" has it":" given up: "+w[1]+" claims it")}
  default:return "Event "+k}}
-const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2)||(e[4]===20&&e[6]>>8>=2);
+const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===21&&e[7]!=="live")||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2)||(e[4]===20&&e[6]>>8>=2);
 /* The viewer's own time; before the clock was known, time since that start. */
 function evWhen(e,short){if(!e[1])return "Start "+e[3]+" + "+dur(e[2]);const d=new Date(e[1]*1000),ago=Date.now()/1000-e[1];
  if(short)return ago<90?"Now":dur(Math.round(ago))+" ago";

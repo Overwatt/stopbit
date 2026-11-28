@@ -49,6 +49,11 @@ and makes `/dev/ttyN540-NAME` (see [example.conf](example.conf)).
   Allow a little longer for replies, for the network. With devices on the port, the
   program's requests also wait the profile's turnaround (1 s for `eg4-hybrid`) and any poll
   ahead of them, so allow for that too.
+- **SolarAssistant can reach a Modbus gateway port without this.** Its Modbus TCP connection
+  finds devices only by a scan: every host on its network, on port 502 alone, asking units
+  0 to 15 in turn and stopping at the first that answers, so it finds one device per
+  address. For a second inverter on another port, give that port an address of its own on
+  502 ([extra addresses](../docs/GATEWAY.md#extra-addresses)).
 - **There are no modem lines.** A program that sets RTS or DTR through ioctls may complain;
   the gateway switches the line's direction itself.
 - **Port 1 is on the Tigo bus.** Anything a program writes goes onto it; set

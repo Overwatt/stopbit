@@ -160,6 +160,7 @@ talks to serial devices, [proxy/](../proxy/README.md) makes it one (`/dev/ttyN54
 | modbus_broadcast | Modbus gateway: what unit 0 is. 0 (the default) refuses it; 1 sends it to every device, and none replies; `answer` passes it on and waits for the reply, as EG4 inverters answer unit 0 |
 | modbus_framing | Modbus gateway: what clients send. `tcp` (the default): Modbus TCP; `rtu`: RTU frames over TCP, answered in RTU frames, as a program on a serial device sends them through [proxy/](../proxy/README.md). Firmware older than this reads such a port as Modbus TCP, and drops those clients |
 | modbus_tcp | Modbus gateway: 1 (the default) listens on the local port for Modbus TCP clients; 0 opens no listener, and only the port's [devices](#devices) use the line |
+| ip | the port's own address. Blank (the default): it listens on every address the gateway has. An address: it listens only there, and if that is not the main address, the gateway takes it on as well ([Extra addresses](#extra-addresses)). Not in client mode. Firmware older than this sees such a port as off |
 
 A slow serial line pushes back on TCP senders. Each packet heard goes to every client as a
 TCP segment of its own, at once. A client with 16 of them unacknowledged is behind: later
@@ -171,6 +172,33 @@ the line has taken them; readers and listen-only ports need none. If all 6 are i
 another sender's data is offered again every quarter of a second until one is free:
 nothing is lost. The
 Hardware page shows how many have been in use at once.
+
+### Extra addresses
+
+A port with an address of its own (`portN.ip`) listens only there, so two ports can both
+be on 502, each at its own address: two inverters, each found by a program that looks for
+one device per address on 502. An address that is not the gateway's main one is taken on
+beside it, up to 3:
+
+- It is static and in the main address's subnet, with the same mask and router; with DHCP
+  it is checked when the main address is known. One outside the subnet is not used.
+- Before it is used, the gateway checks that nothing else on the LAN has it (ARP probes,
+  about 6 to 9 s). If something has, it is not used, and the event names that device's MAC
+  address. If another device claims it later, the gateway answers once, and gives it up at
+  a second claim within 10 s. It is tried again at a restart, at the next settings save,
+  or when the cable is back; one in use is announced again then, and kept.
+- The web page, and ports left blank, answer on every address. What the gateway starts
+  itself (MQTT, NTP, DNS, renewals, client-mode ports) keeps the main address.
+- Two ports may share a local port only if each has an address of its own, and the two
+  differ.
+- `/api/state` lists them (`addresses`: `checking`, `live`, `conflict`, `outside`), and so
+  does the Network section of the page.
+- Older firmware knows nothing of them: after a rollback, a port with an address is off
+  until it is set again there.
+
+```sh
+tools/n540.py $H set port3.mode=modbus port3.local_port=502 port3.ip=10.20.0.211
+```
 
 ### Modbus TCP gateway
 
@@ -511,6 +539,8 @@ uv run --with paho-mqtt tests/test_mqtt.py HOST SSH_HOST BROKER_IP MOSQ_DIR out.
 uv run --python 3.14 --with homeassistant --with paho-mqtt tests/check_ha.py out.json
 ```
 
+`tests/ipalias/run.sh` runs the extra-address module and `addrs.c` against real lwIP on the host, with lwIP's source from the configured firmware build; CI runs it in the firmware job.
+
 The device tests use on-chip loopback. On the real transceivers, each port was tested
 with an FTDI USB-RS485 adapter through its TCP server: random data both ways and 50
 request/reply rounds at 9600 8N1, 19200 8E1, 38400 8O1, 115200 8N1 and 8N2, 460800 and
@@ -532,6 +562,7 @@ The Events page lists what happened, newest first, each with its time in your ow
 zone: starts (and why: power-on, a restart, the watchdog), faults, firmware kept, settings
 saved (and what), network trials kept or reverted, MQTT connecting and dropping, port
 alerts raised and cleared, addresses turned away (once per address per ten minutes),
+extra addresses taken on, refused or given up,
 renewals, certificates installed, the clock being set, failed sign-ins (counted, at most
 one entry a minute), restarts and who asked, and the reload button.
 
