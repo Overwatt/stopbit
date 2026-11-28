@@ -173,6 +173,33 @@ int main(void)
             }
         printf("power cut at each of %ld operations of a save with devices: old or new, never neither\n", total);
     }
+    /* power cut at every flash operation of a save that clears a port's address, and of
+     * one that sets it: the port is never left off */
+    for (int rev = 0; rev < 2; rev++) {
+        static uint8_t img[0xE000];   /* 0x0EE000 to 0x0FC000: devices, main, lists, more */
+        memset(F, 0xFF, sizeof F);
+        cfg_load(&c);
+        set(&c, "port2.enabled=1\nport2.mode=modbus\nport2.local_port=502\nport2.ip=10.20.0.12");
+        uint32_t a12 = cfg_port_ip(&c, 1);
+        if (rev) set(&c, "port2.ip=");
+        assert(cfg_save(&c));
+        memcpy(img, F[1] + 0xEE000, sizeof img);
+        set(&c, rev ? "port2.ip=10.20.0.12" : "port2.ip=");
+        cfg_load(&d);
+        f_ops = 0; assert(cfg_save(&c)); long total = f_ops;
+        for (long k = 0; k < total; k++)
+            for (int rep = 0; rep < 20; rep++) {
+                memcpy(F[1] + 0xEE000, img, sizeof img);
+                cfg_load(&d);
+                f_ops = 0; f_cut = k; srand((unsigned)(k * 100 + rep));
+                if (!setjmp(f_power)) { cfg_save(&c); assert(!"cut"); }
+                f_cut = -1;
+                assert(cfg_load(&d));
+                assert(d.port[1].enabled && d.port[1].local_port == 502 && (!cfg_port_ip(&d, 1) || cfg_port_ip(&d, 1) == a12));
+                assert(cfg_save(&c) && cfg_load(&d) && !memcmp(&c, &d, sizeof c));
+            }
+        printf("power cut at each of %ld operations of a save %s a port's address: on, old or new address\n", total, rev ? "setting" : "clearing");
+    }
     /* Ports at addresses of their own, both on 502: the main record has them off, so older
      * firmware, which reads it alone, still accepts it; this firmware reads them back on. */
     {

@@ -156,8 +156,8 @@ static void more_load(cfg_t *c)
     if (side_load(&s_more, &c->more) != 1) memset(&c->more, 0, sizeof c->more);
     c->more.ntp[sizeof c->more.ntp - 1] = c->more.topic[sizeof c->more.topic - 1] = 0;
     s_msaved = c->more;
-    for (int p = 0; p < PORTS; p++)     /* the main record has it off, for older firmware */
-        if (cfg_port_ip(c, p) && (c->more.ip_enabled >> p & 1)) c->port[p].enabled = 1;
+    for (int p = 0; p < PORTS; p++)     /* the main record has it off, for older firmware (or not yet saved) */
+        if (c->more.ip_enabled >> p & 1) c->port[p].enabled = 1;
     c->more.ip_enabled = 0;             /* only ever in the stored record */
 }
 
@@ -226,7 +226,8 @@ bool cfg_save(const cfg_t *c)
     more_cfg_t m = c->more;             /* with what the main record cannot say */
     m.ip_enabled = 0;
     for (int p = 0; p < PORTS; p++)
-        if (cfg_port_ip(c, p) && c->port[p].enabled) m.ip_enabled |= (uint8_t)(1u << p);
+        if (c->port[p].enabled && (cfg_port_ip(c, p) || memcmp(s_msaved.ip[p], "\0\0\0\0", 4)))
+            m.ip_enabled |= (uint8_t)(1u << p);   /* also while the stored record had an address: a cut save reads old or new */
     if (memcmp(s_saved, c->access, sizeof s_saved) && !access_save(c)) return false;
     if (memcmp(&s_msaved, &m, sizeof s_msaved)) {
         if (!side_save(&s_more, &m)) return false;
