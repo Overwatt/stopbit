@@ -181,7 +181,7 @@ one device per address on 502. An address that is not the gateway's main one is 
 beside it, up to 3:
 
 - It is static and in the main address's subnet, with the same mask and router; with DHCP
-  it is checked when the main address is known. One outside the subnet is not used.
+  it is checked when the main address is known. One outside the subnet, or its network or broadcast address, is not used.
 - Before it is used, the gateway checks that nothing else on the LAN has it (ARP probes,
   about 6 to 9 s). If something has, it is not used, and the event names that device's MAC
   address. If another device claims it later, the gateway answers once, and gives it up at
@@ -196,7 +196,12 @@ beside it, up to 3:
 - `/api/state` lists them (`addresses`: `checking`, `live`, `conflict`, `outside`), and so
   does the Network section of the page.
 - Older firmware knows nothing of them: after a rollback, a port with an address is off
-  until it is set again there.
+  until it is set again there. The addresses stay stored meanwhile: on this firmware
+  again, a port turned on again under the older one listens at its address again.
+- Ports left blank answer on every address; a blank UDP port replies from the main address.
+- A port set to the main address itself follows a change of the main address only after a
+  restart (lwIP moves its listener meanwhile). Blank already includes the main address, so
+  setting it is rarely needed.
 
 ```sh
 tools/n540.py $H set port3.mode=modbus port3.local_port=502 port3.ip=10.20.0.211

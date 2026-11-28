@@ -253,7 +253,7 @@ static int get_one(const char *path, char *out, size_t max)
     if (n + 2 > max) return 0;
     memcpy(out + n, "],", 2);
     n += 2;
-    size_t ad = addrs_json(out + n, max - n);           /* at most 160 bytes */
+    size_t ad = addrs_json(out + n, max - n);           /* under 200 bytes */
     if (!ad || n + ad + 3 > max) return 0;
     n += ad;
     memcpy(out + n, "}\n", 3);

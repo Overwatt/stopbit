@@ -61,7 +61,8 @@ void addrs_poll(void)
     for (int i = 0; i < PORTS && ip; i++) {             /* no main address yet (DHCP): none */
         uint32_t a = s_want[i];
         if (!a || a == ip || in(live, n, a) || in(out, no, a)) continue;
-        if ((a & mask) != (ip & mask)) {
+        uint32_t host = a & ~mask;
+        if ((a & mask) != (ip & mask) || !host || host == ~mask) {      /* outside, or the network or broadcast address */
             if (!in(s_out, PORTS, a)) events_add(EV_ADDRESS, 0, a, "outside");
             out[no++] = a;
         } else if (n < IPALIAS_MAX) {

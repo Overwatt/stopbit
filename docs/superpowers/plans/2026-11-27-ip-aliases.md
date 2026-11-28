@@ -1937,6 +1937,7 @@ Not for subagents. The controller does this with the user, who says when to go. 
 1. Install with no address set; the usual checks: port 1 has sent nothing and both its clients are back, SolarAssistant reconnects, `/api/state` has `"addresses":[]`.
 2. The user picks a free address outside the router's DHCP range; nothing answers it, checked from another machine (ARP or ping).
 3. `port3.mode=modbus port3.local_port=502 port3.ip=<address>`. SolarAssistant's socat link to inverter B ends. Within about 10 s `/api/state` shows the address `live` and an event says it is in use. From another machine: it answers ARP, and 502 accepts a TCP connection (no Modbus request sent: nothing on port 3's line).
-4. SolarAssistant scans and finds inverter B at the new address, unit 1; port 3's counts are watched meanwhile.
-5. The socat unit for port 3 on SolarAssistant's machine is retired (`n540-tty@`), by the user or with their go-ahead.
-6. Back at any point: `port3.ip= port3.local_port=4003 port3.mode=server`; the firmware before stays in the other slot.
+4. A port is set to an address that a spare machine on the LAN already has. The "taken" event appears, the address is listed as in conflict, and that machine still reaches the gateway's page. Then it is set back.
+5. SolarAssistant scans and finds inverter B at the new address, unit 1; port 3's counts are watched meanwhile.
+6. The socat unit for port 3 on SolarAssistant's machine is retired (`n540-tty@`), by the user or with their go-ahead.
+7. Back at any point: `port3.ip= port3.local_port=4003 port3.mode=server`; the firmware before stays in the other slot.

@@ -111,8 +111,18 @@ int main(void)
     assert(!strcmp(json(), "\"addresses\":[]"));
     puts("ok   the main address changed, and gone");
 
-    /* At its longest: 3 in the subnet, 1 outside. */
+    /* The subnet's broadcast and network addresses: not host addresses, left out. */
     netif_set_addr(&M, &a, &mask, &gw);
+    const uint32_t N = ip(10, 20, 0, 0), BC = ip(10, 20, 0, 255), w6[PORTS] = { BC, N, 0, 0 };
+    addrs_want(w6);
+    e = ev_n;
+    run(15000);
+    assert(ev_n == e + 2 && ev_kind == EV_ADDRESS && ev_a == N && !strcmp(ev_s, "outside"));
+    assert(!strcmp(json(), "\"addresses\":[{\"ip\":\"10.20.0.255\",\"state\":\"outside\"},{\"ip\":\"10.20.0.0\",\"state\":\"outside\"}]"));
+    for (int i = 0; i < IPALIAS_MAX; i++) assert(ipalias_state(i, NULL) == IPALIAS_OFF);     /* nothing probed */
+    puts("ok   network and broadcast addresses left out");
+
+    /* At its longest: 3 in the subnet, 1 outside. */
     const uint32_t w5[PORTS] = { ip(10, 20, 0, 111), ip(10, 20, 0, 112), ip(10, 20, 0, 113), ip(10, 30, 0, 114) };
     addrs_want(w5);
     run(15000);

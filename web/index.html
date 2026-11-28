@@ -340,7 +340,7 @@ function editor(p,i){
  const f=el("form",{onsubmit:async ev=>{ev.preventDefault();const L=[];
    for(const e of f.elements){if(!e.name)continue;const v=e.type==="checkbox"?(e.checked?"1":"0"):e.value.trim();
     const was=typeof p[e.name]==="boolean"?(p[e.name]?"1":"0"):String(p[e.name]);if(v!==was)L.push("port"+(i+1)+"."+e.name+"="+(v===""&&e.type==="number"?"0":v))}
-   if(f.elements.mode.value==="client"&&p.ip&&!L.some(x=>x.startsWith("port"+(i+1)+".ip=")))L.push("port"+(i+1)+".ip=");
+   if(f.elements.mode.value==="client"){for(let k=L.length;k--;)if(L[k].startsWith("port"+(i+1)+".ip="))L.splice(k,1);if(p.ip)L.push("port"+(i+1)+".ip=")}
    if(!L.length){say(msg,"No changes to save.");return}
    save.disabled=true;say(msg,"Saving…");
    try{await post("/api/config",L.join("\n"));cfg=await getj("/api/config");editing=false;title();showSheet();await tick()}
@@ -665,7 +665,7 @@ let evs=null,evMore=false,evAt=0,evOlder=[];
 const ipOf=a=>[a&255,a>>>8&255,a>>>16&255,a>>>24].join("."),
  ALERTS={silent:"quiet for longer than allowed","no_client":"no client for longer than allowed","turned_away":"someone unlisted keeps trying"},
  WHO={web:"asked for on this page",mqtt:"asked for over MQTT",console:"asked for at the console","new firmware":"for new firmware",loader:"into the loader"};
-const ASTATE={checking:"checking",live:"in use",conflict:"in use elsewhere",outside:"outside the subnet"};
+const ASTATE={checking:"checking",live:"in use",conflict:"in use elsewhere",outside:"not usable here"};
 function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
  switch(k){
  case 1:return "Started "+s+(a&0x800000?" at power-on":a&0x1000000?" after a restart":a&0x400000?" after the watchdog or the reset pin":"");
@@ -689,7 +689,7 @@ function evText(e){const [,, ,, k,p,a,s]=e,port=p?pn(p-1):"";
  case 19:return plural(a,"event")+" not kept: too many at once";
  case 20:{const d=a&255,o=a>>8,i=s.indexOf("; "),w=i<0?s:s.slice(0,i),m=i<0?"":s.slice(i+2),who=d?"Device "+d:"A device";
   return o===0?who+" set "+w+(m?" ("+m+")":""):o===1?who+": "+w+", already so":o===2?who+": "+w+" refused"+(m?", "+m:""):o===3?who+": "+w+" failed"+(m?", "+m:""):who+": "+w+" written, reads back "+m}
-  case 21:{const w=(s||"").split(" ");return "Address "+ipOf(a)+(w[0]==="live"?" in use":w[0]==="outside"?" not used: outside the gateway's subnet":w[0]==="taken"?" not used: "+w[1]+" has it":" given up: "+w[1]+" claims it")}
+  case 21:{const w=(s||"").split(" ");return "Address "+ipOf(a)+(w[0]==="live"?" in use":w[0]==="outside"?" not used: not a host address of the gateway's subnet":w[0]==="taken"?" not used: "+w[1]+" has it":" given up: "+w[1]+" claims it")}
  default:return "Event "+k}}
 const evBad=e=>[2,7,9,16,19].includes(e[4])||(e[4]===21&&e[7]!=="live")||(e[4]===10&&e[7])||(e[4]===12&&e[6]===2)||(e[4]===20&&e[6]>>8>=2);
 /* The viewer's own time; before the clock was known, time since that start. */
