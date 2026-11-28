@@ -54,6 +54,7 @@ int main(void)
     netif_set_default(&M); netif_set_up(&M); netif_set_link_up(&M);
     addrs_init();
     run(100);
+    assert(addrs_held(ip(10, 20, 0, 10)) && !addrs_held(0));
     assert(!strcmp(json(), "\"addresses\":[]") && ev_n == 0);
 
     /* Port 1 blank; 2 and 3 share an address; 4 is outside the subnet. */
@@ -61,10 +62,12 @@ int main(void)
     const uint32_t w1[PORTS] = { 0, B, B, O };
     addrs_want(w1);
     run(10);
+    assert(!addrs_held(B) && addrs_held(ip(10, 20, 0, 10)));          /* being checked: not held */
     assert(ev_n == 1 && ev_kind == EV_ADDRESS && ev_a == O && !strcmp(ev_s, "outside"));
     assert(!strcmp(json(), "\"addresses\":[{\"ip\":\"10.20.0.11\",\"state\":\"checking\"},{\"ip\":\"10.30.0.5\",\"state\":\"outside\"}]"));
     run(15000);
     assert(ev_n == 2 && ev_a == B && !strcmp(ev_s, "live"));
+    assert(addrs_held(B) && !addrs_held(O));
     assert(strstr(json(), "\"10.20.0.11\",\"state\":\"live\""));
     puts("ok   ports' addresses: one in use, one outside");
 
@@ -82,7 +85,7 @@ int main(void)
     /* Lost to another device, then taken by one before use. */
     claim(B); run(500); claim(B);
     assert(ev_n == 3 && ev_a == B && !strcmp(ev_s, "lost 02:00:00:00:00:99"));
-    assert(strstr(json(), "\"state\":\"conflict\""));
+    assert(strstr(json(), "\"state\":\"conflict\"") && !addrs_held(B));
     const uint32_t C = ip(10, 20, 0, 12), w3[PORTS] = { C, 0, 0, 0 };
     addrs_want(w3);
     run(500);

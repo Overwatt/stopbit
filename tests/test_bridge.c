@@ -80,6 +80,7 @@ err_t udp_sendto_if_src(struct udp_pcb *u, struct pbuf *q, const ip_addr_t *ip, 
 #include "addrs.h"
 static uint32_t want_ip[PORTS]; static int wants;
 void addrs_want(const uint32_t ip[PORTS]) { memcpy(want_ip, ip, sizeof want_ip); wants++; }
+static bool addr_held = true; bool addrs_held(uint32_t ip) { (void)ip; return addr_held; }
 err_t dns_gethostbyname(const char *n, ip_addr_t *ip, void (*f)(const char *, const ip_addr_t *, void *), void *a) { ip->addr = dns_answer; return ERR_OK; }
 char *ipaddr_ntoa_r(const ip_addr_t *ip, char *b, int n) { inet_ntop(AF_INET, &ip->addr, b, (socklen_t)n); return b; }
 
@@ -581,6 +582,11 @@ int main(void)
     assert(u4 && u4->local == ip("10.0.0.10") && want_ip[3] == ip("10.0.0.10"));
     USn = 0; dgram(u4, "10.0.0.9", 99, "w"); heard(3, "r");
     assert(line(3, "w") && USn == 1 && US[0].src == ip("10.0.0.10") && US[0].ip == ip("10.0.0.9") && US[0].port == 99);
+    addr_held = false;                                                       /* not held: nothing goes out, and it is counted lost */
+    { uint32_t l4 = info(3).net_lost; int n4 = USn;
+      dgram(u4, "10.0.0.9", 99, "w"); heard(3, "r");
+      assert(line(3, "w") && USn == n4 && info(3).net_lost == l4 + 1); }
+    addr_held = true;
     set("port4.ip=");
     u4 = U_bound; USn = 0; dgram(u4, "10.0.0.9", 99, "w"); heard(3, "r");
     assert(line(3, "w") && u4->local == 0 && USn == 1 && US[0].src == 0);

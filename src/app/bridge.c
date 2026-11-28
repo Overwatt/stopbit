@@ -616,6 +616,7 @@ static void forwarded(port_t *p, uint32_t us)
 static err_t udp_out(port_t *p, struct pbuf *q)
 {
     if (!p->ip) return udp_sendto(p->udp, q, &p->udp_peer, p->udp_peer_port);
+    if (!addrs_held(p->ip)) return ERR_RTE;      /* being checked, taken by another device, or outside the subnet: not used */
     ip_addr_t src = IPADDR4_INIT(p->ip);
     struct netif *n = ip_route(&src, &p->udp_peer);
     return n ? udp_sendto_if_src(p->udp, q, &p->udp_peer, p->udp_peer_port, n, &src) : ERR_RTE;

@@ -74,6 +74,17 @@ void addrs_poll(void)
     ipalias_set(l, n);
 }
 
+bool addrs_held(uint32_t ip)
+{
+    if (!ip) return false;
+    if (ip == ip4_addr_get_u32(netif_ip4_addr(net_netif()))) return true;
+    for (int i = 0; i < IPALIAS_MAX; i++) {
+        ip4_addr_t a;
+        if (ipalias_state(i, &a) == IPALIAS_LIVE && ip4_addr_get_u32(&a) == ip) return true;
+    }
+    return false;
+}
+
 #define ADD(...) do { int w = snprintf(out + n, max - n, __VA_ARGS__); \
         if (w < 0 || (size_t)w >= max - n) { return 0; } n += (size_t)w; } while (0)
 
